@@ -14,14 +14,22 @@ está en [`DISENO.md`](DISENO.md).
 
 ## Arranque rápido (Docker)
 
+Requisito: Docker con el plugin Compose (Docker Engine, Docker Desktop o equivalente). No hace
+falta nada más: ni Python ni configuración previa.
+
 ```bash
-cp .env.example .env          # rellena POSTGRES_PASSWORD y JWT_SECRETO
 docker compose up -d --build
 ```
 
 - La API queda en `http://127.0.0.1:8000`, con la documentación en `/docs`.
 - Las migraciones se aplican solas al arrancar el contenedor.
 - La base de datos **no publica puerto**: solo la alcanza la API.
+- Si el puerto 8000 está ocupado: `API_PUERTO=8081 docker compose up -d --build`.
+
+En local, `docker-compose.override.yml` aporta secretos de desarrollo para que arranque sin
+configurar nada. Son públicos y solo sirven en local. Para usar los tuyos, copia `.env.example`
+a `.env` y rellénalo: sus valores mandan sobre los de desarrollo. Si la base de datos ya se creó
+con otra contraseña, recréala con `docker compose down -v`.
 
 Genera los secretos con `openssl rand -hex 32`. Usa hexadecimal: la contraseña de Postgres va
 dentro de `DATABASE_URL`, y caracteres como `@`, `:` o `/` la romperían.
@@ -75,10 +83,11 @@ uv run alembic revision --autogenerate -m "descripcion del cambio"
 
 | Variable | Obligatoria | Por defecto | Descripción |
 |---|---|---|---|
-| `JWT_SECRETO` | Sí | — | Clave de firma de los JWT. Mínimo 32 caracteres |
+| `JWT_SECRETO` | En producción | De desarrollo, solo en local | Clave de firma de los JWT. Mínimo 32 caracteres |
 | `DATABASE_URL` | Sin Docker | URL local de desarrollo | `postgresql+asyncpg://…`. Con Docker la construye el compose |
 | `POSTGRES_USER` / `POSTGRES_DB` | No | `incidentes` | Usuario y base de datos (compose) |
-| `POSTGRES_PASSWORD` | Con Docker | — | Contraseña de Postgres (compose) |
+| `POSTGRES_PASSWORD` | En producción | De desarrollo, solo en local | Contraseña de Postgres (compose) |
+| `API_PUERTO` | No | `8000` | Puerto local de la API (solo `docker-compose.override.yml`) |
 | `ENTORNO` | No | `produccion` en la imagen | `desarrollo`, `produccion` o `test`. En producción no existen `/docs` ni `/openapi.json` |
 | `CORS_ORIGENES` | No | vacío | Orígenes permitidos, separados por comas. Nunca `*` |
 | `ACCESO_MINUTOS` | No | `15` | Vida del token de acceso. El compose no la pasa al contenedor |
@@ -153,6 +162,9 @@ En producción:
   en su `X-Forwarded-For` para obtener la IP real. La IP real la necesitan el rate limit y la
   auditoría.
 - Las variables de entorno se configuran en la plataforma de despliegue, nunca en el repositorio.
+  Se despliega solo `docker-compose.yml` (por ejemplo, `docker compose -f docker-compose.yml up`).
+  Sin secretos no arranca nada: Postgres rechaza una contraseña vacía y la API un `JWT_SECRETO`
+  de menos de 32 caracteres.
 - El contenedor de la API corre sin root, con el sistema de ficheros en solo lectura, sin
   capabilities y con `no-new-privileges`.
 - Un único worker de uvicorn: el rate limit vive en memoria. Para escalar a varias réplicas hay

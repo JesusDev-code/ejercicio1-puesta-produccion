@@ -1,9 +1,18 @@
 # Solo local: `docker compose up` lo fusiona automáticamente. Dokploy no lo usa.
+#
+# Trae secretos de DESARROLLO para que el proyecto arranque sin configurar nada. Son públicos:
+# no protegen nada y nunca deben llegar a producción. Si existe un .env, sus valores mandan.
 services:
+  db:
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-desarrollo-local-no-usar-en-produccion}
+
   api:
     environment:
       ENTORNO: desarrollo
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-incidentes}:${POSTGRES_PASSWORD:-desarrollo-local-no-usar-en-produccion}@db:5432/${POSTGRES_DB:-incidentes}
+      JWT_SECRETO: ${JWT_SECRETO:-desarrollo-local-jwt-no-usar-en-produccion-0123456789}
       # Sin proxy delante: no se confía en cabeceras X-Forwarded-*
       FORWARDED_ALLOW_IPS: 127.0.0.1
     ports:
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:${API_PUERTO:-8000}:8000"
