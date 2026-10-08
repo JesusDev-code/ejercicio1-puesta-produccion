@@ -1,0 +1,188 @@
+# API de incidentes de ciberseguridad
+
+API REST para registrar y gestionar incidentes de ciberseguridad, con tres roles (`usuario`,
+`analista`, `admin`), ciclo de vida de los incidentes y auditoría de todas las acciones
+sensibles. Alcance pequeño y acabado profesional: el peso está en la seguridad, los tests y el
+despliegue.
+
+El diseño completo (roles, permisos, ciclo de vida, modelo de datos y decisiones de seguridad)
+está en [`DISENO.md`](DISENO.md).
+
+**Stack:** Python 3.12 · FastAPI · SQLAlchemy 2 async + Alembic · PostgreSQL 17 · uv · Docker.
+
+---
+
+## Arranque rápido (Docker)
+
+```bash
+cp .env.example .env          # rellena POSTGRES_PASSWORD y JWT_SECRETO
+docker compose up -d --build
+```
+
+- La API queda en `http://127.0.0.1:8000`, con la documentación en `/docs`.
+- Las migraciones se aplican solas al arrancar el contenedor.
+- La base de datos **no publica puerto**: solo la alcanza la API.
+
+Genera los secretos con `openssl rand -hex 32`. Usa hexadecimal: la contraseña de Postgres va
+dentro de `DATABASE_URL`, y caracteres como `@`, `:` o `/` la romperían.
+
+### Crear el primer admin
+
+El registro público siempre crea usuarios con rol `usuario`. El admin se crea por consola, y la
+contraseña se pide sin eco:
+
+```bash
+docker compose exec api python -m app.cli crear-admin admin@example.com
+```
+
+---
+
+## Desarrollo sin Docker
+
+```bash
+uv sync
+uv run alembic upgrade head
+uv run uvicorn app.main:app --reload
+```
+
+Hace falta un PostgreSQL accesible y un `.env` con `DATABASE_URL` (driver `postgresql+asyncpg`)
+y `JWT_SECRETO`.
+
+### Tests y calidad
+
+```bash
+uv run pytest --cov                    # SQLite en memoria
+TEST_DATABASE_URL=postgresql+asyncpg://usuario:clave@localhost:5432/bd_test \
+  uv run pytest --cov                  # contra PostgreSQL real, como en CI
+
+uv run ruff check . && uv run ruff format --check .
+uv run bandit -c pyproject.toml -r app
+uv run pip-audit --strict
+```
+
+La cobertura mínima es del 80 %. `tests/test_migraciones.py` comprueba que las migraciones
+coinciden con los modelos: si se cambia un modelo sin generar su migración, el test falla.
+
+### Nueva migración
+
+```bash
+uv run alembic revision --autogenerate -m "descripcion del cambio"
+```
+
+---
+
+## Variables de entorno
+
+| Variable | Obligatoria | Por defecto | Descripción |
+|---|---|---|---|
+| `JWT_SECRETO` | Sí | — | Clave de firma de los JWT. Mínimo 32 caracteres |
+| `DATABASE_URL` | Sin Docker | URL local de desarrollo | `postgresql+asyncpg://…`. Con Docker la construye el compose |
+| `POSTGRES_USER` / `POSTGRES_DB` | No | `incidentes` | Usuario y base de datos (compose) |
+| `POSTGRES_PASSWORD` | Con Docker | — | Contraseña de Postgres (compose) |
+| `ENTORNO` | No | `produccion` en la imagen | `desarrollo`, `produccion` o `test`. En producción no existen `/docs` ni `/openapi.json` |
+| `CORS_ORIGENES` | No | vacío | Orígenes permitidos, separados por comas. Nunca `*` |
+| `ACCESO_MINUTOS` | No | `15` | Vida del token de acceso. El compose no la pasa al contenedor |
+| `REFRESCO_DIAS` | No | `7` | Vida del token de refresco. El compose no la pasa al contenedor |
+| `FORWARDED_ALLOW_IPS` | No | `*` en el compose | IPs de las que uvicorn acepta `X-Forwarded-For`. Ver «Despliegue» |
+
+---
+
+## Endpoints
+
+| Método | Ruta | Quién |
+|---|---|---|
+| `POST` | `/auth/registro`, `/auth/login`, `/auth/refrescar`, `/auth/logout` | Público |
+| `GET` | `/usuarios/yo` | Autenticado |
+| `GET` | `/usuarios` | admin |
+| `PATCH` | `/usuarios/{id}/rol` | admin |
+| `POST` / `GET` | `/incidentes` | Autenticado (el listado se filtra por rol) |
+| `GET` / `PATCH` | `/incidentes/{id}` | Según rol y propiedad |
+| `PATCH` | `/incidentes/{id}/estado` | analista asignado o admin |
+| `PATCH` | `/incidentes/{id}/asignar` | admin |
+| `PATCH` | `/incidentes/{id}/notas` | analista asignado o admin |
+| `DELETE` | `/incidentes/{id}` | admin (borrado lógico) |
+| `GET` | `/auditoria` | admin |
+| `GET` | `/salud` | Público |
+
+Un recurso que no te pertenece devuelve **404**, no 403, para no confirmar que existe.
+
+---
+
+## Postman
+
+En `postman/` están la colección y los entornos `local` y `produccion`. Recorre los tres roles con
+casos positivos y negativos, incluidos ataques al token (`alg=none`, firma manipulada), IDOR,
+mass assignment, reutilización de refresh tokens y rate limit.
+
+1. Crea el admin (ver arriba).
+2. En el entorno, rellena `admin_email` y `admin_contrasena` como **valor actual**: así no se
+   exportan.
+3. Ejecuta la colección completa con el Runner, en orden.
+
+Entre dos ejecuciones espera un minuto: la última carpeta agota el rate limit del login a
+propósito. Para lanzarla desde la terminal:
+
+```bash
+npx newman run postman/api-incidentes.postman_collection.json \
+  -e postman/local.postman_environment.json \
+  --env-var admin_email=admin@example.com --env-var admin_contrasena=...
+```
+
+Usa dominios como `example.com`: el validador de email rechaza los de uso especial, como `.test`.
+
+---
+
+## CI
+
+`.github/workflows/ci.yml` se ejecuta en cada push y en cada pull request:
+
+1. `ruff` (lint y formato) → `bandit` → `pip-audit --strict` → `pytest` contra un PostgreSQL 17
+   de servicio.
+2. Build de la imagen Docker y comprobación de que no corre como root.
+
+---
+
+## Despliegue
+
+`docker-compose.yml` es el de producción. `docker-compose.override.yml` solo se aplica en local:
+publica la API en `127.0.0.1:8000` y no confía en cabeceras de proxy.
+
+En producción:
+
+- La API no publica puertos. Solo le llega tráfico del proxy inverso (Traefik), así que confía
+  en su `X-Forwarded-For` para obtener la IP real. La IP real la necesitan el rate limit y la
+  auditoría.
+- Las variables de entorno se configuran en la plataforma de despliegue, nunca en el repositorio.
+- El contenedor de la API corre sin root, con el sistema de ficheros en solo lectura, sin
+  capabilities y con `no-new-privileges`.
+- Un único worker de uvicorn: el rate limit vive en memoria. Para escalar a varias réplicas hay
+  que pasarlo a Redis.
+
+### Seguridad del contenedor y de la red
+
+| Medida | Dónde |
+|---|---|
+| Imagen slim multi-stage, sin uv ni herramientas de build | `Dockerfile` |
+| Usuario sin privilegios (uid 10001), código propiedad de root | `Dockerfile` |
+| Sistema de ficheros de solo lectura, `/tmp` en memoria | `docker-compose.yml` |
+| `cap_drop: ALL` y `no-new-privileges` | `docker-compose.yml` |
+| Postgres sin puerto publicado, datos en volumen con nombre | `docker-compose.yml` |
+| Sin cabecera `Server` | `Dockerfile` (`--no-server-header`) |
+
+---
+
+## Estructura
+
+```
+app/
+├── routers/        HTTP y validación. Sin lógica
+├── servicios/      Reglas de negocio, permisos y auditoría
+├── repositorios.py Acceso a datos
+├── modelos.py      Modelos SQLAlchemy
+├── esquemas.py     Esquemas Pydantic de entrada y salida
+├── seguridad.py    argon2 y JWT
+└── cli.py          crear-admin
+alembic/            Migraciones
+tests/              pytest
+postman/            Colección y entornos
+```
