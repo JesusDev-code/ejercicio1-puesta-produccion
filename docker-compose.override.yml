@@ -16,3 +16,7 @@ services:
       FORWARDED_ALLOW_IPS: 127.0.0.1
     ports:
       - "127.0.0.1:${API_PUERTO:-8000}:8000"
+
+  backup:
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:-desarrollo-local-no-usar-en-produccion}

@@ -42,5 +42,46 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  # pg_dump periódico a un volumen propio, con retención. Dokploy no respalda una BD que vive
+  # dentro de un compose. Mismo VPS: protege de borrados y corrupción, no de perder la máquina.
+  backup:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER:-incidentes}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-}
+      PGDATABASE: ${POSTGRES_DB:-incidentes}
+      BACKUP_INTERVALO_SEGUNDOS: ${BACKUP_INTERVALO_SEGUNDOS:-86400}
+      BACKUP_RETENCION_DIAS: ${BACKUP_RETENCION_DIAS:-7}
+    volumes:
+      - backups:/backups
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        umask 077
+        while true; do
+          f="/backups/$${PGDATABASE}_$$(date -u +%Y%m%dT%H%M%SZ).dump"
+          if pg_dump --format=custom --file="$$f.tmp"; then
+            mv "$$f.tmp" "$$f" && echo "backup ok: $$f"
+          else
+            rm -f "$$f.tmp" && echo "backup FALLIDO" >&2
+          fi
+          find /backups -name '*.dump' -mtime +"$${BACKUP_RETENCION_DIAS}" -delete
+          sleep "$${BACKUP_INTERVALO_SEGUNDOS}"
+        done
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
 volumes:
   datos-postgres:
+  backups:

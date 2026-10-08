@@ -88,6 +88,8 @@ uv run alembic revision --autogenerate -m "descripcion del cambio"
 | `POSTGRES_USER` / `POSTGRES_DB` | No | `incidentes` | Usuario y base de datos (compose) |
 | `POSTGRES_PASSWORD` | En producción | De desarrollo, solo en local | Contraseña de Postgres (compose) |
 | `API_PUERTO` | No | `8000` | Puerto local de la API (solo `docker-compose.override.yml`) |
+| `BACKUP_INTERVALO_SEGUNDOS` | No | `86400` | Cada cuánto se hace un `pg_dump` |
+| `BACKUP_RETENCION_DIAS` | No | `7` | Días que se conservan los volcados |
 | `ENTORNO` | No | `produccion` en la imagen | `desarrollo`, `produccion` o `test`. En producción no existen `/docs` ni `/openapi.json` |
 | `CORS_ORIGENES` | No | vacío | Orígenes permitidos, separados por comas. Nunca `*` |
 | `ACCESO_MINUTOS` | No | `15` | Vida del token de acceso. El compose no la pasa al contenedor |
@@ -169,6 +171,27 @@ En producción:
   capabilities y con `no-new-privileges`.
 - Un único worker de uvicorn: el rate limit vive en memoria. Para escalar a varias réplicas hay
   que pasarlo a Redis.
+
+### Backups
+
+El servicio `backup` del compose hace un `pg_dump` (formato custom) cada 24 horas al volumen
+`backups` y borra los de más de 7 días. Los ficheros quedan con permisos `600`. Si un volcado
+falla, no se guarda un fichero a medias: el log del servicio muestra `backup FALLIDO`.
+
+```bash
+docker compose logs backup                     # "backup ok: /backups/incidentes_<fecha>.dump"
+docker compose exec backup ls -l /backups      # volcados disponibles
+```
+
+Para restaurar un volcado (sustituye el contenido actual de la base de datos):
+
+```bash
+docker compose exec backup sh -c 'pg_restore --clean --if-exists -d "$PGDATABASE" /backups/<fichero>.dump'
+```
+
+El volumen vive en la misma máquina: protege de borrados accidentales y de corrupción, no de
+perder el servidor. Para tener una copia fuera, configura en Dokploy un *Volume Backup* del
+volumen `backups` hacia un destino S3, o copia los volcados periódicamente a otra máquina.
 
 ### Seguridad del contenedor y de la red
 
