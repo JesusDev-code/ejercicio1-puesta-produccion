@@ -1,0 +1,141 @@
+from datetime import timedelta
+
+import jwt
+
+from app.config import obtener_configuracion
+from app.modelos import ahora
+from tests.conftest import CONTRASENA, cabeceras, crear_usuario, login
+
+REGISTRO = {"email": "nuevo@test.com", "contrasena": CONTRASENA}
+
+
+async def test_registro_crea_usuario_con_rol_usuario(cliente):
+    r = await cliente.post("/auth/registro", json=REGISTRO)
+    assert r.status_code == 201
+    cuerpo = r.json()
+    assert cuerpo["rol"] == "usuario"
+    assert "hash_contrasena" not in cuerpo
+
+
+async def test_registro_ignora_rol_enviado_por_el_cliente(cliente):
+    """Mass assignment: el cliente no puede auto-asignarse admin."""
+    r = await cliente.post("/auth/registro", json={**REGISTRO, "rol": "admin"})
+    assert r.status_code == 201
+    assert r.json()["rol"] == "usuario"
+
+
+async def test_registro_email_duplicado(cliente):
+    await cliente.post("/auth/registro", json=REGISTRO)
+    r = await cliente.post("/auth/registro", json={**REGISTRO, "email": "NUEVO@test.com"})
+    assert r.status_code == 409
+
+
+async def test_registro_contrasena_corta(cliente):
+    r = await cliente.post("/auth/registro", json={**REGISTRO, "contrasena": "corta"})
+    assert r.status_code == 422
+
+
+async def test_login_correcto_devuelve_par_de_tokens(cliente):
+    await crear_usuario("a@test.com")
+    tokens = await login(cliente, "a@test.com")
+    assert tokens["tipo_token"] == "bearer"
+    assert tokens["token_acceso"] and tokens["token_refresco"]
+
+
+async def test_login_mismo_error_si_el_email_no_existe(cliente):
+    """Sin enumeración de usuarios: mismo código y mismo mensaje."""
+    await crear_usuario("a@test.com")
+    mala = await cliente.post("/auth/login", json={"email": "a@test.com", "contrasena": "x" * 12})
+    no_existe = await cliente.post(
+        "/auth/login", json={"email": "nadie@test.com", "contrasena": "x" * 12}
+    )
+    assert mala.status_code == no_existe.status_code == 401
+    assert mala.json() == no_existe.json()
+
+
+async def test_rate_limit_en_login(cliente):
+    datos = {"email": "nadie@test.com", "contrasena": "x" * 12}
+    codigos = [(await cliente.post("/auth/login", json=datos)).status_code for _ in range(6)]
+    assert codigos[:5] == [401] * 5
+    assert codigos[5] == 429
+
+
+async def test_sin_token_401(cliente):
+    r = await cliente.get("/usuarios/yo")
+    assert r.status_code == 401
+    assert r.headers["www-authenticate"] == "Bearer"
+
+
+async def test_token_manipulado_401(cliente):
+    await crear_usuario("a@test.com")
+    cab = await cabeceras(cliente, "a@test.com")
+    token = cab["Authorization"].removeprefix("Bearer ")
+    falso = jwt.encode(
+        jwt.decode(token, options={"verify_signature": False}), "otro-secreto-" * 4, "HS256"
+    )
+    r = await cliente.get("/usuarios/yo", headers={"Authorization": f"Bearer {falso}"})
+    assert r.status_code == 401
+
+
+async def test_token_caducado_401(cliente):
+    usuario_id = await crear_usuario("a@test.com")
+    config = obtener_configuracion()
+    momento = ahora() - timedelta(hours=1)
+    caducado = jwt.encode(
+        {"sub": str(usuario_id), "tipo": "acceso", "iat": momento, "exp": momento},
+        config.jwt_secreto,
+        config.jwt_algoritmo,
+    )
+    r = await cliente.get("/usuarios/yo", headers={"Authorization": f"Bearer {caducado}"})
+    assert r.status_code == 401
+
+
+async def test_algoritmo_none_rechazado(cliente):
+    usuario_id = await crear_usuario("a@test.com")
+    sin_firma = jwt.encode({"sub": str(usuario_id), "tipo": "acceso"}, None, algorithm="none")
+    r = await cliente.get("/usuarios/yo", headers={"Authorization": f"Bearer {sin_firma}"})
+    assert r.status_code == 401
+
+
+async def test_refresco_rota_el_token(cliente):
+    await crear_usuario("a@test.com")
+    viejo = (await login(cliente, "a@test.com"))["token_refresco"]
+
+    r = await cliente.post("/auth/refrescar", json={"token_refresco": viejo})
+    assert r.status_code == 200
+    nuevo = r.json()["token_refresco"]
+    assert nuevo != viejo
+
+    r = await cliente.get(
+        "/usuarios/yo", headers={"Authorization": f"Bearer {r.json()['token_acceso']}"}
+    )
+    assert r.status_code == 200
+
+
+async def test_reutilizar_token_revocado_revoca_toda_la_familia(cliente):
+    await crear_usuario("a@test.com")
+    robado = (await login(cliente, "a@test.com"))["token_refresco"]
+    legitimo = (await cliente.post("/auth/refrescar", json={"token_refresco": robado})).json()[
+        "token_refresco"
+    ]
+
+    # El atacante reutiliza el token ya rotado
+    r = await cliente.post("/auth/refrescar", json={"token_refresco": robado})
+    assert r.status_code == 401
+    # Y el token legítimo también queda invalidado
+    r = await cliente.post("/auth/refrescar", json={"token_refresco": legitimo})
+    assert r.status_code == 401
+
+
+async def test_logout_revoca_el_refresco(cliente):
+    await crear_usuario("a@test.com")
+    refresco = (await login(cliente, "a@test.com"))["token_refresco"]
+    r = await cliente.post("/auth/logout", json={"token_refresco": refresco})
+    assert r.status_code == 204
+    r = await cliente.post("/auth/refrescar", json={"token_refresco": refresco})
+    assert r.status_code == 401
+
+
+async def test_refresco_inventado_401(cliente):
+    r = await cliente.post("/auth/refrescar", json={"token_refresco": "inventado"})
+    assert r.status_code == 401

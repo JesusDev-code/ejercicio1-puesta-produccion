@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  calidad-y-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: incidentes_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d incidentes_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.21"
+          enable-cache: true
+
+      - name: Dependencias
+        run: uv sync --locked
+
+      - name: ruff
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+
+      - name: bandit
+        run: uv run bandit -c pyproject.toml -r app
+
+      - name: pip-audit
+        run: uv run pip-audit --strict
+
+      - name: pytest (Postgres)
+        env:
+          TEST_DATABASE_URL: postgresql+asyncpg://ci:ci@localhost:5432/incidentes_test
+        run: uv run pytest --cov --cov-report=term-missing
+
+  imagen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: calidad-y-tests
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Build de la imagen
+        run: docker build -t api-incidentes:ci .
+
+      - name: La imagen no corre como root
+        run: test "$(docker run --rm --entrypoint id api-incidentes:ci -u)" != "0"

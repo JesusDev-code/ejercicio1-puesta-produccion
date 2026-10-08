@@ -1,0 +1,45 @@
+# Producción (Dokploy). En local, docker compose fusiona además docker-compose.override.yml.
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-incidentes}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?define POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-incidentes}
+    volumes:
+      - datos-postgres:/var/lib/postgresql/data
+    # Sin "ports": la base de datos solo es alcanzable desde la red interna del compose
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    security_opt:
+      - no-new-privileges:true
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ENTORNO: ${ENTORNO:-produccion}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-incidentes}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-incidentes}
+      JWT_SECRETO: ${JWT_SECRETO:?define JWT_SECRETO}
+      CORS_ORIGENES: ${CORS_ORIGENES:-}
+      # La api no publica puerto: solo le llega tráfico de Traefik, así que se fía de su X-Forwarded-For
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-*}
+    expose:
+      - "8000"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  datos-postgres:

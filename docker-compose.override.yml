@@ -1,0 +1,9 @@
+# Solo local: `docker compose up` lo fusiona automáticamente. Dokploy no lo usa.
+services:
+  api:
+    environment:
+      ENTORNO: desarrollo
+      # Sin proxy delante: no se confía en cabeceras X-Forwarded-*
+      FORWARDED_ALLOW_IPS: 127.0.0.1
+    ports:
+      - "127.0.0.1:8000:8000"
