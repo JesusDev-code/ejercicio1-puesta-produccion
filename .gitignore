@@ -7,3 +7,9 @@ coverage.xml
 htmlcov/
 *.db
 .env
+
+# Herramientas locales (registro de skills, modo Git de Postman) y capturas sueltas
+.atl/
+.postman/
+postman/globals/
+/*.png
