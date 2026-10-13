@@ -58,6 +58,15 @@ class CambioRolEntrada(Entrada):
     rol: Rol
 
 
+class CambioActivoEntrada(Entrada):
+    activo: bool
+
+
+class CambioContrasenaEntrada(Entrada):
+    contrasena_actual: str = Field(min_length=1, max_length=128)
+    contrasena_nueva: str = Field(min_length=12, max_length=128)
+
+
 # --- Incidentes ---
 
 
@@ -97,6 +106,9 @@ class IncidenteSalida(Salida):
     estado: Estado
     reportante_id: int
     analista_id: int | None
+    # No son columnas del incidente: el router los resuelve con una consulta aparte
+    reportante_email: str | None = None
+    analista_email: str | None = None
     creado_en: datetime
     actualizado_en: datetime
 
@@ -120,6 +132,7 @@ class Pagina[T](BaseModel):
 class AuditoriaSalida(Salida):
     id: int
     usuario_id: int | None
+    usuario_email: str | None = None
     accion: str
     recurso: str
     recurso_id: int | None

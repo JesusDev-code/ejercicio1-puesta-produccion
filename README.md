@@ -104,8 +104,10 @@ uv run alembic revision --autogenerate -m "descripcion del cambio"
 |---|---|---|
 | `POST` | `/auth/registro`, `/auth/login`, `/auth/refrescar`, `/auth/logout` | Público |
 | `GET` | `/usuarios/yo` | Autenticado |
-| `GET` | `/usuarios` | admin |
-| `PATCH` | `/usuarios/{id}/rol` | admin |
+| `PATCH` | `/usuarios/yo/contrasena` | Autenticado (pide la actual; revoca todas las sesiones) |
+| `GET` | `/usuarios` | admin (filtros `rol` y `email`) |
+| `PATCH` | `/usuarios/{id}/rol` | admin (no sobre sí mismo) |
+| `PATCH` | `/usuarios/{id}/activo` | admin (no sobre sí mismo) |
 | `POST` / `GET` | `/incidentes` | Autenticado (el listado se filtra por rol) |
 | `GET` / `PATCH` | `/incidentes/{id}` | Según rol y propiedad |
 | `PATCH` | `/incidentes/{id}/estado` | analista asignado o admin |

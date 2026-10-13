@@ -22,6 +22,15 @@ TRANSICIONES: dict[Estado, set[Estado]] = {
 }
 
 
+async def emails_de(sesion: AsyncSession, incidentes: list[Incidente]) -> dict[int, str]:
+    """Emails de reportantes y analistas de los incidentes que ya se van a devolver.
+    Solo se resuelven los de incidentes visibles: no abre ninguna vía nueva de enumeración."""
+    ids = {i.reportante_id for i in incidentes} | {
+        i.analista_id for i in incidentes if i.analista_id
+    }
+    return await RepositorioUsuarios(sesion).emails_por_id(ids)
+
+
 def es_analista_asignado(usuario: Usuario, incidente: Incidente) -> bool:
     return usuario.rol == Rol.analista and incidente.analista_id == usuario.id
 

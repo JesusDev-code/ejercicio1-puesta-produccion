@@ -117,8 +117,10 @@ POST   /auth/refrescar
 POST   /auth/logout
 
 GET    /usuarios/yo
-GET    /usuarios                       (admin)
+PATCH  /usuarios/yo/contrasena         (autenticado, rate limit como el login)
+GET    /usuarios                       (admin, filtros rol y email)
 PATCH  /usuarios/{id}/rol              (admin)
+PATCH  /usuarios/{id}/activo           (admin)
 
 POST   /incidentes
 GET    /incidentes                     (filtrado por rol + paginación)

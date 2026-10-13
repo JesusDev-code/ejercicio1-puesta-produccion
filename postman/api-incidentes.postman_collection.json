@@ -880,7 +880,9 @@
                   "  pm.expect(i.analista_id).to.be.null;",
                   "});",
                   "pm.collectionVariables.set(\"id_incidente\", i.id);",
-                  "pm.test(\"No expone notas_internas\", () => pm.expect(pm.response.json()).to.not.have.property(\"notas_internas\"));"
+                  "pm.test(\"No expone notas_internas\", () => pm.expect(pm.response.json()).to.not.have.property(\"notas_internas\"));",
+                  "pm.test(\"Incluye el email del reportante\", () => pm.expect(i.reportante_email).to.match(/^usuario_/));",
+                  "pm.test(\"Sin analista, sin email de analista\", () => pm.expect(i.analista_email).to.be.null);"
                 ]
               }
             }
@@ -2324,7 +2326,8 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "pm.test(\"Está resuelto\", () => pm.expect(pm.response.json().estado).to.eql(\"resuelto\"));",
-                  "pm.test(\"No expone notas_internas\", () => pm.expect(pm.response.json()).to.not.have.property(\"notas_internas\"));"
+                  "pm.test(\"No expone notas_internas\", () => pm.expect(pm.response.json()).to.not.have.property(\"notas_internas\"));",
+                  "pm.test(\"El reportante ve el email del analista asignado\", () => pm.expect(pm.response.json().analista_email).to.match(/^analista_/));"
                 ]
               }
             }
@@ -3063,6 +3066,606 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 429\", () => pm.response.to.have.status(429));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "10 · Cuenta y acceso",
+      "item": [
+        {
+          "name": "Cambiar contraseña: actual incorrecta",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{url_base}}/usuarios/yo/contrasena",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "usuarios",
+                "yo",
+                "contrasena"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_usuario}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contrasena_actual\": \"no-es-la-contrasena\",\n  \"contrasena_nueva\": \"{{contrasena_pruebas}}-2\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 422\", () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cambiar contraseña: nueva demasiado corta",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{url_base}}/usuarios/yo/contrasena",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "usuarios",
+                "yo",
+                "contrasena"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_usuario}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contrasena_actual\": \"{{contrasena_pruebas}}\",\n  \"contrasena_nueva\": \"corta\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 422\", () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cambiar contraseña",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{url_base}}/usuarios/yo/contrasena",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "usuarios",
+                "yo",
+                "contrasena"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_usuario}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contrasena_actual\": \"{{contrasena_pruebas}}\",\n  \"contrasena_nueva\": \"{{contrasena_pruebas}}-2\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Filtrar usuarios por rol",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{url_base}}/usuarios?rol=analista&limite=100",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "usuarios"
+              ],
+              "query": [
+                {
+                  "key": "rol",
+                  "value": "analista"
+                },
+                {
+                  "key": "limite",
+                  "value": "100"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_admin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Solo analistas\", () => pm.response.json().elementos.forEach(u => pm.expect(u.rol).to.eql(\"analista\")));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Buscar usuarios por email",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{url_base}}/usuarios?email=usuario_{{sufijo}}",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "usuarios"
+              ],
+              "query": [
+                {
+                  "key": "email",
+                  "value": "usuario_{{sufijo}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_admin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "const p = pm.response.json();",
+                  "pm.test(\"Encuentra exactamente al usuario de la prueba\", () => {",
+                  "  pm.expect(p.total).to.eql(1);",
+                  "  pm.expect(p.elementos[0].email).to.match(/^usuario_/);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Buscar con un comodín: se trata como literal",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{url_base}}/usuarios?email=%25",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "usuarios"
+              ],
+              "query": [
+                {
+                  "key": "email",
+                  "value": "%25"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_admin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Ningún resultado\", () => pm.expect(pm.response.json().total).to.eql(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Desactivarse a sí mismo",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{url_base}}/usuarios/{{id_admin}}/activo",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "usuarios",
+                "{{id_admin}}",
+                "activo"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_admin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"activo\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Desactivar sin ser admin",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{url_base}}/usuarios/{{id_otro}}/activo",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "usuarios",
+                "{{id_otro}}",
+                "activo"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_usuario}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"activo\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Admin desactiva al otro usuario",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{url_base}}/usuarios/{{id_otro}}/activo",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "usuarios",
+                "{{id_otro}}",
+                "activo"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_admin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"activo\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Queda inactivo\", () => pm.expect(pm.response.json().activo).to.be.false);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Token de un usuario desactivado",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{url_base}}/usuarios/yo",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "usuarios",
+                "yo"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_otro}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Admin reactiva al otro usuario",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{url_base}}/usuarios/{{id_otro}}/activo",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "usuarios",
+                "{{id_otro}}",
+                "activo"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_admin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"activo\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Vuelve a estar activo\", () => pm.expect(pm.response.json().activo).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Auditoría: desactivación con email",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{url_base}}/auditoria?accion=desactivar_usuario",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "auditoria"
+              ],
+              "query": [
+                {
+                  "key": "accion",
+                  "value": "desactivar_usuario"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_admin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"El registro trae el email de quien actuó\", () => pm.expect(pm.response.json().elementos[0].usuario_email).to.be.a(\"string\"));"
                 ]
               }
             }

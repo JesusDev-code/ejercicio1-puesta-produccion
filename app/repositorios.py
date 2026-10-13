@@ -34,10 +34,33 @@ class RepositorioUsuarios:
         await self.sesion.flush()
         return usuario
 
-    async def listar(self, limite: int, desplazamiento: int) -> tuple[int, list[Usuario]]:
-        total = await self.sesion.scalar(select(func.count(Usuario.id))) or 0
-        consulta = select(Usuario).order_by(Usuario.id).limit(limite).offset(desplazamiento)
-        return total, list(await self.sesion.scalars(consulta))
+    async def listar(
+        self,
+        limite: int,
+        desplazamiento: int,
+        rol: Rol | None = None,
+        email: str | None = None,
+    ) -> tuple[int, list[Usuario]]:
+        consulta: Select = select(Usuario)
+        if rol:
+            consulta = consulta.where(Usuario.rol == rol)
+        if email:
+            # autoescape: un `%` o `_` del cliente se busca literal, no como comodín de LIKE
+            consulta = consulta.where(
+                func.lower(Usuario.email).contains(email.lower(), autoescape=True)
+            )
+        total = await self.sesion.scalar(select(func.count()).select_from(consulta.subquery()))
+        pagina = consulta.order_by(Usuario.id).limit(limite).offset(desplazamiento)
+        return total or 0, list(await self.sesion.scalars(pagina))
+
+    async def emails_por_id(self, ids: set[int]) -> dict[int, str]:
+        """Una sola consulta para resolver todos los emails de una respuesta (sin N+1)."""
+        if not ids:
+            return {}
+        filas = await self.sesion.execute(
+            select(Usuario.id, Usuario.email).where(Usuario.id.in_(ids))
+        )
+        return {usuario_id: email for usuario_id, email in filas.all()}
 
 
 class RepositorioIncidentes:
