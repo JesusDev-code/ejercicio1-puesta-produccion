@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Usuarios</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&amp;family=Manrope:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0;background:#07050A}
+a{color:#F0C987}a:hover{color:#FFE2AE}
+input::placeholder{color:#7D6A71}
+select:focus,input:focus{outline:none;border-color:rgba(255,59,78,.7);box-shadow:0 0 0 4px rgba(224,30,60,.18)}
+a:focus-visible,button:focus-visible{outline:2px solid #FF3B4E;outline-offset:3px}
+.nav-item:hover{background:rgba(255,255,255,.05)}
+.fila{transition:background .2s, box-shadow .2s}
+.fila:hover{background:rgba(224,30,60,.07);box-shadow:inset 3px 0 0 #E01E3C}
+.glifo{font-family:'JetBrains Mono',monospace;opacity:0;animation-name:aparecer;animation-iteration-count:infinite;animation-timing-function:ease-in-out;will-change:opacity}
+@keyframes aparecer{0%{opacity:0;transform:translateY(6px) scale(.9);filter:blur(3px)}14%{opacity:1;transform:none;filter:blur(0)}55%{opacity:.65}100%{opacity:0;transform:translateY(-4px);filter:blur(2px)}}
+@media (prefers-reduced-motion:reduce){.glifo{animation:none;opacity:.2}}
+</style>
+</helmet>
+<div style="position: relative; overflow: hidden; min-height: 900px; box-sizing: border-box; color: #F1E6E0; font-family: 'Manrope', sans-serif; background: radial-gradient(1000px 520px at 70% -10%, rgba(196,18,47,.26), rgba(196,18,47,0) 65%), radial-gradient(600px 400px at 0% 100%, rgba(212,175,110,.08), rgba(212,175,110,0) 60%), #07050A; display: flex; flex-wrap: wrap">
+  <div aria-hidden="true" style="position: absolute; inset: 0; overflow: hidden; pointer-events: none">
+    <sc-for list="{{ glifos }}" as="g" hint-placeholder-count="0">
+      <span class="glifo" style="position: absolute; left: {{ g.x }}; top: {{ g.y }}; font-size: {{ g.tam }}; color: {{ g.color }}; text-shadow: 0 0 14px {{ g.color }}; animation-duration: {{ g.dur }}; animation-delay: {{ g.retraso }}">{{ g.c }}</span>
+    </sc-for>
+  </div>
+  <nav aria-label="Principal" style="position: relative; flex: 1 1 248px; box-sizing: border-box; margin: 16px 0 16px 16px; padding: 28px 18px; border-radius: 22px; background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02)); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: inset 0 1px 0 rgba(255,255,255,.1); display: flex; flex-direction: column; gap: 34px">
+    <div style="display: flex; align-items: center; gap: 12px; padding: 0 8px">
+      <svg aria-hidden="true" width="32" height="32" viewBox="0 0 40 40" fill="none">
+        <rect x="8" y="8" width="24" height="24" rx="3" transform="rotate(45 20 20)" stroke="#D4AF6E" stroke-width="1.4"></rect>
+        <rect x="14" y="14" width="12" height="12" rx="1.5" transform="rotate(45 20 20)" fill="#E01E3C"></rect>
+      </svg>
+      <div style="display: flex; flex-direction: column; gap: 2px">
+        <span style="font-family: 'Cormorant Garamond', serif; font-weight: 600; font-size: 24px; line-height: 1">Incidentes</span>
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 3px; color: #A8939A">CONSOLA</span>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 4px">
+      <span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 3px; color: #7D6A71; padding: 0 12px 8px">OPERACIÓN</span>
+      <a href="Incidentes.dc.html" class="nav-item" style="min-height: 46px; display: flex; align-items: center; gap: 12px; padding: 0 14px; border-radius: 14px; color: #CDBDC2; text-decoration: none; font-size: 14px; font-weight: 500">
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"></path></svg>Incidentes</a>
+      <a href="NuevoIncidente.dc.html" class="nav-item" style="min-height: 46px; display: flex; align-items: center; gap: 12px; padding: 0 14px; border-radius: 14px; color: #CDBDC2; text-decoration: none; font-size: 14px; font-weight: 500">
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>Nuevo incidente</a>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 4px">
+      <span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 3px; color: #7D6A71; padding: 0 12px 8px">ADMINISTRACIÓN</span>
+      <a href="Usuarios.dc.html" aria-current="page" style="min-height: 46px; display: flex; align-items: center; gap: 12px; padding: 0 14px; border-radius: 14px; background: linear-gradient(90deg, rgba(224,30,60,.28), rgba(224,30,60,.06)); box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 0 24px -6px rgba(224,30,60,.5); color: #FFF4F1; text-decoration: none; font-size: 14px; font-weight: 600">
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"></circle><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5M16 4.5a3.5 3.5 0 010 7M18 14.8c2 .7 3.2 2.4 3.5 5.2"></path></svg>Usuarios</a>
+      <a href="Auditoria.dc.html" class="nav-item" style="min-height: 46px; display: flex; align-items: center; gap: 12px; padding: 0 14px; border-radius: 14px; color: #CDBDC2; text-decoration: none; font-size: 14px; font-weight: 500">
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M5 4h14v16H5zM9 9h6M9 13h6M9 17h3"></path></svg>Auditoría</a>
+    </div>
+    <div style="margin-top: auto; display: flex; flex-direction: column; gap: 14px; padding: 16px; border-radius: 16px; background: rgba(0,0,0,.28)">
+      <div style="display: flex; align-items: center; gap: 12px">
+        <span aria-hidden="true" style="width: 36px; height: 36px; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: linear-gradient(140deg, #D4AF6E, #7A5A26); color: #1A1008; font-weight: 700; font-size: 14px">A</span>
+        <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+          <span style="font-size: 13px; font-weight: 600; overflow-wrap: anywhere">admin@empresa.com</span>
+          <span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 2px; color: #D4AF6E">ADMIN</span>
+        </div>
+      </div>
+      <div style="display: flex; gap: 8px">
+        <a href="Cuenta.dc.html" class="nav-item" style="flex: 1; min-height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 12px; background: rgba(255,255,255,.04); color: #CDBDC2; text-decoration: none; font-size: 13px; font-weight: 600">Mi cuenta</a>
+        <a href="Main.dc.html" class="nav-item" style="flex: 1; min-height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 12px; background: rgba(255,255,255,.04); color: #CDBDC2; text-decoration: none; font-size: 13px; font-weight: 600">Salir</a>
+      </div>
+    </div>
+  </nav>
+  <main style="position: relative; flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 40px 48px 56px; display: flex; flex-direction: column; gap: 28px">
+    <header style="display: flex; flex-direction: column; gap: 10px">
+      <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 3px; color: #D4AF6E">~/usuarios</span>
+      <h1 style="margin: 0; font-family: 'Cormorant Garamond', serif; font-weight: 500; font-size: 60px; line-height: 1; letter-spacing: -.5px; text-shadow: 0 0 36px rgba(224,30,60,.3)">Usuarios</h1>
+      <p style="margin: 0; font-size: 15px; line-height: 1.6; color: #A8939A; max-width: 640px">Gestiona roles y acceso. Cada cambio queda registrado en la auditoría.</p>
+    </header>
+    <section aria-label="Usuarios" style="border-radius: 24px; background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.015)); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: inset 0 1px 0 rgba(255,255,255,.1), 0 40px 90px -40px rgba(0,0,0,.9); display: flex; flex-direction: column">
+      <form role="search" aria-label="Filtros de usuarios" style="display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; padding: 22px 24px 18px">
+        <div style="display: flex; flex-direction: column; gap: 6px; flex: 2 1 260px">
+          <label for="u-buscar" style="font-size: 12px; font-weight: 600; color: #A8939A">Buscar por email</label>
+          <input id="u-buscar" type="search" placeholder="nombre@empresa.com" style="height: 44px; box-sizing: border-box; padding: 0 14px; background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.07); border-radius: 12px; color: #F1E6E0; font-family: inherit; font-size: 14px">
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px; flex: 1 1 170px">
+          <label for="u-rol" style="font-size: 12px; font-weight: 600; color: #A8939A">Rol</label>
+          <select id="u-rol" style="height: 44px; padding: 0 12px; background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.07); border-radius: 12px; color: #F1E6E0; font-family: inherit; font-size: 14px"><option>Todos</option><option>Usuario</option><option>Analista</option><option>Admin</option></select>
+        </div>
+        <button type="button" style="height: 44px; padding: 0 20px; border: 0; border-radius: 12px; background: rgba(212,175,110,.14); color: #F0C987; font-family: inherit; font-weight: 600; font-size: 14px; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(212,175,110,.28)">Aplicar</button>
+      </form>
+      <div style="overflow-x: auto; padding: 0 12px 8px">
+        <table style="width: 100%; min-width: 820px; border-collapse: separate; border-spacing: 0 4px; font-size: 14px">
+          <thead>
+            <tr style="text-align: left">
+              <th scope="col" style="padding: 10px 14px; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 2px; font-weight: 500; color: #7D6A71">USUARIO</th>
+              <th scope="col" style="padding: 10px 14px; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 2px; font-weight: 500; color: #7D6A71">ROL</th>
+              <th scope="col" style="padding: 10px 14px; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 2px; font-weight: 500; color: #7D6A71">ESTADO</th>
+              <th scope="col" style="padding: 10px 14px; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 2px; font-weight: 500; color: #7D6A71">ALTA</th>
+              <th scope="col" style="padding: 10px 14px; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 2px; font-weight: 500; color: #7D6A71"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Acciones</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <sc-for list="{{ usuarios }}" as="u" hint-placeholder-count="7">
+              <tr class="fila" style="opacity: {{ u.opacidad }}">
+                <td style="padding: 12px 14px; border-radius: 12px 0 0 12px">
+                  <div style="display: flex; align-items: center; gap: 12px">
+                    <span aria-hidden="true" style="width: 34px; height: 34px; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: {{ u.avatar }}; color: #1A1008; font-weight: 700; font-size: 13px">{{ u.inicial }}</span>
+                    <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+                      <span style="font-weight: 600">{{ u.email }}</span>
+                      <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #7D6A71">#{{ u.id }}{{ u.sufijo }}</span>
+                    </div>
+                  </div>
+                </td>
+                <td style="padding: 12px 14px">
+                  <label for="{{ u.selId }}" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Rol de {{ u.email }}</label>
+                  <select id="{{ u.selId }}" disabled="{{ u.esYo }}" style="height: 40px; padding: 0 12px; background: {{ u.rolFondo }}; border: 0; border-radius: 999px; color: {{ u.rolColor }}; font-family: inherit; font-weight: 700; font-size: 13px">
+                    <option selected="{{ u.esUsuario }}">Usuario</option>
+                    <option selected="{{ u.esAnalista }}">Analista</option>
+                    <option selected="{{ u.esAdminRol }}">Admin</option>
+                  </select>
+                </td>
+                <td style="padding: 12px 14px; white-space: nowrap"><span style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: {{ u.estColor }}"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 50%; background: {{ u.estColor }}; box-shadow: {{ u.estBrillo }}"></span>{{ u.estado }}</span></td>
+                <td style="padding: 12px 14px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #A8939A; white-space: nowrap">{{ u.alta }}</td>
+                <td style="padding: 12px 14px; border-radius: 0 12px 12px 0; text-align: right; white-space: nowrap">
+                  <sc-if value="{{ u.otro }}" hint-placeholder-val="{{ true }}">
+                    <button type="button" style="height: 38px; padding: 0 14px; border: 0; border-radius: 10px; background: {{ u.accionFondo }}; box-shadow: {{ u.accionBorde }}; color: {{ u.accionColor }}; font-family: inherit; font-weight: 600; font-size: 13px; cursor: pointer">{{ u.accion }}</button>
+                  </sc-if>
+                </td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+      <nav aria-label="Paginación" style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding: 14px 24px 22px; font-size: 13px; color: #A8939A">
+        <span>Mostrando 1–7 de 7</span>
+        <div style="display: flex; gap: 8px">
+          <button type="button" disabled style="height: 44px; padding: 0 16px; border: 0; border-radius: 12px; background: rgba(255,255,255,.03); color: #5E4E54; font-family: inherit; font-size: 13px">← Anterior</button>
+          <button type="button" disabled style="height: 44px; padding: 0 16px; border: 0; border-radius: 12px; background: rgba(255,255,255,.03); color: #5E4E54; font-family: inherit; font-size: 13px">Siguiente →</button>
+        </div>
+      </nav>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"densidad":{"editor":"range","min":0,"max":120,"step":10,"default":30},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  caracter() {
+    const set = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン0123456789';
+    return set[Math.floor(Math.random() * set.length)];
+  }
+  glifo() {
+    const r = Math.random;
+    const oro = r() < 0.2;
+    return {
+      x: (r() * 98).toFixed(1) + '%',
+      y: (r() * 96).toFixed(1) + '%',
+      tam: Math.round(11 + r() * 10) + 'px',
+      color: oro ? 'rgba(240,201,135,.45)' : 'rgba(255,77,94,.5)',
+      dur: (4 + r() * 6).toFixed(1) + 's',
+      retraso: (-r() * 10).toFixed(1) + 's',
+      c: this.caracter()
+    };
+  }
+  componentDidMount() {
+    this._t = setInterval(() => {
+      if (!this._glifos || !this._glifos.length) return;
+      for (let k = 0; k < 3; k++) {
+        const i = Math.floor(Math.random() * this._glifos.length);
+        this._glifos[i] = { ...this._glifos[i], c: this.caracter() };
+      }
+      this.forceUpdate();
+    }, 700);
+  }
+  componentWillUnmount() {
+    clearInterval(this._t);
+  }
+  renderVals() {
+    const d = this.props.densidad ?? 30;
+    if (!this._glifos || this._glifos.length !== d) {
+      this._glifos = Array.from({ length: d }, () => this.glifo());
+    }
+    const ROL = {
+      usuario: ['#F1E6E0', 'rgba(241,230,224,.09)'],
+      analista: ['#F0C987', 'rgba(212,175,110,.16)'],
+      admin: ['#FF7A88', 'rgba(224,30,60,.18)']
+    };
+    const AVATAR = {
+      usuario: 'linear-gradient(140deg, #E9DCD6, #8E7C82)',
+      analista: 'linear-gradient(140deg, #D4AF6E, #7A5A26)',
+      admin: 'linear-gradient(140deg, #FF7A88, #A80D26)'
+    };
+    const datos = [
+      [1, 'admin@empresa.com', 'admin', true, '01/10/2026', true],
+      [4, 'a.ruiz@empresa.com', 'analista', true, '02/10/2026', false],
+      [5, 'm.soto@empresa.com', 'analista', true, '02/10/2026', false],
+      [9, 'l.vega@empresa.com', 'analista', false, '05/10/2026', false],
+      [12, 'p.lopez@empresa.com', 'usuario', true, '07/10/2026', false],
+      [14, 'usuario@empresa.com', 'usuario', true, '09/10/2026', false],
+      [17, 'becario@empresa.com', 'usuario', true, '11/10/2026', false]
+    ];
+    const usuarios = datos.map(([id, email, rol, activo, alta, yo]) => ({
+      id, email, alta,
+      inicial: email.charAt(0).toUpperCase(),
+      avatar: AVATAR[rol],
+      sufijo: yo ? ' · tú' : '',
+      selId: 'rol-' + id,
+      esYo: yo, otro: !yo,
+      esUsuario: rol === 'usuario', esAnalista: rol === 'analista', esAdminRol: rol === 'admin',
+      rolColor: ROL[rol][0], rolFondo: ROL[rol][1],
+      opacidad: activo ? '1' : '.55',
+      estado: activo ? 'Activo' : 'Desactivado',
+      estColor: activo ? '#8FD3B8' : '#A8939A',
+      estBrillo: activo ? '0 0 10px #8FD3B8' : 'none',
+      accion: activo ? 'Desactivar' : 'Reactivar',
+      accionColor: activo ? '#FF7A88' : '#8FD3B8',
+      accionFondo: activo ? 'rgba(224,30,60,.1)' : 'rgba(143,211,184,.1)',
+      accionBorde: activo ? 'inset 0 0 0 1px rgba(255,59,78,.35)' : 'inset 0 0 0 1px rgba(143,211,184,.35)'
+    }));
+    return { glifos: this._glifos, usuarios };
+  }
+}
+</script>
+</body>
+</html>

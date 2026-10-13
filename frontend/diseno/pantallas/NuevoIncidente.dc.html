@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Nuevo incidente</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&amp;family=Manrope:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0;background:#07050A}
+a{color:#F0C987}a:hover{color:#FFE2AE}
+input::placeholder,textarea::placeholder{color:#7D6A71}
+select:focus,input:focus,textarea:focus{outline:none;border-color:rgba(255,59,78,.7);box-shadow:0 0 0 4px rgba(224,30,60,.18)}
+a:focus-visible,button:focus-visible{outline:2px solid #FF3B4E;outline-offset:3px}
+.nav-item:hover{background:rgba(255,255,255,.05)}
+.btn-sangre:hover{filter:brightness(1.12)}
+.sev:hover{background:rgba(255,255,255,.07)}
+.glifo{font-family:'JetBrains Mono',monospace;opacity:0;animation-name:aparecer;animation-iteration-count:infinite;animation-timing-function:ease-in-out;will-change:opacity}
+@keyframes aparecer{0%{opacity:0;transform:translateY(6px) scale(.9);filter:blur(3px)}14%{opacity:1;transform:none;filter:blur(0)}55%{opacity:.65}100%{opacity:0;transform:translateY(-4px);filter:blur(2px)}}
+@media (prefers-reduced-motion:reduce){.glifo{animation:none;opacity:.2}}
+</style>
+</helmet>
+<div style="position: relative; overflow: hidden; min-height: 1000px; box-sizing: border-box; color: #F1E6E0; font-family: 'Manrope', sans-serif; background: radial-gradient(1000px 520px at 70% -10%, rgba(196,18,47,.26), rgba(196,18,47,0) 65%), radial-gradient(600px 400px at 0% 100%, rgba(212,175,110,.08), rgba(212,175,110,0) 60%), #07050A; display: flex; flex-wrap: wrap">
+  <div aria-hidden="true" style="position: absolute; inset: 0; overflow: hidden; pointer-events: none">
+    <sc-for list="{{ glifos }}" as="g" hint-placeholder-count="0">
+      <span class="glifo" style="position: absolute; left: {{ g.x }}; top: {{ g.y }}; font-size: {{ g.tam }}; color: {{ g.color }}; text-shadow: 0 0 14px {{ g.color }}; animation-duration: {{ g.dur }}; animation-delay: {{ g.retraso }}">{{ g.c }}</span>
+    </sc-for>
+  </div>
+  <nav aria-label="Principal" style="position: relative; flex: 1 1 248px; box-sizing: border-box; margin: 16px 0 16px 16px; padding: 28px 18px; border-radius: 22px; background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02)); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: inset 0 1px 0 rgba(255,255,255,.1); display: flex; flex-direction: column; gap: 34px">
+    <div style="display: flex; align-items: center; gap: 12px; padding: 0 8px">
+      <svg aria-hidden="true" width="32" height="32" viewBox="0 0 40 40" fill="none">
+        <rect x="8" y="8" width="24" height="24" rx="3" transform="rotate(45 20 20)" stroke="#D4AF6E" stroke-width="1.4"></rect>
+        <rect x="14" y="14" width="12" height="12" rx="1.5" transform="rotate(45 20 20)" fill="#E01E3C"></rect>
+      </svg>
+      <div style="display: flex; flex-direction: column; gap: 2px">
+        <span style="font-family: 'Cormorant Garamond', serif; font-weight: 600; font-size: 24px; line-height: 1">Incidentes</span>
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 3px; color: #A8939A">CONSOLA</span>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 4px">
+      <span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 3px; color: #7D6A71; padding: 0 12px 8px">OPERACIÓN</span>
+      <a href="Incidentes.dc.html" class="nav-item" style="min-height: 46px; display: flex; align-items: center; gap: 12px; padding: 0 14px; border-radius: 14px; color: #CDBDC2; text-decoration: none; font-size: 14px; font-weight: 500">
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"></path></svg>Incidentes</a>
+      <a href="NuevoIncidente.dc.html" aria-current="page" style="min-height: 46px; display: flex; align-items: center; gap: 12px; padding: 0 14px; border-radius: 14px; background: linear-gradient(90deg, rgba(224,30,60,.28), rgba(224,30,60,.06)); box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 0 24px -6px rgba(224,30,60,.5); color: #FFF4F1; text-decoration: none; font-size: 14px; font-weight: 600">
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>Nuevo incidente</a>
+    </div>
+    <div style="margin-top: auto; display: flex; flex-direction: column; gap: 14px; padding: 16px; border-radius: 16px; background: rgba(0,0,0,.28)">
+      <div style="display: flex; align-items: center; gap: 12px">
+        <span aria-hidden="true" style="width: 36px; height: 36px; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: linear-gradient(140deg, #D4AF6E, #7A5A26); color: #1A1008; font-weight: 700; font-size: 14px">U</span>
+        <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+          <span style="font-size: 13px; font-weight: 600; overflow-wrap: anywhere">usuario@empresa.com</span>
+          <span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 2px; color: #D4AF6E">USUARIO</span>
+        </div>
+      </div>
+      <div style="display: flex; gap: 8px">
+        <a href="Cuenta.dc.html" class="nav-item" style="flex: 1; min-height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 12px; background: rgba(255,255,255,.04); color: #CDBDC2; text-decoration: none; font-size: 13px; font-weight: 600">Mi cuenta</a>
+        <a href="Main.dc.html" class="nav-item" style="flex: 1; min-height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 12px; background: rgba(255,255,255,.04); color: #CDBDC2; text-decoration: none; font-size: 13px; font-weight: 600">Salir</a>
+      </div>
+    </div>
+  </nav>
+  <main style="position: relative; flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 40px 48px 56px; display: flex; flex-direction: column; gap: 28px">
+    <header style="display: flex; flex-direction: column; gap: 10px">
+      <a href="Incidentes.dc.html" style="align-self: flex-start; font-size: 13px; color: #A8939A; text-decoration: none">← Volver al listado</a>
+      <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 3px; color: #D4AF6E">~/incidentes/nuevo</span>
+      <h1 style="margin: 0; font-family: 'Cormorant Garamond', serif; font-weight: 500; font-size: 60px; line-height: 1; letter-spacing: -.5px; text-shadow: 0 0 36px rgba(224,30,60,.3)">Reportar incidente</h1>
+      <p style="margin: 0; font-size: 15px; line-height: 1.6; color: #A8939A; max-width: 620px">Describe qué ha pasado con el mayor detalle posible. Podrás editarlo mientras siga abierto.</p>
+    </header>
+    <sc-if value="{{ conErrores }}" hint-placeholder-val="{{ false }}">
+      <div role="alert" style="max-width: 880px; box-sizing: border-box; display: flex; gap: 12px; align-items: flex-start; padding: 16px 18px; border-radius: 16px; background: rgba(224,30,60,.14); box-shadow: inset 0 0 0 1px rgba(255,59,78,.35), 0 0 30px -10px rgba(224,30,60,.6); color: #FFD3D8; font-size: 14px; line-height: 1.5">
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #FF5A6A; padding-top: 1px">422</span>
+        <span>Hay 2 campos por revisar: el título y la severidad.</span>
+      </div>
+    </sc-if>
+    <form aria-label="Nuevo incidente" style="max-width: 880px; box-sizing: border-box; padding: 36px; border-radius: 24px; background: linear-gradient(170deg, rgba(255,255,255,.07), rgba(255,255,255,.02)); backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px); box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 40px 90px -40px rgba(0,0,0,.9); display: flex; flex-direction: column; gap: 28px">
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <div style="display: flex; justify-content: space-between; gap: 12px">
+          <label for="n-titulo" style="font-size: 13px; font-weight: 600; color: #CDBDC2">Título</label>
+          <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #7D6A71">{{ cTitulo }}/120</span>
+        </div>
+        <input id="n-titulo" type="text" value="{{ vTitulo }}" aria-describedby="n-titulo-err" style="height: 52px; box-sizing: border-box; padding: 0 16px; background: rgba(0,0,0,.35); border: 1px solid {{ bordeTitulo }}; border-radius: 14px; color: #F1E6E0; font-family: inherit; font-size: 15px">
+        <sc-if value="{{ conErrores }}" hint-placeholder-val="{{ false }}">
+          <span id="n-titulo-err" style="font-size: 13px; color: #FF7A88">Entre 3 y 120 caracteres.</span>
+        </sc-if>
+      </div>
+      <fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 12px">
+        <legend style="padding: 0 0 12px; font-size: 13px; font-weight: 600; color: {{ colorLegendSev }}">Severidad{{ sufijoSev }}</legend>
+        <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px">
+          <sc-for list="{{ severidades }}" as="s" hint-placeholder-count="4">
+            <label class="sev" style="position: relative; overflow: hidden; min-width: 0; min-height: 104px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; gap: 10px; padding: 16px; border-radius: 16px; background: {{ s.fondo }}; box-shadow: {{ s.sombra }}; cursor: pointer">
+              <span style="display: flex; justify-content: space-between; align-items: center; gap: 8px">
+                <span style="display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; color: {{ s.color }}"><span aria-hidden="true" style="width: 9px; height: 9px; border-radius: 50%; background: {{ s.color }}; box-shadow: 0 0 12px {{ s.color }}"></span>{{ s.nombre }}</span>
+                <input type="radio" name="severidad" checked="{{ s.marcada }}" style="accent-color: #E01E3C; width: 18px; height: 18px; margin: 0">
+              </span>
+              <span style="font-size: 12px; line-height: 1.45; color: #A8939A">{{ s.ayuda }}</span>
+            </label>
+          </sc-for>
+        </div>
+      </fieldset>
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <label for="n-cat" style="font-size: 13px; font-weight: 600; color: #CDBDC2">Categoría</label>
+        <select id="n-cat" style="height: 52px; max-width: 420px; padding: 0 14px; background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.08); border-radius: 14px; color: #F1E6E0; font-family: inherit; font-size: 15px"><option>Phishing</option><option>Malware</option><option>Acceso no autorizado</option><option>Fuga de datos</option><option>Denegación de servicio</option><option>Otro</option></select>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <div style="display: flex; justify-content: space-between; gap: 12px">
+          <label for="n-desc" style="font-size: 13px; font-weight: 600; color: #CDBDC2">Descripción</label>
+          <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #7D6A71">412/5000 · texto plano</span>
+        </div>
+        <textarea id="n-desc" rows="8" style="box-sizing: border-box; padding: 16px; background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.08); border-radius: 14px; color: #F1E6E0; font-family: inherit; font-size: 15px; line-height: 1.65; resize: vertical">A las 09:12 varios empleados han recibido un correo con remitente "Recursos Humanos" y asunto "Actualización de nóminas octubre". El enlace lleva a una página que imita el portal del empleado y pide usuario y contraseña.
+
+Al menos una persona de Contabilidad ha introducido sus credenciales antes de darse cuenta.</textarea>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 12px; padding-top: 4px">
+        <a href="Detalle.dc.html" class="btn-sangre" style="height: 52px; display: inline-flex; align-items: center; gap: 10px; padding: 0 26px; border-radius: 14px; background: linear-gradient(180deg, #EC2A47, #A80D26); color: #FFF4F1; text-decoration: none; font-weight: 700; font-size: 15px; box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 0 0 1px rgba(255,90,110,.3), 0 12px 32px -10px rgba(224,30,60,.75)">Enviar reporte <span aria-hidden="true">→</span></a>
+        <a href="Incidentes.dc.html" style="height: 52px; display: inline-flex; align-items: center; padding: 0 22px; border-radius: 14px; background: rgba(255,255,255,.05); color: #CDBDC2; text-decoration: none; font-weight: 600; font-size: 15px">Cancelar</a>
+      </div>
+    </form>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"errores":{"editor":"boolean","default":false},"densidad":{"editor":"range","min":0,"max":120,"step":10,"default":30},"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  caracter() {
+    const set = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン0123456789';
+    return set[Math.floor(Math.random() * set.length)];
+  }
+  glifo() {
+    const r = Math.random;
+    const oro = r() < 0.2;
+    return {
+      x: (r() * 98).toFixed(1) + '%',
+      y: (r() * 96).toFixed(1) + '%',
+      tam: Math.round(11 + r() * 10) + 'px',
+      color: oro ? 'rgba(240,201,135,.45)' : 'rgba(255,77,94,.5)',
+      dur: (4 + r() * 6).toFixed(1) + 's',
+      retraso: (-r() * 10).toFixed(1) + 's',
+      c: this.caracter()
+    };
+  }
+  componentDidMount() {
+    this._t = setInterval(() => {
+      if (!this._glifos || !this._glifos.length) return;
+      for (let k = 0; k < 3; k++) {
+        const i = Math.floor(Math.random() * this._glifos.length);
+        this._glifos[i] = { ...this._glifos[i], c: this.caracter() };
+      }
+      this.forceUpdate();
+    }, 700);
+  }
+  componentWillUnmount() {
+    clearInterval(this._t);
+  }
+  renderVals() {
+    const d = this.props.densidad ?? 30;
+    if (!this._glifos || this._glifos.length !== d) {
+      this._glifos = Array.from({ length: d }, () => this.glifo());
+    }
+    const err = this.props.errores ?? false;
+    const titulo = err ? 'RR' : 'Correo que suplanta a RR. HH. con enlace a formulario de credenciales';
+    const sel = err ? null : 'critica';
+    const defs = [
+      ['baja', 'Baja', '#B8A5AB', 'Sin impacto en el servicio'],
+      ['media', 'Media', '#F0C987', 'Afecta a un equipo o usuario'],
+      ['alta', 'Alta', '#FF9A5C', 'Afecta a un área o servicio'],
+      ['critica', 'Crítica', '#FF4D5E', 'Datos o negocio en riesgo']
+    ];
+    const severidades = defs.map(([id, nombre, color, ayuda]) => {
+      const marcada = id === sel;
+      return {
+        nombre, color, ayuda, marcada,
+        fondo: marcada ? 'linear-gradient(160deg, rgba(224,30,60,.22), rgba(224,30,60,.05))' : 'rgba(255,255,255,.04)',
+        sombra: marcada
+          ? 'inset 0 0 0 1px rgba(255,90,110,.55), 0 0 30px -6px rgba(224,30,60,.6)'
+          : (err ? 'inset 0 0 0 1px rgba(255,59,78,.4)' : 'inset 0 1px 0 rgba(255,255,255,.06)')
+      };
+    });
+    return {
+      glifos: this._glifos,
+      conErrores: err,
+      vTitulo: titulo,
+      cTitulo: titulo.length,
+      bordeTitulo: err ? 'rgba(255,59,78,.7)' : 'rgba(255,255,255,.08)',
+      colorLegendSev: err ? '#FF7A88' : '#CDBDC2',
+      sufijoSev: err ? ' · obligatoria' : '',
+      severidades
+    };
+  }
+}
+</script>
+</body>
+</html>

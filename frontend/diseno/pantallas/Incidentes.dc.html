@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Listado de incidentes</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&amp;family=Manrope:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0;background:#07050A}
+a{color:#F0C987}a:hover{color:#FFE2AE}
+select:focus,input:focus{outline:none;border-color:rgba(255,59,78,.7);box-shadow:0 0 0 4px rgba(224,30,60,.18)}
+a:focus-visible,button:focus-visible{outline:2px solid #FF3B4E;outline-offset:3px}
+.nav-item:hover{background:rgba(255,255,255,.05)}
+.fila{transition:background .2s, box-shadow .2s}
+.fila:hover{background:rgba(224,30,60,.07);box-shadow:inset 3px 0 0 #E01E3C}
+.btn-sangre:hover{filter:brightness(1.12)}
+.glifo{font-family:'JetBrains Mono',monospace;opacity:0;animation-name:aparecer;animation-iteration-count:infinite;animation-timing-function:ease-in-out;will-change:opacity}
+@keyframes aparecer{0%{opacity:0;transform:translateY(6px) scale(.9);filter:blur(3px)}14%{opacity:1;transform:none;filter:blur(0)}55%{opacity:.65}100%{opacity:0;transform:translateY(-4px);filter:blur(2px)}}
+@media (prefers-reduced-motion:reduce){.glifo{animation:none;opacity:.2}}
+</style>
+</helmet>
+<div style="min-height: 1000px; box-sizing: border-box; color: #F1E6E0; font-family: 'Manrope', sans-serif; background: radial-gradient(1000px 520px at 70% -10%, rgba(196,18,47,.26), rgba(196,18,47,0) 65%), radial-gradient(600px 400px at 0% 100%, rgba(212,175,110,.08), rgba(212,175,110,0) 60%), #07050A; display: flex; flex-wrap: wrap; position: relative; overflow: hidden">
+  <div aria-hidden="true" style="position: absolute; inset: 0; overflow: hidden; pointer-events: none">
+    <sc-for list="{{ glifos }}" as="g" hint-placeholder-count="0">
+      <span class="glifo" style="position: absolute; left: {{ g.x }}; top: {{ g.y }}; font-size: {{ g.tam }}; color: {{ g.color }}; text-shadow: 0 0 14px {{ g.color }}; animation-duration: {{ g.dur }}; animation-delay: {{ g.retraso }}">{{ g.c }}</span>
+    </sc-for>
+  </div>
+  <nav aria-label="Principal" style="position: relative; flex: 1 1 248px; box-sizing: border-box; margin: 16px 0 16px 16px; padding: 28px 18px; border-radius: 22px; background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02)); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: inset 0 1px 0 rgba(255,255,255,.1); display: flex; flex-direction: column; gap: 34px">
+    <div style="display: flex; align-items: center; gap: 12px; padding: 0 8px">
+      <svg aria-hidden="true" width="32" height="32" viewBox="0 0 40 40" fill="none">
+        <rect x="8" y="8" width="24" height="24" rx="3" transform="rotate(45 20 20)" stroke="#D4AF6E" stroke-width="1.4"></rect>
+        <rect x="14" y="14" width="12" height="12" rx="1.5" transform="rotate(45 20 20)" fill="#E01E3C"></rect>
+      </svg>
+      <div style="display: flex; flex-direction: column; gap: 2px">
+        <span style="font-family: 'Cormorant Garamond', serif; font-weight: 600; font-size: 24px; line-height: 1">Incidentes</span>
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 3px; color: #A8939A">CONSOLA</span>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 4px">
+      <span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 3px; color: #7D6A71; padding: 0 12px 8px">OPERACIÓN</span>
+      <a href="Incidentes.dc.html" aria-current="page" style="min-height: 46px; display: flex; align-items: center; gap: 12px; padding: 0 14px; border-radius: 14px; background: linear-gradient(90deg, rgba(224,30,60,.28), rgba(224,30,60,.06)); box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 0 24px -6px rgba(224,30,60,.5); color: #FFF4F1; text-decoration: none; font-size: 14px; font-weight: 600">
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"></path></svg>Incidentes</a>
+      <a href="NuevoIncidente.dc.html" class="nav-item" style="min-height: 46px; display: flex; align-items: center; gap: 12px; padding: 0 14px; border-radius: 14px; color: #CDBDC2; text-decoration: none; font-size: 14px; font-weight: 500">
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>Nuevo incidente</a>
+    </div>
+    <sc-if value="{{ esAdmin }}" hint-placeholder-val="{{ true }}">
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 3px; color: #7D6A71; padding: 0 12px 8px">ADMINISTRACIÓN</span>
+        <a href="Usuarios.dc.html" class="nav-item" style="min-height: 46px; display: flex; align-items: center; gap: 12px; padding: 0 14px; border-radius: 14px; color: #CDBDC2; text-decoration: none; font-size: 14px; font-weight: 500">
+          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"></circle><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5M16 4.5a3.5 3.5 0 010 7M18 14.8c2 .7 3.2 2.4 3.5 5.2"></path></svg>Usuarios</a>
+        <a href="Auditoria.dc.html" class="nav-item" style="min-height: 46px; display: flex; align-items: center; gap: 12px; padding: 0 14px; border-radius: 14px; color: #CDBDC2; text-decoration: none; font-size: 14px; font-weight: 500">
+          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M5 4h14v16H5zM9 9h6M9 13h6M9 17h3"></path></svg>Auditoría</a>
+      </div>
+    </sc-if>
+    <div style="margin-top: auto; display: flex; flex-direction: column; gap: 14px; padding: 16px; border-radius: 16px; background: rgba(0,0,0,.28)">
+      <div style="display: flex; align-items: center; gap: 12px">
+        <span aria-hidden="true" style="width: 36px; height: 36px; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: linear-gradient(140deg, #D4AF6E, #7A5A26); color: #1A1008; font-weight: 700; font-size: 14px">{{ inicial }}</span>
+        <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+          <span style="font-size: 13px; font-weight: 600; overflow-wrap: anywhere">{{ email }}</span>
+          <span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 2px; color: #D4AF6E">{{ rolEtiqueta }}</span>
+        </div>
+      </div>
+      <a href="Main.dc.html" class="nav-item" style="min-height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 12px; background: rgba(255,255,255,.04); color: #CDBDC2; text-decoration: none; font-size: 13px; font-weight: 600">Cerrar sesión</a>
+    </div>
+  </nav>
+  <main style="position: relative; flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 40px 48px 56px; display: flex; flex-direction: column; gap: 32px">
+    <header style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-end; justify-content: space-between">
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 3px; color: #D4AF6E">~/incidentes</span>
+        <h1 style="margin: 0; font-family: 'Cormorant Garamond', serif; font-weight: 500; font-size: 60px; line-height: 1; letter-spacing: -.5px; text-shadow: 0 0 36px rgba(224,30,60,.3)">{{ titulo }}</h1>
+        <p style="margin: 0; font-size: 15px; color: #A8939A">{{ subtitulo }}</p>
+      </div>
+      <a href="NuevoIncidente.dc.html" class="btn-sangre" style="height: 50px; display: inline-flex; align-items: center; gap: 10px; padding: 0 22px; border-radius: 14px; background: linear-gradient(180deg, #EC2A47, #A80D26); color: #FFF4F1; text-decoration: none; font-weight: 700; font-size: 14px; box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 0 0 1px rgba(255,90,110,.3), 0 12px 32px -10px rgba(224,30,60,.75)"><span aria-hidden="true" style="font-size: 18px">+</span> Nuevo incidente</a>
+    </header>
+    <section aria-label="Resumen por estado" style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px">
+      <sc-for list="{{ resumen }}" as="r" hint-placeholder-count="4">
+        <div style="position: relative; overflow: hidden; min-width: 0; padding: 22px 22px 20px; border-radius: 20px; background: linear-gradient(160deg, rgba(255,255,255,.075), rgba(255,255,255,.02)); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); box-shadow: inset 0 1px 0 rgba(255,255,255,.1); display: flex; flex-direction: column; gap: 10px">
+          <span aria-hidden="true" style="position: absolute; right: -30px; top: -30px; width: 110px; height: 110px; border-radius: 50%; background: {{ r.halo }}; filter: blur(24px)"></span>
+          <span style="position: relative; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 2px; color: #A8939A">{{ r.etiqueta }}</span>
+          <span style="position: relative; font-family: 'Cormorant Garamond', serif; font-weight: 600; font-size: 52px; line-height: 1; color: {{ r.color }}; text-shadow: 0 0 24px {{ r.halo }}">{{ r.valor }}</span>
+        </div>
+      </sc-for>
+    </section>
+    <section aria-label="Incidentes" style="border-radius: 24px; background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.015)); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: inset 0 1px 0 rgba(255,255,255,.1), 0 40px 90px -40px rgba(0,0,0,.9); display: flex; flex-direction: column">
+      <form role="search" aria-label="Filtros" style="display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; padding: 22px 24px 18px">
+        <div style="display: flex; flex-direction: column; gap: 6px; flex: 1 1 150px">
+          <label for="f-estado" style="font-size: 12px; font-weight: 600; color: #A8939A">Estado</label>
+          <select id="f-estado" style="height: 44px; padding: 0 12px; background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.07); border-radius: 12px; color: #F1E6E0; font-family: inherit; font-size: 14px"><option>Todos</option><option>Abierto</option><option>En análisis</option><option>Resuelto</option><option>Cerrado</option></select>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px; flex: 1 1 150px">
+          <label for="f-sev" style="font-size: 12px; font-weight: 600; color: #A8939A">Severidad</label>
+          <select id="f-sev" style="height: 44px; padding: 0 12px; background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.07); border-radius: 12px; color: #F1E6E0; font-family: inherit; font-size: 14px"><option>Todas</option><option>Baja</option><option>Media</option><option>Alta</option><option>Crítica</option></select>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px; flex: 1 1 200px">
+          <label for="f-cat" style="font-size: 12px; font-weight: 600; color: #A8939A">Categoría</label>
+          <select id="f-cat" style="height: 44px; padding: 0 12px; background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.07); border-radius: 12px; color: #F1E6E0; font-family: inherit; font-size: 14px"><option>Todas</option><option>Phishing</option><option>Malware</option><option>Acceso no autorizado</option><option>Fuga de datos</option><option>Denegación de servicio</option><option>Otro</option></select>
+        </div>
+        <button type="button" style="height: 44px; padding: 0 20px; border: 0; border-radius: 12px; background: rgba(212,175,110,.14); color: #F0C987; font-family: inherit; font-weight: 600; font-size: 14px; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(212,175,110,.28)">Aplicar</button>
+        <button type="button" style="height: 44px; padding: 0 12px; border: 0; background: transparent; color: #A8939A; font-family: inherit; font-size: 14px; cursor: pointer">Limpiar</button>
+      </form>
+      <div style="overflow-x: auto; padding: 0 12px 8px">
+        <table style="width: 100%; min-width: 900px; border-collapse: separate; border-spacing: 0 4px; font-size: 14px">
+          <thead>
+            <tr style="text-align: left">
+              <th scope="col" style="padding: 10px 14px; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 2px; font-weight: 500; color: #7D6A71">ID</th>
+              <th scope="col" style="padding: 10px 14px; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 2px; font-weight: 500; color: #7D6A71">INCIDENTE</th>
+              <th scope="col" style="padding: 10px 14px; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 2px; font-weight: 500; color: #7D6A71">SEVERIDAD</th>
+              <th scope="col" style="padding: 10px 14px; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 2px; font-weight: 500; color: #7D6A71">ESTADO</th>
+              <th scope="col" style="padding: 10px 14px; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 2px; font-weight: 500; color: #7D6A71">ANALISTA</th>
+              <th scope="col" style="padding: 10px 14px; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 2px; font-weight: 500; color: #7D6A71">ACTUALIZADO</th>
+            </tr>
+          </thead>
+          <tbody>
+            <sc-for list="{{ filas }}" as="f" hint-placeholder-count="8">
+              <tr class="fila">
+                <td style="padding: 14px; border-radius: 12px 0 0 12px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #A8939A; white-space: nowrap">INC-{{ f.id }}</td>
+                <td style="padding: 14px">
+                  <a href="Detalle.dc.html" style="display: flex; flex-direction: column; gap: 4px; color: #F1E6E0; text-decoration: none">
+                    <span style="font-weight: 600; line-height: 1.4">{{ f.titulo }}</span>
+                    <span style="font-size: 12px; color: #A8939A">{{ f.cat }}</span>
+                  </a>
+                </td>
+                <td style="padding: 14px; white-space: nowrap"><span style="display: inline-flex; align-items: center; gap: 8px; color: {{ f.sevColor }}; font-weight: 600; font-size: 13px"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 50%; background: {{ f.sevColor }}; box-shadow: 0 0 10px {{ f.sevColor }}"></span>{{ f.sev }}</span></td>
+                <td style="padding: 14px; white-space: nowrap"><span style="display: inline-block; padding: 5px 12px; border-radius: 999px; background: {{ f.estFondo }}; color: {{ f.estColor }}; font-size: 12px; font-weight: 600">{{ f.est }}</span></td>
+                <td style="padding: 14px; color: #CDBDC2; font-size: 13px; white-space: nowrap">{{ f.analista }}</td>
+                <td style="padding: 14px; border-radius: 0 12px 12px 0; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #A8939A; white-space: nowrap">{{ f.fecha }}</td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+      <nav aria-label="Paginación" style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding: 14px 24px 22px; font-size: 13px; color: #A8939A">
+        <span>Mostrando 1–8 de {{ total }}</span>
+        <div style="display: flex; gap: 8px">
+          <button type="button" disabled style="height: 44px; padding: 0 16px; border: 0; border-radius: 12px; background: rgba(255,255,255,.03); color: #5E4E54; font-family: inherit; font-size: 13px">← Anterior</button>
+          <button type="button" style="height: 44px; padding: 0 16px; border: 0; border-radius: 12px; background: rgba(255,255,255,.07); color: #F1E6E0; font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer">Siguiente →</button>
+        </div>
+      </nav>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"rol":{"editor":"enum","options":["usuario","analista","admin"],"default":"admin"},"densidad":{"editor":"range","min":0,"max":120,"step":10,"default":30},"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  caracter() {
+    const set = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン0123456789';
+    return set[Math.floor(Math.random() * set.length)];
+  }
+  glifo() {
+    const r = Math.random;
+    const oro = r() < 0.2;
+    return {
+      x: (r() * 98).toFixed(1) + '%',
+      y: (r() * 96).toFixed(1) + '%',
+      tam: Math.round(11 + r() * 10) + 'px',
+      color: oro ? 'rgba(240,201,135,.45)' : 'rgba(255,77,94,.5)',
+      dur: (4 + r() * 6).toFixed(1) + 's',
+      retraso: (-r() * 10).toFixed(1) + 's',
+      c: this.caracter()
+    };
+  }
+  componentDidMount() {
+    this._t = setInterval(() => {
+      if (!this._glifos || !this._glifos.length) return;
+      for (let k = 0; k < 3; k++) {
+        const i = Math.floor(Math.random() * this._glifos.length);
+        this._glifos[i] = { ...this._glifos[i], c: this.caracter() };
+      }
+      this.forceUpdate();
+    }, 700);
+  }
+  componentWillUnmount() {
+    clearInterval(this._t);
+  }
+  renderVals() {
+    const rol = this.props.rol ?? 'admin';
+    const n = this.props.densidad ?? 30;
+    if (!this._glifos || this._glifos.length !== n) {
+      this._glifos = Array.from({ length: n }, () => this.glifo());
+    }
+    const SEV = {
+      baja: ['Baja', '#B8A5AB'],
+      media: ['Media', '#F0C987'],
+      alta: ['Alta', '#FF9A5C'],
+      critica: ['Crítica', '#FF4D5E']
+    };
+    const EST = {
+      abierto: ['Abierto', '#F1E6E0', 'rgba(241,230,224,.1)'],
+      en_analisis: ['En análisis', '#F0C987', 'rgba(212,175,110,.16)'],
+      resuelto: ['Resuelto', '#8FD3B8', 'rgba(143,211,184,.13)'],
+      cerrado: ['Cerrado', '#A8939A', 'rgba(168,147,154,.12)']
+    };
+    const base = [
+      ['0042', 'Correo que suplanta a RR. HH. con enlace a formulario de credenciales', 'critica', 'Phishing', 'en_analisis', 'a.ruiz@empresa.com', '13/10 09:41'],
+      ['0041', 'Portátil de comercial con proceso desconocido en el arranque', 'alta', 'Malware', 'abierto', '—', '13/10 08:15'],
+      ['0039', 'Inicios de sesión VPN desde país no habitual', 'alta', 'Acceso no autorizado', 'en_analisis', 'm.soto@empresa.com', '12/10 18:02'],
+      ['0038', 'Hoja de cálculo con datos de clientes compartida públicamente', 'critica', 'Fuga de datos', 'resuelto', 'a.ruiz@empresa.com', '12/10 11:30'],
+      ['0036', 'Picos de tráfico en la web corporativa en horario nocturno', 'media', 'Denegación de servicio', 'abierto', '—', '11/10 23:47'],
+      ['0035', 'Adjunto .iso recibido por proveedor habitual', 'media', 'Phishing', 'cerrado', 'm.soto@empresa.com', '10/10 16:20'],
+      ['0033', 'Cuenta de becario con permisos de administración local', 'baja', 'Acceso no autorizado', 'cerrado', 'a.ruiz@empresa.com', '09/10 10:05'],
+      ['0031', 'Impresora de planta 2 responde en puertos no documentados', 'baja', 'Otro', 'resuelto', 'm.soto@empresa.com', '08/10 13:12']
+    ];
+    const filas = base.map(([id, titulo, s, cat, e, analista, fecha]) => ({
+      id, titulo, cat, fecha,
+      analista: analista === '—' ? 'Sin asignar' : analista,
+      sev: SEV[s][0], sevColor: SEV[s][1],
+      est: EST[e][0], estColor: EST[e][1], estFondo: EST[e][2]
+    }));
+    const textos = {
+      usuario: ['Mis incidentes', 'Los incidentes que has reportado.', 'usuario@empresa.com', 'USUARIO', 8],
+      analista: ['Asignados a mí', 'Incidentes pendientes de tu análisis.', 'a.ruiz@empresa.com', 'ANALISTA', 14],
+      admin: ['Todos los incidentes', 'Vista completa de la organización.', 'admin@empresa.com', 'ADMIN', 37]
+    }[rol];
+    return {
+      glifos: this._glifos,
+      filas,
+      esAdmin: rol === 'admin',
+      titulo: textos[0],
+      subtitulo: textos[1],
+      email: textos[2],
+      inicial: textos[2].charAt(0).toUpperCase(),
+      rolEtiqueta: textos[3],
+      total: textos[4],
+      resumen: [
+        { etiqueta: 'ABIERTOS', valor: '12', color: '#F1E6E0', halo: 'rgba(241,230,224,.22)' },
+        { etiqueta: 'EN ANÁLISIS', valor: '07', color: '#F0C987', halo: 'rgba(212,175,110,.35)' },
+        { etiqueta: 'RESUELTOS', valor: '05', color: '#8FD3B8', halo: 'rgba(143,211,184,.28)' },
+        { etiqueta: 'SEVERIDAD CRÍTICA', valor: '04', color: '#FF4D5E', halo: 'rgba(224,30,60,.5)' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

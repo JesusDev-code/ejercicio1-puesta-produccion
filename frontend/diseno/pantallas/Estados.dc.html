@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Estados y errores</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&amp;family=Manrope:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0;background:#07050A}
+a{color:#F0C987}a:hover{color:#FFE2AE}
+a:focus-visible,button:focus-visible{outline:2px solid #FF3B4E;outline-offset:3px}
+.btn-sangre:hover{filter:brightness(1.12)}
+@keyframes brillo{0%{background-position:-400px 0}100%{background-position:400px 0}}
+.carga{background:linear-gradient(90deg, rgba(255,255,255,.04) 0, rgba(255,255,255,.1) 120px, rgba(255,255,255,.04) 240px);background-size:800px 100%;animation:brillo 1.6s linear infinite}
+@keyframes parpadeo{50%{opacity:0}}
+.cursor{animation:parpadeo 1.1s steps(1) infinite}
+.glifo{font-family:'JetBrains Mono',monospace;opacity:0;animation-name:aparecer;animation-iteration-count:infinite;animation-timing-function:ease-in-out;will-change:opacity}
+@keyframes aparecer{0%{opacity:0;transform:translateY(6px) scale(.9);filter:blur(3px)}14%{opacity:1;transform:none;filter:blur(0)}55%{opacity:.65}100%{opacity:0;transform:translateY(-4px);filter:blur(2px)}}
+@media (prefers-reduced-motion:reduce){.glifo{animation:none;opacity:.2}.carga,.cursor{animation:none}}
+</style>
+</helmet>
+<div style="position: relative; overflow: hidden; min-height: 900px; box-sizing: border-box; color: #F1E6E0; font-family: 'Manrope', sans-serif; background: radial-gradient(1000px 520px at 50% -10%, rgba(196,18,47,.26), rgba(196,18,47,0) 65%), #07050A; padding: 56px 48px; display: flex; flex-direction: column; gap: 36px">
+  <div aria-hidden="true" style="position: absolute; inset: 0; overflow: hidden; pointer-events: none">
+    <sc-for list="{{ glifos }}" as="g" hint-placeholder-count="0">
+      <span class="glifo" style="position: absolute; left: {{ g.x }}; top: {{ g.y }}; font-size: {{ g.tam }}; color: {{ g.color }}; text-shadow: 0 0 14px {{ g.color }}; animation-duration: {{ g.dur }}; animation-delay: {{ g.retraso }}">{{ g.c }}</span>
+    </sc-for>
+  </div>
+  <header style="position: relative; display: flex; flex-direction: column; gap: 10px">
+    <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 3px; color: #D4AF6E">ESTADOS TRANSVERSALES</span>
+    <h1 style="margin: 0; font-family: 'Cormorant Garamond', serif; font-weight: 500; font-size: 56px; line-height: 1; text-shadow: 0 0 36px rgba(224,30,60,.3)">Respuestas de la API en la interfaz</h1>
+  </header>
+  <div style="position: relative; display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 20px">
+    <section aria-labelledby="e-401" style="padding: 30px; border-radius: 24px; background: linear-gradient(165deg, rgba(255,255,255,.075), rgba(255,255,255,.02)); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 30px 80px -40px rgba(0,0,0,.9); display: flex; flex-direction: column; gap: 14px">
+      <span style="align-self: flex-start; padding: 4px 10px; border-radius: 999px; background: rgba(212,175,110,.15); font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #F0C987">401 · sesión caducada</span>
+      <h2 id="e-401" style="margin: 0; font-family: 'Cormorant Garamond', serif; font-weight: 600; font-size: 34px; line-height: 1.05">Tu sesión ha terminado</h2>
+      <p style="margin: 0; font-size: 14px; line-height: 1.65; color: #A8939A">Primero se renueva en silencio con el token de refresco. Si falla, se muestra este aviso y se borran los tokens de memoria.</p>
+      <a href="Main.dc.html" class="btn-sangre" style="align-self: flex-start; height: 46px; display: inline-flex; align-items: center; padding: 0 20px; border-radius: 12px; background: linear-gradient(180deg, #EC2A47, #A80D26); color: #FFF4F1; text-decoration: none; font-weight: 700; font-size: 14px; box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 10px 26px -10px rgba(224,30,60,.75)">Volver a entrar</a>
+    </section>
+    <section aria-labelledby="e-404" style="padding: 30px; border-radius: 24px; background: linear-gradient(165deg, rgba(255,255,255,.075), rgba(255,255,255,.02)); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 30px 80px -40px rgba(0,0,0,.9); display: flex; flex-direction: column; gap: 14px">
+      <span style="align-self: flex-start; padding: 4px 10px; border-radius: 999px; background: rgba(255,255,255,.07); font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #CDBDC2">404 · no encontrado</span>
+      <h2 id="e-404" style="margin: 0; font-family: 'Cormorant Garamond', serif; font-weight: 600; font-size: 34px; line-height: 1.05">Este incidente no existe</h2>
+      <p style="margin: 0; font-size: 14px; line-height: 1.65; color: #A8939A">Mismo mensaje si no existe o si no tienes acceso: la interfaz nunca debe distinguirlos.</p>
+      <a href="Incidentes.dc.html" style="align-self: flex-start; height: 46px; display: inline-flex; align-items: center; padding: 0 20px; border-radius: 12px; background: rgba(255,255,255,.06); color: #F1E6E0; text-decoration: none; font-weight: 600; font-size: 14px">Ir al listado</a>
+    </section>
+    <section aria-labelledby="e-409" style="padding: 30px; border-radius: 24px; background: linear-gradient(165deg, rgba(212,175,110,.1), rgba(255,255,255,.02)); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: inset 0 1px 0 rgba(255,235,200,.14), 0 30px 80px -40px rgba(0,0,0,.9); display: flex; flex-direction: column; gap: 14px">
+      <span style="align-self: flex-start; padding: 4px 10px; border-radius: 999px; background: rgba(212,175,110,.15); font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #F0C987">409 · conflicto</span>
+      <h2 id="e-409" style="margin: 0; font-family: 'Cormorant Garamond', serif; font-weight: 600; font-size: 34px; line-height: 1.05">No se puede aplicar el cambio</h2>
+      <div role="alert" style="padding: 14px 16px; border-radius: 14px; background: rgba(0,0,0,.3); color: #F6E3C0; font-size: 14px; line-height: 1.55">Asigna un analista antes de pasar a <strong style="color: #F0C987">en análisis</strong>. Si el estado cambió mientras tanto, recarga para ver el actual.</div>
+    </section>
+    <section aria-labelledby="e-vacio" style="padding: 30px; border-radius: 24px; background: linear-gradient(165deg, rgba(255,255,255,.05), rgba(255,255,255,.012)); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: inset 0 1px 0 rgba(255,255,255,.1); display: flex; flex-direction: column; gap: 14px">
+      <pre aria-hidden="true" style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.6; color: #FF5A6A; text-shadow: 0 0 12px rgba(255,77,94,.5)">$ ls ~/incidentes
+total 0<span class="cursor">_</span></pre>
+      <h2 id="e-vacio" style="margin: 0; font-family: 'Cormorant Garamond', serif; font-weight: 600; font-size: 34px; line-height: 1.05">Nada con estos filtros</h2>
+      <div style="display: flex; flex-wrap: wrap; gap: 10px">
+        <button type="button" style="height: 46px; padding: 0 18px; border: 0; border-radius: 12px; background: rgba(212,175,110,.14); box-shadow: inset 0 0 0 1px rgba(212,175,110,.28); color: #F0C987; font-family: inherit; font-weight: 600; font-size: 14px; cursor: pointer">Limpiar filtros</button>
+        <a href="NuevoIncidente.dc.html" class="btn-sangre" style="height: 46px; display: inline-flex; align-items: center; padding: 0 18px; border-radius: 12px; background: linear-gradient(180deg, #EC2A47, #A80D26); color: #FFF4F1; text-decoration: none; font-weight: 700; font-size: 14px; box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 10px 26px -10px rgba(224,30,60,.75)">+ Nuevo incidente</a>
+      </div>
+    </section>
+    <section aria-labelledby="e-carga" style="padding: 30px; border-radius: 24px; background: linear-gradient(165deg, rgba(255,255,255,.05), rgba(255,255,255,.012)); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: inset 0 1px 0 rgba(255,255,255,.1); display: flex; flex-direction: column; gap: 16px">
+      <span style="align-self: flex-start; padding: 4px 10px; border-radius: 999px; background: rgba(255,255,255,.07); font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #CDBDC2">cargando</span>
+      <h2 id="e-carga" style="margin: 0; font-family: 'Cormorant Garamond', serif; font-weight: 600; font-size: 34px; line-height: 1.05">Consultando la API<span class="cursor" style="color: #FF5A6A">_</span></h2>
+      <div aria-hidden="true" style="display: flex; flex-direction: column; gap: 10px">
+        <div class="carga" style="height: 14px; width: 92%; border-radius: 999px"></div>
+        <div class="carga" style="height: 14px; width: 74%; border-radius: 999px"></div>
+        <div class="carga" style="height: 14px; width: 84%; border-radius: 999px"></div>
+      </div>
+    </section>
+    <section aria-labelledby="e-500" style="padding: 30px; border-radius: 24px; background: linear-gradient(165deg, rgba(224,30,60,.16), rgba(224,30,60,.03)); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: inset 0 1px 0 rgba(255,180,190,.12), 0 0 60px -20px rgba(224,30,60,.6); display: flex; flex-direction: column; gap: 14px">
+      <span style="align-self: flex-start; padding: 4px 10px; border-radius: 999px; background: rgba(224,30,60,.2); font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #FF7A88">500 / 503 · servidor</span>
+      <h2 id="e-500" style="margin: 0; font-family: 'Cormorant Garamond', serif; font-weight: 600; font-size: 34px; line-height: 1.05">Algo ha fallado en el servidor</h2>
+      <p style="margin: 0; font-size: 14px; line-height: 1.65; color: #E3C2C8">Nunca se muestran trazas ni detalles internos. Si persiste, revisa el estado del servicio.</p>
+      <button type="button" style="align-self: flex-start; height: 46px; padding: 0 20px; border: 0; border-radius: 12px; background: rgba(224,30,60,.14); box-shadow: inset 0 0 0 1px rgba(255,59,78,.45); color: #FF7A88; font-family: inherit; font-weight: 700; font-size: 14px; cursor: pointer">Reintentar</button>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"densidad":{"editor":"range","min":0,"max":120,"step":10,"default":30},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  caracter() {
+    const set = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン0123456789';
+    return set[Math.floor(Math.random() * set.length)];
+  }
+  glifo() {
+    const r = Math.random;
+    const oro = r() < 0.2;
+    return {
+      x: (r() * 98).toFixed(1) + '%',
+      y: (r() * 96).toFixed(1) + '%',
+      tam: Math.round(11 + r() * 10) + 'px',
+      color: oro ? 'rgba(240,201,135,.45)' : 'rgba(255,77,94,.5)',
+      dur: (4 + r() * 6).toFixed(1) + 's',
+      retraso: (-r() * 10).toFixed(1) + 's',
+      c: this.caracter()
+    };
+  }
+  componentDidMount() {
+    this._t = setInterval(() => {
+      if (!this._glifos || !this._glifos.length) return;
+      for (let k = 0; k < 3; k++) {
+        const i = Math.floor(Math.random() * this._glifos.length);
+        this._glifos[i] = { ...this._glifos[i], c: this.caracter() };
+      }
+      this.forceUpdate();
+    }, 700);
+  }
+  componentWillUnmount() {
+    clearInterval(this._t);
+  }
+  renderVals() {
+    const d = this.props.densidad ?? 30;
+    if (!this._glifos || this._glifos.length !== d) {
+      this._glifos = Array.from({ length: d }, () => this.glifo());
+    }
+    return { glifos: this._glifos };
+  }
+}
+</script>
+</body>
+</html>

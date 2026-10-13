@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Crear cuenta</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&amp;family=Manrope:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0;background:#07050A}
+a{color:#F0C987}a:hover{color:#FFE2AE}
+input::placeholder{color:#7D6A71}
+input:focus{outline:none;border-color:rgba(255,59,78,.7);box-shadow:0 0 0 4px rgba(224,30,60,.18),0 0 24px rgba(224,30,60,.25)}
+a:focus-visible,button:focus-visible{outline:2px solid #FF3B4E;outline-offset:3px}
+.btn-sangre:hover{filter:brightness(1.12)}
+.glifo{font-family:'JetBrains Mono',monospace;opacity:0;animation-name:aparecer;animation-iteration-count:infinite;animation-timing-function:ease-in-out;will-change:opacity}
+@keyframes aparecer{0%{opacity:0;transform:translateY(6px) scale(.9);filter:blur(3px)}14%{opacity:1;transform:none;filter:blur(0)}55%{opacity:.65}100%{opacity:0;transform:translateY(-4px);filter:blur(2px)}}
+@media (prefers-reduced-motion:reduce){.glifo{animation:none;opacity:.25}}
+</style>
+</helmet>
+<div style="position: relative; overflow: hidden; min-height: 900px; box-sizing: border-box; color: #F1E6E0; font-family: 'Manrope', sans-serif; background: radial-gradient(900px 600px at 82% 8%, rgba(196,18,47,.32), rgba(196,18,47,0) 65%), radial-gradient(700px 500px at 6% 96%, rgba(212,175,110,.12), rgba(212,175,110,0) 60%), #07050A; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 64px; padding: 64px 48px">
+  <div aria-hidden="true" style="position: absolute; inset: 0; overflow: hidden; pointer-events: none">
+    <sc-for list="{{ glifos }}" as="g" hint-placeholder-count="0">
+      <span class="glifo" style="position: absolute; left: {{ g.x }}; top: {{ g.y }}; font-size: {{ g.tam }}; color: {{ g.color }}; text-shadow: 0 0 14px {{ g.color }}; animation-duration: {{ g.dur }}; animation-delay: {{ g.retraso }}">{{ g.c }}</span>
+    </sc-for>
+  </div>
+  <section aria-label="Presentación" style="position: relative; flex: 1 1 440px; max-width: 540px; display: flex; flex-direction: column; gap: 36px">
+    <div style="display: flex; align-items: center; gap: 14px">
+      <svg aria-hidden="true" width="40" height="40" viewBox="0 0 40 40" fill="none">
+        <rect x="8" y="8" width="24" height="24" rx="3" transform="rotate(45 20 20)" stroke="#D4AF6E" stroke-width="1.2"></rect>
+        <rect x="14" y="14" width="12" height="12" rx="1.5" transform="rotate(45 20 20)" fill="#E01E3C"></rect>
+      </svg>
+      <div style="display: flex; flex-direction: column; gap: 2px">
+        <span style="font-family: 'Cormorant Garamond', serif; font-weight: 600; font-size: 28px; line-height: 1">Incidentes</span>
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 3px; color: #A8939A">CONSOLA · v0.1</span>
+      </div>
+    </div>
+    <h1 style="margin: 0; font-family: 'Cormorant Garamond', serif; font-weight: 500; font-size: 68px; line-height: 1; letter-spacing: -1px; text-shadow: 0 0 40px rgba(224,30,60,.35)">Reporta un incidente <span style="font-style: italic; color: #FF5A6A">en minutos.</span></h1>
+    <div style="display: flex; flex-direction: column; gap: 18px">
+      <div style="display: flex; gap: 16px; align-items: flex-start">
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #D4AF6E; padding-top: 3px">01</span>
+        <span style="font-size: 15px; line-height: 1.6; color: #CDBDC2">Las cuentas nuevas se crean con rol <strong style="color: #F1E6E0; font-weight: 600">usuario</strong>. Un administrador asigna los analistas.</span>
+      </div>
+      <div style="display: flex; gap: 16px; align-items: flex-start">
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #D4AF6E; padding-top: 3px">02</span>
+        <span style="font-size: 15px; line-height: 1.6; color: #CDBDC2">Solo verás los incidentes que tú reportes.</span>
+      </div>
+      <div style="display: flex; gap: 16px; align-items: flex-start">
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #D4AF6E; padding-top: 3px">03</span>
+        <span style="font-size: 15px; line-height: 1.6; color: #CDBDC2">Tu contraseña se guarda con argon2: nadie puede leerla, ni siquiera un administrador.</span>
+      </div>
+    </div>
+  </section>
+  <main style="position: relative; flex: 1 1 400px; max-width: 460px">
+    <div aria-hidden="true" style="position: absolute; inset: -40px; border-radius: 40px; background: radial-gradient(closest-side, rgba(224,30,60,.32), rgba(224,30,60,0)); filter: blur(30px); pointer-events: none"></div>
+    <form aria-labelledby="titulo-registro" style="position: relative; box-sizing: border-box; padding: 44px 40px; border-radius: 24px; background: linear-gradient(160deg, rgba(255,255,255,.09), rgba(255,255,255,.025) 45%, rgba(224,30,60,.06)); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); box-shadow: inset 0 1px 0 rgba(255,255,255,.14), inset 0 0 0 1px rgba(255,255,255,.05), 0 40px 100px -30px rgba(0,0,0,.9); display: flex; flex-direction: column; gap: 22px">
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 3px; color: #D4AF6E">NUEVA CUENTA</span>
+        <h2 id="titulo-registro" style="margin: 0; font-family: 'Cormorant Garamond', serif; font-weight: 600; font-size: 44px; line-height: 1">Crear cuenta</h2>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <label for="r-email" style="font-size: 13px; font-weight: 600; color: #CDBDC2">Email</label>
+        <input id="r-email" type="email" autocomplete="email" placeholder="nombre@empresa.com" style="height: 52px; box-sizing: border-box; padding: 0 16px; background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.08); border-radius: 14px; color: #F1E6E0; font-family: inherit; font-size: 15px">
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <label for="r-pass" style="font-size: 13px; font-weight: 600; color: #CDBDC2">Contraseña</label>
+        <input id="r-pass" type="password" autocomplete="new-password" aria-describedby="r-pass-ayuda" value="caballo-bateria" style="height: 52px; box-sizing: border-box; padding: 0 16px; background: rgba(0,0,0,.35); border: 1px solid {{ bordePass }}; border-radius: 14px; color: #F1E6E0; font-family: inherit; font-size: 15px">
+        <div id="r-pass-ayuda" style="display: flex; flex-direction: column; gap: 8px">
+          <div aria-hidden="true" style="display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 4px">
+            <sc-for list="{{ segmentos }}" as="s" hint-placeholder-count="12">
+              <div style="height: 4px; border-radius: 999px; background: {{ s.color }}; box-shadow: {{ s.brillo }}"></div>
+            </sc-for>
+          </div>
+          <div style="display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: {{ colorAyuda }}">
+            <span>{{ textoAyuda }}</span>
+            <span style="font-family: 'JetBrains Mono', monospace">{{ contador }}/12</span>
+          </div>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <label for="r-pass2" style="font-size: 13px; font-weight: 600; color: #CDBDC2">Repetir contraseña</label>
+        <input id="r-pass2" type="password" autocomplete="new-password" style="height: 52px; box-sizing: border-box; padding: 0 16px; background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.08); border-radius: 14px; color: #F1E6E0; font-family: inherit; font-size: 15px">
+      </div>
+      <a href="Incidentes.dc.html" class="btn-sangre" style="margin-top: 6px; height: 54px; display: flex; align-items: center; justify-content: center; gap: 10px; border-radius: 14px; background: linear-gradient(180deg, #EC2A47, #A80D26); color: #FFF4F1; text-decoration: none; font-weight: 700; font-size: 15px; box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 0 0 1px rgba(255,90,110,.3), 0 12px 32px -10px rgba(224,30,60,.75)">Crear cuenta <span aria-hidden="true">→</span></a>
+      <p style="margin: 6px 0 0; text-align: center; font-size: 14px; color: #A8939A">¿Ya tienes cuenta? <a href="Main.dc.html" style="font-weight: 600; text-decoration: none">Iniciar sesión</a></p>
+    </form>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"longitud":{"editor":"range","min":0,"max":20,"step":1,"default":15},"densidad":{"editor":"range","min":0,"max":120,"step":10,"default":60},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  caracter() {
+    const set = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン0123456789';
+    return set[Math.floor(Math.random() * set.length)];
+  }
+  glifo() {
+    const r = Math.random;
+    const oro = r() < 0.2;
+    return {
+      x: (r() * 98).toFixed(1) + '%',
+      y: (r() * 96).toFixed(1) + '%',
+      tam: Math.round(11 + r() * 12) + 'px',
+      color: oro ? 'rgba(240,201,135,.55)' : 'rgba(255,77,94,.6)',
+      dur: (4 + r() * 6).toFixed(1) + 's',
+      retraso: (-r() * 10).toFixed(1) + 's',
+      c: this.caracter()
+    };
+  }
+  componentDidMount() {
+    this._t = setInterval(() => {
+      if (!this._glifos || !this._glifos.length) return;
+      for (let k = 0; k < 4; k++) {
+        const i = Math.floor(Math.random() * this._glifos.length);
+        this._glifos[i] = { ...this._glifos[i], c: this.caracter() };
+      }
+      this.forceUpdate();
+    }, 700);
+  }
+  componentWillUnmount() {
+    clearInterval(this._t);
+  }
+  renderVals() {
+    const n = this.props.longitud ?? 15;
+    const d = this.props.densidad ?? 60;
+    if (!this._glifos || this._glifos.length !== d) {
+      this._glifos = Array.from({ length: d }, () => this.glifo());
+    }
+    const ok = n >= 12;
+    const color = ok ? '#8FD3B8' : '#F0C987';
+    const segmentos = Array.from({ length: 12 }, (_, i) => {
+      const lleno = i < Math.min(n, 12);
+      return {
+        color: lleno ? color : 'rgba(255,255,255,.08)',
+        brillo: lleno ? '0 0 8px ' + color : 'none'
+      };
+    });
+    return {
+      glifos: this._glifos,
+      segmentos,
+      contador: Math.min(n, 99),
+      bordePass: ok ? 'rgba(143,211,184,.45)' : 'rgba(240,201,135,.5)',
+      colorAyuda: ok ? '#8FD3B8' : '#F0C987',
+      textoAyuda: ok ? 'Longitud mínima cumplida' : 'Mínimo 12 caracteres'
+    };
+  }
+}
+</script>
+</body>
+</html>
