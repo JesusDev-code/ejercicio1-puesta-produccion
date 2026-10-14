@@ -6,7 +6,7 @@ import { Api } from '../core/api';
 import { codigo, mensajeGeneral } from '../core/errores';
 import { ROLES } from '../core/modelos';
 import { Sesion } from '../core/sesion';
-import { MINIMO_CONTRASENA } from './registro';
+import { MINIMO_CONTRASENA, coinciden } from '../core/validadores';
 
 @Component({
   selector: 'app-cuenta',
@@ -135,12 +135,7 @@ export class Cuenta implements OnInit {
       nueva: ['', [Validators.required, Validators.minLength(MINIMO_CONTRASENA), Validators.maxLength(128)]],
       repetir: ['', Validators.required],
     },
-    {
-      validators: (g) =>
-        g.get('nueva')?.value && g.get('repetir')?.value && g.get('nueva')?.value !== g.get('repetir')?.value
-          ? { noCoinciden: true }
-          : null,
-    },
+    { validators: coinciden('nueva', 'repetir') },
   );
 
   ngOnInit(): void {

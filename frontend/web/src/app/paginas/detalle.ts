@@ -20,6 +20,7 @@ import {
 import { Sesion } from '../core/sesion';
 import { Cargando, FalloServidor, NoExiste } from '../ui/estados';
 import { PildoraEstado, PildoraSeveridad } from '../ui/pildoras';
+import { Opcion, Selector } from '../ui/selector';
 
 type Seccion = 'editar' | 'notas' | 'estado' | 'asignar' | 'borrar';
 
@@ -40,7 +41,7 @@ const AYUDAS_ESTADO: Record<Estado, string> = {
 @Component({
   selector: 'app-detalle',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, RouterLink, DatePipe, PildoraEstado, PildoraSeveridad, Cargando, NoExiste, FalloServidor],
+  imports: [ReactiveFormsModule, RouterLink, DatePipe, PildoraEstado, PildoraSeveridad, Cargando, NoExiste, FalloServidor, Selector],
   templateUrl: './detalle.html',
   styleUrl: './detalle.css',
 })
@@ -53,7 +54,7 @@ export class Detalle implements OnInit {
   private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder).nonNullable;
 
-  protected readonly categorias = entradas(CATEGORIAS);
+  protected readonly opcionesCategoria: Opcion<Categoria>[] = entradas(CATEGORIAS).map(([valor, etiqueta]) => ({ valor, etiqueta }));
   protected readonly codigoInc = codigoInc;
 
   protected nombreCategoria(c: Categoria): string {
@@ -68,6 +69,9 @@ export class Detalle implements OnInit {
   protected readonly editando = signal(false);
   protected readonly confirmandoBorrado = signal(false);
   protected readonly analistas = signal<Usuario[]>([]);
+  protected readonly opcionesAnalistas = computed<Opcion<number>[]>(() =>
+    this.analistas().map((a) => ({ valor: a.id, etiqueta: a.email })),
+  );
 
   protected readonly edicion = this.fb.group({
     titulo: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(120)]],

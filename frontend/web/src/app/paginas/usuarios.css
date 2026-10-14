@@ -1,0 +1,229 @@
+.pila {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+.cabecera {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+.textos {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.mas {
+  font-size: 18px;
+}
+
+.aviso {
+  justify-content: space-between;
+  align-items: center;
+}
+.cerrar-aviso {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font-size: 20px;
+  cursor: pointer;
+  opacity: 0.7;
+}
+.cerrar-aviso:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* --- Alta --- */
+
+.alta {
+  padding: 30px;
+  border-radius: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.02) 55%, rgba(224, 30, 60, 0.06));
+}
+.alta-cabecera {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.alta-form {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 18px 20px;
+}
+.contrasena,
+.acciones-alta {
+  grid-column: 1 / -1;
+}
+.con-botones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.con-botones .entrada {
+  flex: 1 1 240px;
+  width: auto;
+}
+.con-botones .btn {
+  min-height: 52px;
+  border-radius: 14px;
+}
+.icono {
+  padding: 0 14px;
+}
+.acciones-alta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* --- Tabla --- */
+
+.panel {
+  border-radius: 24px;
+  display: flex;
+  flex-direction: column;
+}
+.busqueda {
+  flex: 2 1 260px;
+}
+.tabla {
+  min-width: 860px;
+}
+.tabla td {
+  padding: 12px 14px;
+}
+.fila.inactivo .usuario,
+.fila.inactivo .alta-fecha {
+  opacity: 0.55;
+}
+.usuario {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.avatar {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1a1008;
+  font-weight: 700;
+  font-size: 13px;
+}
+.av-usuario {
+  background: linear-gradient(140deg, #e9dcd6, #8e7c82);
+}
+.av-analista {
+  background: linear-gradient(140deg, #d4af6e, #7a5a26);
+}
+.av-admin {
+  background: linear-gradient(140deg, #ff7a88, #a80d26);
+}
+.datos {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.email {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.id {
+  font-size: 11px;
+  color: var(--tenue);
+}
+.estado {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--apagado);
+  white-space: nowrap;
+}
+.estado:not(.activo) .punto {
+  box-shadow: none;
+}
+.estado.activo {
+  color: var(--menta);
+}
+.alta-fecha {
+  font-size: 12px;
+  color: var(--apagado);
+  white-space: nowrap;
+}
+.acciones {
+  text-align: right;
+  white-space: nowrap;
+}
+.acciones .btn + .btn {
+  margin-left: 8px;
+}
+.compacto {
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+.relleno {
+  padding: 0 24px 24px;
+}
+.vacio {
+  padding: 8px 30px 30px;
+  color: var(--apagado);
+}
+
+/* --- Diálogo de restablecer --- */
+
+.dialogo {
+  width: min(560px, calc(100vw - 32px));
+  padding: 0;
+  border: 0;
+  border-radius: 24px;
+  color: var(--texto);
+  background: linear-gradient(165deg, rgba(40, 24, 32, 0.97), rgba(14, 9, 12, 0.98));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 40px 100px -20px rgba(0, 0, 0, 0.95),
+    0 0 80px -30px rgba(224, 30, 60, 0.6);
+}
+.dialogo::backdrop {
+  background: rgba(7, 5, 10, 0.72);
+  backdrop-filter: blur(6px);
+}
+.dialogo-form {
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.email-objetivo {
+  color: var(--oro-claro);
+  font-weight: 600;
+}
+
+@media (max-width: 720px) {
+  .alta {
+    padding: 22px;
+  }
+  .alta-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .dialogo-form {
+    padding: 22px;
+  }
+}

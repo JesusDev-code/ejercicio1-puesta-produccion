@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 
 import { Api } from '../core/api';
 import { codigo, mensajeGeneral } from '../core/errores';
@@ -11,7 +11,7 @@ import { Marca } from '../ui/marca';
 @Component({
   selector: 'app-login',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, RouterLink, Glifos, Marca],
+  imports: [ReactiveFormsModule, Glifos, Marca],
   styleUrl: './acceso.css',
   template: `
     <div class="pagina acceso">
@@ -73,7 +73,7 @@ import { Marca } from '../ui/marca';
           <button type="submit" class="btn btn-sangre btn-bloque" [disabled]="enviando() || form.invalid">
             {{ enviando() ? 'Entrando…' : 'Entrar' }} <span aria-hidden="true">→</span>
           </button>
-          <p class="enlace-alterno">¿No tienes cuenta? <a routerLink="/registro">Crear cuenta</a></p>
+          <p class="enlace-alterno">Las cuentas las da de alta un administrador.</p>
         </form>
         <p class="pie">Cada intento queda registrado en la auditoría</p>
       </main>

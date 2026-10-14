@@ -1,169 +1,83 @@
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  OnInit,
+  computed,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
+import { FormBuilder, FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 
 import { Api } from '../core/api';
 import { codigo, mensajeGeneral } from '../core/errores';
 import { ROLES, Rol, Usuario, entradas } from '../core/modelos';
 import { Sesion } from '../core/sesion';
+import { MINIMO_CONTRASENA, generarContrasena } from '../core/validadores';
 import { Cargando, FalloServidor } from '../ui/estados';
-
-const POR_PAGINA = 20;
+import { CambioPagina, Paginador } from '../ui/paginador';
+import { Opcion, Selector } from '../ui/selector';
 
 @Component({
   selector: 'app-usuarios',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, DatePipe, Cargando, FalloServidor],
-  template: `
-    <div class="pila">
-      <header class="textos">
-        <span class="ruta">~/usuarios</span>
-        <h1 class="titulo">Usuarios</h1>
-        <p class="subtitulo">Gestiona roles y acceso. Cada cambio queda registrado en la auditoría.</p>
-      </header>
-
-      @if (aviso(); as a) {
-        <div [attr.role]="a.ok ? 'status' : 'alert'" class="aviso" [class.aviso-ok]="a.ok" [class.aviso-error]="!a.ok">{{ a.texto }}</div>
-      }
-
-      <section aria-label="Usuarios" class="cristal panel">
-        <form role="search" aria-label="Filtros de usuarios" class="filtros" [formGroup]="filtros" (ngSubmit)="aplicar()">
-          <div class="campo busqueda">
-            <label for="u-buscar">Buscar por email</label>
-            <input id="u-buscar" type="search" class="entrada compacta" placeholder="nombre@empresa.com" maxlength="254" formControlName="email" />
-          </div>
-          <div class="campo">
-            <label for="u-rol">Rol</label>
-            <select id="u-rol" class="entrada compacta" formControlName="rol">
-              <option value="">Todos</option>
-              @for (r of roles; track r[0]) { <option [value]="r[0]">{{ r[1] }}</option> }
-            </select>
-          </div>
-          <button type="submit" class="btn btn-oro">Aplicar</button>
-        </form>
-
-        @if (cargando()) {
-          <app-cargando />
-        } @else if (fallo() !== null) {
-          <div class="relleno"><app-fallo-servidor [codigo]="fallo()!" (reintentar)="cargar()" /></div>
-        } @else if (filas().length === 0) {
-          <p class="vacio">Ningún usuario coincide con el filtro.</p>
-        } @else {
-          <div class="tabla-contenedor">
-            <table class="tabla">
-              <thead>
-                <tr>
-                  <th scope="col">USUARIO</th>
-                  <th scope="col">ROL</th>
-                  <th scope="col">ESTADO</th>
-                  <th scope="col">ALTA</th>
-                  <th scope="col"><span class="solo-lector">Acciones</span></th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (u of filas(); track u.id) {
-                  <tr class="fila" [class.inactivo]="!u.activo">
-                    <td>
-                      <div class="usuario">
-                        <span aria-hidden="true" class="avatar" [class]="'av-' + u.rol">{{ u.email.charAt(0).toUpperCase() }}</span>
-                        <div class="datos">
-                          <span class="email">{{ u.email }}</span>
-                          <span class="mono id">#{{ u.id }}{{ esYo(u) ? ' · tú' : '' }}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <label [for]="'rol-' + u.id" class="solo-lector">Rol de {{ u.email }}</label>
-                      <select [id]="'rol-' + u.id" class="rol" [class]="'rol-' + u.rol" [disabled]="esYo(u) || ocupado() === u.id"
-                        #selector (change)="cambiarRol(u, selector)">
-                        @for (r of roles; track r[0]) { <option [value]="r[0]" [selected]="r[0] === u.rol">{{ r[1] }}</option> }
-                      </select>
-                    </td>
-                    <td>
-                      <span class="estado" [class.activo]="u.activo"><span aria-hidden="true" class="punto"></span>{{ u.activo ? 'Activo' : 'Desactivado' }}</span>
-                    </td>
-                    <td class="mono alta">{{ u.creado_en | date: 'dd/MM/yyyy' }}</td>
-                    <td class="acciones">
-                      @if (!esYo(u)) {
-                        <button type="button" class="btn compacto" [class.btn-peligro]="u.activo" [class.btn-menta]="!u.activo"
-                          [disabled]="ocupado() === u.id" (click)="cambiarActivo(u)">{{ u.activo ? 'Desactivar' : 'Reactivar' }}</button>
-                      }
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-        }
-
-        @if (total() > 0) {
-          <nav aria-label="Paginación" class="paginacion">
-            <span>Mostrando {{ desplazamiento() + 1 }}–{{ desplazamiento() + filas().length }} de {{ total() }}</span>
-            <div class="botones">
-              <button type="button" class="btn btn-suave" [disabled]="desplazamiento() === 0" (click)="pagina(-1)">← Anterior</button>
-              <button type="button" class="btn btn-suave" [disabled]="desplazamiento() + filas().length >= total()" (click)="pagina(1)">Siguiente →</button>
-            </div>
-          </nav>
-        }
-      </section>
-    </div>
-  `,
-  styles: `
-    .pila { display: flex; flex-direction: column; gap: 28px; }
-    .textos { display: flex; flex-direction: column; gap: 10px; }
-    .panel { border-radius: 24px; display: flex; flex-direction: column; }
-    .busqueda { flex: 2 1 260px; }
-    .tabla { min-width: 820px; }
-    .tabla td { padding: 12px 14px; }
-    .fila.inactivo { opacity: 0.55; }
-    .usuario { display: flex; align-items: center; gap: 12px; }
-    .avatar {
-      width: 34px; height: 34px; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-      color: #1a1008; font-weight: 700; font-size: 13px;
-    }
-    .av-usuario { background: linear-gradient(140deg, #e9dcd6, #8e7c82); }
-    .av-analista { background: linear-gradient(140deg, #d4af6e, #7a5a26); }
-    .av-admin { background: linear-gradient(140deg, #ff7a88, #a80d26); }
-    .datos { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-    .email { font-weight: 600; overflow-wrap: anywhere; }
-    .id { font-size: 11px; color: var(--tenue); }
-    .rol {
-      min-height: 40px; padding: 0 12px; border: 0; border-radius: 999px; font-family: inherit; font-weight: 700;
-      font-size: 13px; cursor: pointer;
-    }
-    .rol:disabled { cursor: not-allowed; }
-    .rol:focus-visible { outline: 2px solid #ff3b4e; outline-offset: 3px; }
-    .rol-usuario { color: #f1e6e0; background: rgba(241, 230, 224, 0.09); }
-    .rol-analista { color: #f0c987; background: rgba(212, 175, 110, 0.16); }
-    .rol-admin { color: #ff7a88; background: rgba(224, 30, 60, 0.18); }
-    .rol option { background: #140d12; color: var(--texto); }
-    .estado { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--apagado); white-space: nowrap; }
-    .estado:not(.activo) .punto { box-shadow: none; }
-    .estado.activo { color: var(--menta); }
-    .alta { font-size: 12px; color: var(--apagado); white-space: nowrap; }
-    .acciones { text-align: right; white-space: nowrap; }
-    .compacto { min-height: 38px; padding: 0 14px; border-radius: 10px; font-size: 13px; }
-    .botones { display: flex; gap: 8px; }
-    .relleno { padding: 0 24px 24px; }
-    .vacio { padding: 8px 30px 30px; color: var(--apagado); }
-  `,
+  imports: [ReactiveFormsModule, DatePipe, Cargando, FalloServidor, Selector, Paginador],
+  templateUrl: './usuarios.html',
+  styleUrl: './usuarios.css',
 })
 export class Usuarios implements OnInit {
   private readonly api = inject(Api);
   private readonly sesion = inject(Sesion);
+  private readonly fb = inject(FormBuilder).nonNullable;
 
-  protected readonly roles = entradas(ROLES);
-  protected readonly filtros = inject(FormBuilder).nonNullable.group({ email: '', rol: '' as Rol | '' });
+  protected readonly minimo = MINIMO_CONTRASENA;
+  protected readonly opcionesRol: Opcion<Rol>[] = entradas(ROLES).map(([valor, etiqueta]) => ({
+    valor,
+    etiqueta,
+    clase: `rol-${valor}`,
+  }));
+  protected readonly opcionesFiltroRol: Opcion<Rol | ''>[] = [
+    { valor: '', etiqueta: 'Todos' },
+    ...this.opcionesRol,
+  ];
 
+  // --- Listado ---
+  protected readonly filtros = this.fb.group({ email: '', rol: '' as Rol | '' });
   protected readonly filas = signal<Usuario[]>([]);
   protected readonly total = signal(0);
   protected readonly desplazamiento = signal(0);
+  protected readonly limite = signal(20);
   protected readonly cargando = signal(true);
   protected readonly fallo = signal<number | null>(null);
   protected readonly ocupado = signal<number | null>(null);
+  /** Se incrementa cuando una acción falla: fuerza a repintar las filas con el valor real. */
+  protected readonly revision = signal(0);
   protected readonly aviso = signal<{ ok: boolean; texto: string } | null>(null);
-
   private readonly miId = computed(() => this.sesion.usuario()?.id);
+
+  // --- Alta ---
+  protected readonly creando = signal(false);
+  protected readonly enviandoAlta = signal(false);
+  protected readonly errorAlta = signal<string | null>(null);
+  protected readonly verAlta = signal(false);
+  protected readonly alta = this.fb.group({
+    email: ['', [Validators.required, Validators.email, Validators.maxLength(254)]],
+    rol: ['usuario' as Rol, Validators.required],
+    contrasena: ['', [Validators.required, Validators.minLength(MINIMO_CONTRASENA), Validators.maxLength(128)]],
+  });
+
+  // --- Restablecer contraseña ---
+  private readonly dialogo = viewChild.required<ElementRef<HTMLDialogElement>>('dialogo');
+  protected readonly objetivo = signal<Usuario | null>(null);
+  protected readonly enviandoReset = signal(false);
+  protected readonly errorReset = signal<string | null>(null);
+  protected readonly verReset = signal(false);
+  protected readonly nuevaContrasena = new FormControl('', {
+    nonNullable: true,
+    validators: [Validators.required, Validators.minLength(MINIMO_CONTRASENA), Validators.maxLength(128)],
+  });
 
   ngOnInit(): void {
     void this.cargar();
@@ -181,7 +95,7 @@ export class Usuarios implements OnInit {
       const pagina = await this.api.usuarios({
         email: v.email.trim(),
         rol: v.rol,
-        limite: POR_PAGINA,
+        limite: this.limite(),
         desplazamiento: this.desplazamiento(),
       });
       this.filas.set(pagina.elementos);
@@ -198,25 +112,64 @@ export class Usuarios implements OnInit {
     void this.cargar();
   }
 
-  pagina(direccion: 1 | -1): void {
-    this.desplazamiento.update((d) => Math.max(0, d + direccion * POR_PAGINA));
+  paginar({ desplazamiento, limite }: CambioPagina): void {
+    this.desplazamiento.set(desplazamiento);
+    this.limite.set(limite);
     void this.cargar();
   }
 
-  private reemplazar(actualizado: Usuario): void {
-    this.filas.update((lista) => lista.map((u) => (u.id === actualizado.id ? actualizado : u)));
+  // --- Alta de cuentas ---
+
+  abrirAlta(): void {
+    this.alta.reset();
+    this.errorAlta.set(null);
+    this.verAlta.set(false);
+    this.creando.set(true);
   }
 
-  async cambiarRol(u: Usuario, selector: HTMLSelectElement): Promise<void> {
-    const rol = selector.value as Rol;
+  generarAlta(): void {
+    this.alta.controls.contrasena.setValue(generarContrasena());
+    this.verAlta.set(true);
+  }
+
+  async crear(): Promise<void> {
+    if (this.alta.invalid) {
+      this.alta.markAllAsTouched();
+      return;
+    }
+    this.enviandoAlta.set(true);
+    this.errorAlta.set(null);
+    try {
+      const nuevo = await this.api.crearUsuario(this.alta.getRawValue());
+      this.creando.set(false);
+      this.aviso.set({
+        ok: true,
+        texto: `Cuenta ${nuevo.email} creada como ${ROLES[nuevo.rol].toLowerCase()}. Pásale la contraseña por un canal seguro: podrá cambiarla en Mi cuenta.`,
+      });
+      this.desplazamiento.set(0);
+      await this.cargar();
+    } catch (e) {
+      this.errorAlta.set(
+        codigo(e) === 409
+          ? 'Ese email ya tiene cuenta.'
+          : codigo(e) === 422
+            ? 'Revisa el email y la contraseña (mínimo 12 caracteres).'
+            : mensajeGeneral(e),
+      );
+    } finally {
+      this.enviandoAlta.set(false);
+    }
+  }
+
+  // --- Rol y activación ---
+
+  async cambiarRol(u: Usuario, rol: Rol): Promise<void> {
     if (rol === u.rol) return;
-    const ok = await this.ejecutar(
+    await this.ejecutar(
       u,
       () => this.api.cambiarRol(u.id, rol),
-      `${u.email} ahora es ${ROLES[rol].toLowerCase()}.`,
+      `${u.email} ahora es ${ROLES[rol].toLowerCase()}. Sus sesiones abiertas se han cerrado.`,
     );
-    // El enlace [selected] no cambia si el rol no cambió: se devuelve el <select> a mano
-    if (!ok) selector.value = u.rol;
   }
 
   async cambiarActivo(u: Usuario): Promise<void> {
@@ -227,18 +180,64 @@ export class Usuarios implements OnInit {
     );
   }
 
-  private async ejecutar(u: Usuario, fn: () => Promise<Usuario>, exito: string): Promise<boolean> {
+  private async ejecutar(u: Usuario, fn: () => Promise<Usuario>, exito: string): Promise<void> {
     this.ocupado.set(u.id);
     this.aviso.set(null);
     try {
-      this.reemplazar(await fn());
+      const actualizado = await fn();
+      this.filas.update((lista) => lista.map((x) => (x.id === actualizado.id ? actualizado : x)));
       this.aviso.set({ ok: true, texto: exito });
-      return true;
     } catch (e) {
+      this.revision.update((r) => r + 1);
       this.aviso.set({ ok: false, texto: mensajeGeneral(e) });
-      return false;
     } finally {
       this.ocupado.set(null);
+    }
+  }
+
+  // --- Restablecer contraseña ---
+
+  abrirReset(u: Usuario): void {
+    this.objetivo.set(u);
+    this.nuevaContrasena.reset();
+    this.errorReset.set(null);
+    this.verReset.set(false);
+    this.dialogo().nativeElement.showModal();
+  }
+
+  cerrarReset(): void {
+    this.dialogo().nativeElement.close();
+  }
+
+  generarReset(): void {
+    this.nuevaContrasena.setValue(generarContrasena());
+    this.verReset.set(true);
+  }
+
+  async restablecer(): Promise<void> {
+    const u = this.objetivo();
+    if (!u || this.nuevaContrasena.invalid) return;
+    this.enviandoReset.set(true);
+    this.errorReset.set(null);
+    try {
+      await this.api.restablecerContrasena(u.id, this.nuevaContrasena.value);
+      this.cerrarReset();
+      this.aviso.set({
+        ok: true,
+        texto: `Contraseña de ${u.email} restablecida. Sus sesiones abiertas se han cerrado.`,
+      });
+    } catch (e) {
+      this.errorReset.set(mensajeGeneral(e));
+    } finally {
+      this.enviandoReset.set(false);
+    }
+  }
+
+  async copiar(texto: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(texto);
+    } catch {
+      // Sin permiso de portapapeles: la contraseña sigue visible para copiarla a mano
     }
   }
 }

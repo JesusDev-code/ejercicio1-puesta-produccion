@@ -45,9 +45,7 @@
               </div>
               <div class="campo">
                 <label for="e-cat">Categoría</label>
-                <select id="e-cat" class="entrada selector" formControlName="categoria">
-                  @for (c of categorias; track c[0]) { <option [value]="c[0]">{{ c[1] }}</option> }
-                </select>
+                <app-selector idCampo="e-cat" class="selector" [opciones]="opcionesCategoria" formControlName="categoria" />
               </div>
               <div class="campo">
                 <label for="e-desc">Descripción</label>
@@ -127,10 +125,8 @@
           <section aria-labelledby="h-asignar" class="cristal bloque compacto">
             <h2 id="h-asignar" class="cabecera-mono">ASIGNAR ANALISTA</h2>
             <label for="d-analista" class="etiqueta">Analista</label>
-            <select id="d-analista" class="entrada compacta" [formControl]="analistaElegido">
-              <option [ngValue]="null" disabled>{{ analistas().length ? 'Elige un analista' : 'No hay analistas activos' }}</option>
-              @for (a of analistas(); track a.id) { <option [ngValue]="a.id">{{ a.email }}</option> }
-            </select>
+            <app-selector idCampo="d-analista" [compacto]="true" [opciones]="opcionesAnalistas()" [formControl]="analistaElegido"
+              [marcador]="analistas().length ? 'Elige un analista' : 'No hay analistas activos'" />
             @if (avisos().asignar; as a) {
               <div [attr.role]="a.ok ? 'status' : 'alert'" class="aviso" [class.aviso-ok]="a.ok" [class.aviso-error]="!a.ok">{{ a.texto }}</div>
             }

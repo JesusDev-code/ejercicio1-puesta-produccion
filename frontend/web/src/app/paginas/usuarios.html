@@ -1,0 +1,184 @@
+<div class="pila">
+  <header class="cabecera">
+    <div class="textos">
+      <span class="ruta">~/usuarios</span>
+      <h1 class="titulo">Usuarios</h1>
+      <p class="subtitulo">Altas, roles, acceso y contraseñas. No hay registro público: cada cuenta la crea un administrador y queda en la auditoría.</p>
+    </div>
+    @if (!creando()) {
+      <button type="button" class="btn btn-sangre" (click)="abrirAlta()"><span aria-hidden="true" class="mas">+</span> Nuevo usuario</button>
+    }
+  </header>
+
+  @if (aviso(); as a) {
+    <div [attr.role]="a.ok ? 'status' : 'alert'" class="aviso" [class.aviso-ok]="a.ok" [class.aviso-error]="!a.ok">
+      <span>{{ a.texto }}</span>
+      <button type="button" class="cerrar-aviso" aria-label="Cerrar aviso" (click)="aviso.set(null)">×</button>
+    </div>
+  }
+
+  @if (creando()) {
+    <section aria-labelledby="t-alta" class="cristal alta">
+      <div class="alta-cabecera">
+        <span class="etiqueta-mono">ALTA DE CUENTA</span>
+        <h2 id="t-alta" class="titulo-2">Nuevo usuario</h2>
+      </div>
+
+      @if (errorAlta()) {
+        <div role="alert" class="aviso aviso-error">{{ errorAlta() }}</div>
+      }
+
+      <form class="alta-form" [formGroup]="alta" (ngSubmit)="crear()" novalidate>
+        <div class="campo email">
+          <label for="a-email">Email</label>
+          <input id="a-email" type="email" class="entrada" autocomplete="off" placeholder="nombre@empresa.com" formControlName="email"
+            [class.invalida]="alta.controls.email.touched && alta.controls.email.invalid" />
+          @if (alta.controls.email.touched && alta.controls.email.invalid) {
+            <span class="error-campo">Introduce un email válido.</span>
+          }
+        </div>
+
+        <div class="campo rol">
+          <label for="a-rol">Rol</label>
+          <app-selector idCampo="a-rol" [opciones]="opcionesRol" formControlName="rol" />
+        </div>
+
+        <div class="campo contrasena">
+          <div class="campo-cabecera">
+            <label for="a-pass">Contraseña inicial</label>
+            <span class="contador">{{ alta.controls.contrasena.value.length }}/{{ minimo }} mín.</span>
+          </div>
+          <div class="con-botones">
+            <input id="a-pass" class="entrada mono" autocomplete="new-password" formControlName="contrasena"
+              [type]="verAlta() ? 'text' : 'password'" aria-describedby="a-pass-ayuda"
+              [class.invalida]="alta.controls.contrasena.touched && alta.controls.contrasena.invalid" />
+            <button type="button" class="btn btn-suave icono" [attr.aria-label]="verAlta() ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+              [attr.aria-pressed]="verAlta()" (click)="verAlta.set(!verAlta())">
+              @if (verAlta()) {
+                <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 3l18 18M10.6 10.6a2 2 0 002.8 2.8M9.9 5.1A9.8 9.8 0 0112 5c5 0 9 5 9 7a9.5 9.5 0 01-2.2 3.3M6.6 6.6C4.4 8 3 10.4 3 12c0 2 4 7 9 7a9.6 9.6 0 004.2-1" /></svg>
+              } @else {
+                <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></svg>
+              }
+            </button>
+            <button type="button" class="btn btn-oro" (click)="generarAlta()">Generar</button>
+            <button type="button" class="btn btn-suave" [disabled]="!alta.controls.contrasena.value" (click)="copiar(alta.controls.contrasena.value)">Copiar</button>
+          </div>
+          <span id="a-pass-ayuda" class="ayuda">«Generar» crea 20 caracteres aleatorios con el generador criptográfico del navegador.</span>
+        </div>
+
+        <div class="acciones-alta">
+          <button type="submit" class="btn btn-sangre" [disabled]="enviandoAlta()">{{ enviandoAlta() ? 'Creando…' : 'Crear cuenta' }}</button>
+          <button type="button" class="btn btn-suave" (click)="creando.set(false)">Cancelar</button>
+        </div>
+      </form>
+    </section>
+  }
+
+  <section aria-label="Usuarios" class="cristal panel">
+    <form role="search" aria-label="Filtros de usuarios" class="filtros" [formGroup]="filtros" (ngSubmit)="aplicar()">
+      <div class="campo busqueda">
+        <label for="u-buscar">Buscar por email</label>
+        <input id="u-buscar" type="search" class="entrada compacta" placeholder="nombre@empresa.com" maxlength="254" formControlName="email" />
+      </div>
+      <div class="campo">
+        <label for="u-rol">Rol</label>
+        <app-selector idCampo="u-rol" [compacto]="true" [opciones]="opcionesFiltroRol" formControlName="rol" />
+      </div>
+      <button type="submit" class="btn btn-oro">Aplicar</button>
+    </form>
+
+    @if (cargando()) {
+      <app-cargando />
+    } @else if (fallo() !== null) {
+      <div class="relleno"><app-fallo-servidor [codigo]="fallo()!" (reintentar)="cargar()" /></div>
+    } @else if (filas().length === 0) {
+      <p class="vacio">Ningún usuario coincide con el filtro.</p>
+    } @else {
+      <div class="tabla-contenedor">
+        <table class="tabla">
+          <thead>
+            <tr>
+              <th scope="col">USUARIO</th>
+              <th scope="col">ROL</th>
+              <th scope="col">ESTADO</th>
+              <th scope="col">ALTA</th>
+              <th scope="col"><span class="solo-lector">Acciones</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (u of filas(); track u.id + '-' + revision()) {
+              <tr class="fila" [class.inactivo]="!u.activo">
+                <td>
+                  <div class="usuario">
+                    <span aria-hidden="true" class="avatar" [class]="'av-' + u.rol">{{ u.email.charAt(0).toUpperCase() }}</span>
+                    <div class="datos">
+                      <span class="email">{{ u.email }}</span>
+                      <span class="mono id">#{{ u.id }}{{ esYo(u) ? ' · tú' : '' }}</span>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <app-selector [pildora]="true" [opciones]="opcionesRol" [valor]="u.rol" [etiquetaAria]="'Rol de ' + u.email"
+                    [bloqueado]="esYo(u) || ocupado() === u.id" (cambio)="cambiarRol(u, $event)" />
+                </td>
+                <td>
+                  <span class="estado" [class.activo]="u.activo"><span aria-hidden="true" class="punto"></span>{{ u.activo ? 'Activo' : 'Desactivado' }}</span>
+                </td>
+                <td class="mono alta-fecha">{{ u.creado_en | date: 'dd/MM/yyyy' }}</td>
+                <td class="acciones">
+                  @if (!esYo(u)) {
+                    <button type="button" class="btn compacto btn-suave" [disabled]="ocupado() === u.id" (click)="abrirReset(u)">Contraseña</button>
+                    <button type="button" class="btn compacto" [class.btn-peligro]="u.activo" [class.btn-menta]="!u.activo"
+                      [disabled]="ocupado() === u.id" (click)="cambiarActivo(u)">{{ u.activo ? 'Desactivar' : 'Reactivar' }}</button>
+                  } @else {
+                    <span class="ayuda">Tu cuenta: gestiónala en Mi cuenta</span>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+
+    @if (total() > 0) {
+      <app-paginador [total]="total()" [limite]="limite()" [desplazamiento]="desplazamiento()" (cambio)="paginar($event)" />
+    }
+  </section>
+</div>
+
+<dialog #dialogo class="dialogo" aria-labelledby="t-reset" (close)="objetivo.set(null)">
+  @if (objetivo(); as u) {
+    <form class="dialogo-form" (ngSubmit)="restablecer()" novalidate>
+      <span class="etiqueta-mono">SEGURIDAD</span>
+      <h2 id="t-reset" class="titulo-2">Restablecer contraseña</h2>
+      <p class="ayuda">Para <strong class="email-objetivo">{{ u.email }}</strong>. Se cerrarán todas sus sesiones abiertas.</p>
+
+      @if (errorReset()) {
+        <div role="alert" class="aviso aviso-error">{{ errorReset() }}</div>
+      }
+
+      <div class="campo">
+        <label for="r-nueva">Nueva contraseña</label>
+        <div class="con-botones">
+          <input id="r-nueva" class="entrada mono" autocomplete="new-password" [formControl]="nuevaContrasena"
+            [type]="verReset() ? 'text' : 'password'" />
+          <button type="button" class="btn btn-suave icono" [attr.aria-label]="verReset() ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+            [attr.aria-pressed]="verReset()" (click)="verReset.set(!verReset())">
+            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></svg>
+          </button>
+          <button type="button" class="btn btn-oro" (click)="generarReset()">Generar</button>
+          <button type="button" class="btn btn-suave" [disabled]="!nuevaContrasena.value" (click)="copiar(nuevaContrasena.value)">Copiar</button>
+        </div>
+        <span class="ayuda">Mínimo {{ minimo }} caracteres.</span>
+      </div>
+
+      <div class="acciones-alta">
+        <button type="submit" class="btn btn-sangre" [disabled]="nuevaContrasena.invalid || enviandoReset()">
+          {{ enviandoReset() ? 'Restableciendo…' : 'Restablecer' }}
+        </button>
+        <button type="button" class="btn btn-suave" (click)="cerrarReset()">Cancelar</button>
+      </div>
+    </form>
+  }
+</dialog>

@@ -43,15 +43,26 @@ import { Marca } from './marca';
           </div>
         }
 
+        <div class="grupo">
+          <span class="cabecera-mono grupo-titulo">CUENTA</span>
+          <a routerLink="/cuenta" routerLinkActive="activo" ariaCurrentWhenActive="page" class="item">
+            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 21c1-4.2 4.2-6.5 8-6.5s7 2.3 8 6.5" /></svg>
+            Mi cuenta
+          </a>
+        </div>
+
         <div class="tarjeta-usuario">
-          <a routerLink="/cuenta" routerLinkActive="activo-cuenta" ariaCurrentWhenActive="page" class="usuario" aria-label="Mi cuenta">
+          <a routerLink="/cuenta" class="usuario" title="Ir a Mi cuenta">
             <span aria-hidden="true" class="avatar">{{ inicial() }}</span>
             <span class="datos">
               <span class="email">{{ sesion.usuario()?.email }}</span>
               <span class="rol">{{ rol() }}</span>
             </span>
           </a>
-          <button type="button" class="item salir" (click)="salir()">Cerrar sesión</button>
+          <button type="button" class="item salir" (click)="salir()">
+            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h3a2 2 0 012 2v12a2 2 0 01-2 2h-3M10 17l5-5-5-5M15 12H4" /></svg>
+            Cerrar sesión
+          </button>
         </div>
       </nav>
 
@@ -88,7 +99,7 @@ import { Marca } from './marca';
       background: rgba(0, 0, 0, 0.28);
     }
     .usuario { display: flex; align-items: center; gap: 12px; color: var(--texto); text-decoration: none; border-radius: 12px; }
-    .usuario.activo-cuenta .email, .usuario:hover .email { color: var(--oro-claro); }
+    .usuario:hover .email { color: var(--oro-claro); }
     .avatar {
       width: 36px; height: 36px; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center;
       background: linear-gradient(140deg, #d4af6e, #7a5a26); color: #1a1008; font-weight: 700; font-size: 14px;

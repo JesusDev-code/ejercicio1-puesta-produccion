@@ -18,9 +18,10 @@ import {
 } from '../core/modelos';
 import { Sesion } from '../core/sesion';
 import { Cargando, FalloServidor } from '../ui/estados';
+import { CambioPagina, Paginador } from '../ui/paginador';
 import { PildoraEstado, PildoraSeveridad } from '../ui/pildoras';
+import { Opcion, Selector } from '../ui/selector';
 
-const POR_PAGINA = 10;
 
 interface Contador {
   etiqueta: string;
@@ -31,7 +32,7 @@ interface Contador {
 @Component({
   selector: 'app-incidentes',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, RouterLink, DatePipe, DecimalPipe, PildoraEstado, PildoraSeveridad, Cargando, FalloServidor],
+  imports: [ReactiveFormsModule, RouterLink, DatePipe, DecimalPipe, PildoraEstado, PildoraSeveridad, Cargando, FalloServidor, Selector, Paginador],
   template: `
     <div class="pila">
       <header class="cabecera">
@@ -57,24 +58,15 @@ interface Contador {
         <form role="search" aria-label="Filtros" class="filtros" [formGroup]="filtros" (ngSubmit)="aplicar()">
           <div class="campo">
             <label for="f-estado">Estado</label>
-            <select id="f-estado" class="entrada compacta" formControlName="estado">
-              <option value="">Todos</option>
-              @for (e of estados; track e[0]) { <option [value]="e[0]">{{ e[1].nombre }}</option> }
-            </select>
+            <app-selector idCampo="f-estado" [compacto]="true" [opciones]="opcionesEstado" formControlName="estado" />
           </div>
           <div class="campo">
             <label for="f-sev">Severidad</label>
-            <select id="f-sev" class="entrada compacta" formControlName="severidad">
-              <option value="">Todas</option>
-              @for (s of severidades; track s[0]) { <option [value]="s[0]">{{ s[1].nombre }}</option> }
-            </select>
+            <app-selector idCampo="f-sev" [compacto]="true" [opciones]="opcionesSeveridad" formControlName="severidad" />
           </div>
           <div class="campo ancho">
             <label for="f-cat">Categoría</label>
-            <select id="f-cat" class="entrada compacta" formControlName="categoria">
-              <option value="">Todas</option>
-              @for (c of categorias; track c[0]) { <option [value]="c[0]">{{ c[1] }}</option> }
-            </select>
+            <app-selector idCampo="f-cat" [compacto]="true" [opciones]="opcionesCategoria" formControlName="categoria" />
           </div>
           <button type="submit" class="btn btn-oro">Aplicar</button>
           <button type="button" class="btn btn-texto" (click)="limpiar()">Limpiar</button>
@@ -129,13 +121,7 @@ total 0<span class="cursor">_</span></pre>
         }
 
         @if (total() > 0) {
-          <nav aria-label="Paginación" class="paginacion">
-            <span>Mostrando {{ desde() }}–{{ hasta() }} de {{ total() }}</span>
-            <div class="botones">
-              <button type="button" class="btn btn-suave" [disabled]="desplazamiento() === 0" (click)="pagina(-1)">← Anterior</button>
-              <button type="button" class="btn btn-suave" [disabled]="hasta() >= total()" (click)="pagina(1)">Siguiente →</button>
-            </div>
-          </nav>
+          <app-paginador [total]="total()" [limite]="limite()" [desplazamiento]="desplazamiento()" (cambio)="paginar($event)" />
         }
       </section>
     </div>
@@ -170,7 +156,6 @@ total 0<span class="cursor">_</span></pre>
     .categoria { font-size: 12px; color: var(--apagado); }
     .analista { color: var(--texto-2); font-size: 13px; white-space: nowrap; }
     .fecha { font-size: 12px; color: var(--apagado); white-space: nowrap; }
-    .botones { display: flex; gap: 8px; }
     .relleno { padding: 0 24px 24px; }
     .vacio { padding: 12px 30px 30px; display: flex; flex-direction: column; gap: 14px; }
     .terminal { margin: 0; font-family: var(--mono); font-size: 13px; line-height: 1.6; color: var(--sangre-claro); text-shadow: 0 0 12px rgba(255, 77, 94, 0.5); }
@@ -182,9 +167,18 @@ export class Incidentes implements OnInit {
   private readonly api = inject(Api);
   private readonly sesion = inject(Sesion);
 
-  protected readonly estados = entradas(ESTADOS);
-  protected readonly severidades = entradas(SEVERIDADES);
-  protected readonly categorias = entradas(CATEGORIAS);
+  protected readonly opcionesEstado: Opcion<Estado | ''>[] = [
+    { valor: '', etiqueta: 'Todos' },
+    ...entradas(ESTADOS).map(([valor, e]) => ({ valor, etiqueta: e.nombre })),
+  ];
+  protected readonly opcionesSeveridad: Opcion<Severidad | ''>[] = [
+    { valor: '', etiqueta: 'Todas' },
+    ...entradas(SEVERIDADES).map(([valor, s]) => ({ valor, etiqueta: s.nombre })),
+  ];
+  protected readonly opcionesCategoria: Opcion<Categoria | ''>[] = [
+    { valor: '', etiqueta: 'Todas' },
+    ...entradas(CATEGORIAS).map(([valor, etiqueta]) => ({ valor, etiqueta })),
+  ];
 
   protected readonly filtros = inject(FormBuilder).nonNullable.group({
     estado: '' as Estado | '',
@@ -195,6 +189,7 @@ export class Incidentes implements OnInit {
   protected readonly filas = signal<Incidente[]>([]);
   protected readonly total = signal(0);
   protected readonly desplazamiento = signal(0);
+  protected readonly limite = signal(10);
   protected readonly cargando = signal(true);
   protected readonly fallo = signal<number | null>(null);
   protected readonly hayFiltros = signal(false);
@@ -205,8 +200,6 @@ export class Incidentes implements OnInit {
     { etiqueta: 'SEVERIDAD CRÍTICA', clase: 'critica', valor: null },
   ]);
 
-  protected readonly desde = computed(() => (this.total() ? this.desplazamiento() + 1 : 0));
-  protected readonly hasta = computed(() => this.desplazamiento() + this.filas().length);
 
   protected readonly textos = computed(() => {
     switch (this.sesion.usuario()?.rol) {
@@ -236,7 +229,7 @@ export class Incidentes implements OnInit {
     try {
       const pagina = await this.api.incidentes({
         ...this.filtros.getRawValue(),
-        limite: POR_PAGINA,
+        limite: this.limite(),
         desplazamiento: this.desplazamiento(),
       });
       this.filas.set(pagina.elementos);
@@ -279,8 +272,9 @@ export class Incidentes implements OnInit {
     this.aplicar();
   }
 
-  pagina(direccion: 1 | -1): void {
-    this.desplazamiento.update((d) => Math.max(0, d + direccion * POR_PAGINA));
+  paginar({ desplazamiento, limite }: CambioPagina): void {
+    this.desplazamiento.set(desplazamiento);
+    this.limite.set(limite);
     void this.cargar();
   }
 }

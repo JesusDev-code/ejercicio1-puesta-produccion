@@ -116,6 +116,8 @@ export const ACCIONES_AUDITORIA = [
   'login_fallido',
   'logout',
   'registro',
+  'crear_usuario',
+  'restablecer_contrasena',
   'reutilizacion_token',
   'cambio_contrasena',
   'cambio_contrasena_fallido',
@@ -133,6 +135,8 @@ export const ACCIONES_AUDITORIA = [
 
 export const AUDITORIA_ALERTA = new Set(['login_fallido', 'reutilizacion_token', 'cambio_contrasena_fallido']);
 export const AUDITORIA_PRIVILEGIO = new Set([
+  'crear_usuario',
+  'restablecer_contrasena',
   'cambio_rol',
   'asignar_incidente',
   'borrar_incidente',
@@ -140,6 +144,18 @@ export const AUDITORIA_PRIVILEGIO = new Set([
   'reactivar_usuario',
   'crear_admin_cli',
 ]);
+
+/** Opciones de un desplegable a partir de un diccionario valor → etiqueta. */
+export function opciones<K extends string>(
+  registro: Record<K, string | { nombre: string }>,
+  clase?: (valor: K) => string,
+): { valor: K; etiqueta: string; clase?: string }[] {
+  return entradas(registro).map(([valor, v]) => ({
+    valor,
+    etiqueta: typeof v === 'string' ? v : v.nombre,
+    clase: clase?.(valor),
+  }));
+}
 
 export function codigoInc(id: number): string {
   return `INC-${String(id).padStart(4, '0')}`;

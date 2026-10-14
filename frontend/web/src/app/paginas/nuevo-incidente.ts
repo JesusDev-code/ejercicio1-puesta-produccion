@@ -6,6 +6,7 @@ import { Router, RouterLink } from '@angular/router';
 import { Api } from '../core/api';
 import { camposInvalidos, codigo, mensajeGeneral } from '../core/errores';
 import { CATEGORIAS, Categoria, SEVERIDADES, Severidad, entradas } from '../core/modelos';
+import { Opcion, Selector } from '../ui/selector';
 
 const NOMBRES_CAMPO: Record<string, string> = {
   titulo: 'el título',
@@ -17,7 +18,7 @@ const NOMBRES_CAMPO: Record<string, string> = {
 @Component({
   selector: 'app-nuevo-incidente',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule, RouterLink, Selector],
   template: `
     <div class="pila">
       <header class="textos">
@@ -67,9 +68,7 @@ const NOMBRES_CAMPO: Record<string, string> = {
 
         <div class="campo">
           <label for="n-cat">Categoría</label>
-          <select id="n-cat" class="entrada selector" formControlName="categoria" [class.invalida]="invalido('categoria')">
-            @for (c of categorias; track c[0]) { <option [value]="c[0]">{{ c[1] }}</option> }
-          </select>
+          <app-selector idCampo="n-cat" class="selector" [opciones]="categorias" formControlName="categoria" [invalido]="invalido('categoria')" />
         </div>
 
         <div class="campo">
@@ -130,7 +129,7 @@ export class NuevoIncidente {
   private readonly router = inject(Router);
 
   protected readonly severidades = entradas(SEVERIDADES);
-  protected readonly categorias = entradas(CATEGORIAS);
+  protected readonly categorias: Opcion<Categoria>[] = entradas(CATEGORIAS).map(([valor, etiqueta]) => ({ valor, etiqueta }));
 
   protected readonly form = inject(FormBuilder).nonNullable.group({
     titulo: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(120)]],

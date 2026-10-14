@@ -36,8 +36,12 @@ export class Api {
     return firstValueFrom(this.http.get('/api/salud'));
   }
 
-  registrar(email: string, contrasena: string): Promise<Usuario> {
-    return firstValueFrom(this.http.post<Usuario>('/api/auth/registro', { email, contrasena }));
+  crearUsuario(datos: { email: string; contrasena: string; rol: Rol }): Promise<Usuario> {
+    return firstValueFrom(this.http.post<Usuario>('/api/usuarios', datos));
+  }
+
+  restablecerContrasena(id: number, contrasena_nueva: string): Promise<unknown> {
+    return firstValueFrom(this.http.patch(`/api/usuarios/${id}/contrasena`, { contrasena_nueva }));
   }
 
   cambiarContrasena(contrasena_actual: string, contrasena_nueva: string): Promise<unknown> {

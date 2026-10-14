@@ -1,4 +1,4 @@
-import { DatePipe, DecimalPipe } from '@angular/common';
+import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 
@@ -6,13 +6,14 @@ import { Api } from '../core/api';
 import { codigo } from '../core/errores';
 import { ACCIONES_AUDITORIA, AUDITORIA_ALERTA, AUDITORIA_PRIVILEGIO, RegistroAuditoria } from '../core/modelos';
 import { Cargando, FalloServidor } from '../ui/estados';
+import { CambioPagina, Paginador } from '../ui/paginador';
+import { Opcion, Selector } from '../ui/selector';
 
-const POR_PAGINA = 50;
 
 @Component({
   selector: 'app-auditoria',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, DatePipe, DecimalPipe, Cargando, FalloServidor],
+  imports: [ReactiveFormsModule, DatePipe, Cargando, FalloServidor, Selector, Paginador],
   template: `
     <div class="pila">
       <header class="cabecera">
@@ -24,10 +25,7 @@ const POR_PAGINA = 50;
         <form role="search" aria-label="Filtro de auditoría" class="filtro" (ngSubmit)="filtrar()">
           <div class="campo">
             <label for="a-accion" class="etiqueta-filtro">Acción</label>
-            <select id="a-accion" class="entrada compacta mono" [formControl]="accion">
-              <option value="">todas</option>
-              @for (a of acciones; track a) { <option [value]="a">{{ a }}</option> }
-            </select>
+            <app-selector idCampo="a-accion" class="selector-accion" [compacto]="true" [opciones]="opcionesAccion" [formControl]="accion" />
           </div>
           <button type="submit" class="btn btn-oro">Filtrar</button>
         </form>
@@ -44,7 +42,7 @@ const POR_PAGINA = 50;
           <span aria-hidden="true" class="luz roja"></span>
           <span aria-hidden="true" class="luz ambar"></span>
           <span aria-hidden="true" class="luz apagada"></span>
-          <span class="mono comando">tail -n {{ porPagina }} auditoria.log{{ accion.value ? ' | grep ' + accion.value : '' }}</span>
+          <span class="mono comando">tail -n {{ limite() }} auditoria.log{{ accion.value ? ' | grep ' + accion.value : '' }}</span>
         </div>
 
         @if (cargando()) {
@@ -77,13 +75,8 @@ const POR_PAGINA = 50;
       </section>
 
       @if (total() > 0) {
-        <nav aria-label="Paginación" class="paginacion sin-relleno">
-          <span>Mostrando {{ desplazamiento() + 1 }}–{{ desplazamiento() + filas().length }} de {{ total() | number }}</span>
-          <div class="botones">
-            <button type="button" class="btn btn-suave" [disabled]="desplazamiento() === 0" (click)="pagina(-1)">← Más recientes</button>
-            <button type="button" class="btn btn-suave" [disabled]="desplazamiento() + filas().length >= total()" (click)="pagina(1)">Más antiguos →</button>
-          </div>
-        </nav>
+        <app-paginador class="sin-relleno" [total]="total()" [limite]="limite()" [desplazamiento]="desplazamiento()"
+          [tamanos]="[25, 50, 100]" (cambio)="paginar($event)" />
       }
     </div>
   `,
@@ -92,7 +85,8 @@ const POR_PAGINA = 50;
     .cabecera { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-end; justify-content: space-between; }
     .textos { display: flex; flex-direction: column; gap: 10px; }
     .filtro { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
-    .filtro .campo { gap: 6px; min-width: 240px; }
+    .filtro .campo { gap: 6px; }
+    .selector-accion { width: 260px; font-family: var(--mono); }
     .etiqueta-filtro { font-size: 12px !important; color: var(--apagado) !important; }
     .leyenda { display: flex; flex-wrap: wrap; gap: 20px; font-size: 12px; color: var(--apagado); }
     .leyenda > span { display: inline-flex; align-items: center; gap: 8px; }
@@ -129,20 +123,22 @@ const POR_PAGINA = 50;
     .vacia { display: block; color: var(--apagado); }
     .fin { padding: 10px 14px 12px; color: var(--sangre-claro); }
     .relleno { padding: 24px; }
-    .sin-relleno { padding: 0; }
-    .botones { display: flex; gap: 8px; }
+    .sin-relleno ::ng-deep .paginador { padding: 0; }
   `,
 })
 export class Auditoria implements OnInit {
   private readonly api = inject(Api);
 
-  protected readonly acciones = ACCIONES_AUDITORIA;
-  protected readonly porPagina = POR_PAGINA;
+  protected readonly opcionesAccion: Opcion[] = [
+    { valor: '', etiqueta: 'todas' },
+    ...ACCIONES_AUDITORIA.map((a) => ({ valor: a, etiqueta: a, clase: this.tipo(a) })),
+  ];
   protected readonly accion = new FormControl('', { nonNullable: true });
 
   protected readonly filas = signal<RegistroAuditoria[]>([]);
   protected readonly total = signal(0);
   protected readonly desplazamiento = signal(0);
+  protected readonly limite = signal(50);
   protected readonly cargando = signal(true);
   protected readonly fallo = signal<number | null>(null);
 
@@ -162,7 +158,7 @@ export class Auditoria implements OnInit {
     try {
       const pagina = await this.api.auditoria({
         accion: this.accion.value,
-        limite: POR_PAGINA,
+        limite: this.limite(),
         desplazamiento: this.desplazamiento(),
       });
       this.filas.set(pagina.elementos);
@@ -179,8 +175,9 @@ export class Auditoria implements OnInit {
     void this.cargar();
   }
 
-  pagina(direccion: 1 | -1): void {
-    this.desplazamiento.update((d) => Math.max(0, d + direccion * POR_PAGINA));
+  paginar({ desplazamiento, limite }: CambioPagina): void {
+    this.desplazamiento.set(desplazamiento);
+    this.limite.set(limite);
     void this.cargar();
   }
 }

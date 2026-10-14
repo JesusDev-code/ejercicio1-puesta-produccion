@@ -11,12 +11,6 @@ export const routes: Routes = [
     loadComponent: () => import('./paginas/login').then((m) => m.Login),
   },
   {
-    path: 'registro',
-    title: 'Crear cuenta · Incidentes',
-    canActivate: [soloInvitados],
-    loadComponent: () => import('./paginas/registro').then((m) => m.Registro),
-  },
-  {
     path: '',
     component: Shell,
     canActivate: [requiereSesion],

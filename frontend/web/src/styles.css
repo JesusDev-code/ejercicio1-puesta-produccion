@@ -9,6 +9,7 @@
 @import '@fontsource/manrope/latin-700.css';
 @import '@fontsource/jetbrains-mono/latin-400.css';
 @import '@fontsource/jetbrains-mono/latin-500.css';
+@import '@angular/cdk/overlay-prebuilt.css';
 
 :root {
   --fondo: #07050a;
@@ -51,6 +52,32 @@ body {
 
 a {
   color: var(--oro-claro);
+}
+
+/* Barras de scroll con la paleta de la web (las de Windows salen grises y anchas) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(224, 30, 60, 0.45) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: rgba(224, 30, 60, 0.45) padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 90, 106, 0.7) padding-box;
+}
+
+::selection {
+  background: rgba(224, 30, 60, 0.45);
+  color: #fff4f1;
 }
 a:hover {
   color: #ffe2ae;
