@@ -1,9 +1,17 @@
 import { Routes } from '@angular/router';
 
-import { requiereSesion, soloAdmin, soloInvitados } from './core/guardas';
+import { requiereSesion, sinSesion, soloAdmin, soloInvitados } from './core/guardas';
 import { Shell } from './ui/shell';
 
 export const routes: Routes = [
+  {
+    // Web pública de venta. Con sesión no casa y `/` sigue llevando a la consola
+    path: '',
+    pathMatch: 'full',
+    title: 'Kaelum Security · Ciberseguridad gestionada',
+    canMatch: [sinSesion],
+    loadComponent: () => import('./paginas/inicio').then((m) => m.Inicio),
+  },
   {
     path: 'login',
     title: 'Iniciar sesión · Incidentes',

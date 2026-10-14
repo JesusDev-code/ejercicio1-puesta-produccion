@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { Api } from '../core/api';
 import { codigo, mensajeGeneral } from '../core/errores';
@@ -11,7 +11,7 @@ import { Marca } from '../ui/marca';
 @Component({
   selector: 'app-login',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, Glifos, Marca],
+  imports: [ReactiveFormsModule, RouterLink, Glifos, Marca],
   styleUrl: './acceso.css',
   template: `
     <div class="pagina acceso">
@@ -76,6 +76,7 @@ import { Marca } from '../ui/marca';
           <p class="enlace-alterno">Las cuentas las da de alta un administrador.</p>
         </form>
         <p class="pie">Cada intento queda registrado en la auditoría</p>
+        <p class="pie"><a routerLink="/">← Volver a Kaelum Security</a></p>
       </main>
     </div>
   `,

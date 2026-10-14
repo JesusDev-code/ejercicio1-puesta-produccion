@@ -1,5 +1,5 @@
 import { inject } from '@angular/core';
-import { CanActivateFn, Router } from '@angular/router';
+import { CanActivateFn, CanMatchFn, Router } from '@angular/router';
 
 import { Sesion } from './sesion';
 
@@ -11,6 +11,9 @@ export const requiereSesion: CanActivateFn = () =>
 
 export const soloInvitados: CanActivateFn = () =>
   !inject(Sesion).autenticado() || inject(Router).createUrlTree(['/incidentes']);
+
+/** canMatch: la ruta solo existe para quien no ha entrado (la landing pública). */
+export const sinSesion: CanMatchFn = () => !inject(Sesion).autenticado();
 
 export const soloAdmin: CanActivateFn = () =>
   inject(Sesion).esAdmin() || inject(Router).createUrlTree(['/incidentes']);

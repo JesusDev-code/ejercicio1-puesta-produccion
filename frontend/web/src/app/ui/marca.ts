@@ -9,7 +9,7 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
       <rect x="14" y="14" width="12" height="12" rx="1.5" transform="rotate(45 20 20)" fill="#E01E3C" />
     </svg>
     <span class="textos">
-      <span class="nombre">Incidentes</span>
+      <span class="nombre">{{ nombre() }}</span>
       <span class="sub">{{ subtitulo() }}</span>
     </span>
   `,
@@ -22,5 +22,6 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 })
 export class Marca {
   readonly tam = input(36);
+  readonly nombre = input('Incidentes');
   readonly subtitulo = input('CONSOLA');
 }

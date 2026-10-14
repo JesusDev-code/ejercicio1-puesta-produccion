@@ -167,6 +167,6 @@ export class Shell {
 
   async salir(): Promise<void> {
     await this.sesion.salir();
-    await this.router.navigate(['/login']);
+    await this.router.navigate(['/']);
   }
 }
