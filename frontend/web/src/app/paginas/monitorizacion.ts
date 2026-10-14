@@ -8,11 +8,20 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 
 import { Api } from '../core/api';
 import { codigo, mensajeGeneral } from '../core/errores';
-import { EventoSeguridad, ResumenEventos, SEVERIDADES, Severidad, TIPOS_EVENTO } from '../core/modelos';
+import {
+  ESTADOS_TRIAJE,
+  EstadoTriaje,
+  EventoSeguridad,
+  ResumenEventos,
+  SEVERIDADES,
+  Severidad,
+  TIPOS_EVENTO,
+} from '../core/modelos';
 import { StreamEventos } from '../core/stream-eventos';
 import { Barra, GraficoBarras } from '../ui/grafico-barras';
 import { GraficoLineas } from '../ui/grafico-lineas';
@@ -24,7 +33,7 @@ const MAX_FEED = 40;
 @Component({
   selector: 'app-monitorizacion',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, DecimalPipe, RouterLink, GraficoLineas, GraficoBarras, Cargando, FalloServidor, Selector],
+  imports: [DatePipe, DecimalPipe, RouterLink, ReactiveFormsModule, GraficoLineas, GraficoBarras, Cargando, FalloServidor, Selector],
   templateUrl: './monitorizacion.html',
   styleUrl: './monitorizacion.css',
 })
@@ -37,6 +46,7 @@ export class Monitorizacion implements OnInit {
   protected readonly TIPOS = TIPOS_EVENTO;
   protected readonly feedMax = MAX_FEED;
   protected readonly SEV = SEVERIDADES;
+  protected readonly TRIAJE = ESTADOS_TRIAJE;
 
   protected readonly rangos: Opcion<number>[] = [
     { valor: 1, etiqueta: 'Última hora' },
@@ -53,6 +63,16 @@ export class Monitorizacion implements OnInit {
   protected readonly enVivo = signal(false);
   protected readonly creando = signal<number | null>(null);
   protected readonly aviso = signal<{ ok: boolean; texto: string } | null>(null);
+
+  // --- Triaje ---
+  protected readonly ocultarIgnorados = signal(true);
+  protected readonly triando = signal<number | null>(null);
+  protected readonly editandoNota = signal<number | null>(null);
+  protected readonly textoNota = new FormControl('', { nonNullable: true, validators: Validators.maxLength(1000) });
+  protected readonly feedVisible = computed(() =>
+    this.ocultarIgnorados() ? this.feed().filter((e) => e.estado_triaje !== 'ignorado') : this.feed(),
+  );
+  protected readonly ignoradosOcultos = computed(() => this.feed().length - this.feedVisible().length);
 
   // La serie temporal usa minutos en la última hora y horas en los rangos largos
   protected readonly serie = computed(() => {
@@ -85,10 +105,48 @@ export class Monitorizacion implements OnInit {
   ngOnInit(): void {
     void this.cargar();
     const cerrar = this.stream.suscribir(
-      (e) => this.feed.update((lista) => [e, ...lista].slice(0, MAX_FEED)),
+      (e, clase) =>
+        clase === 'triaje'
+          ? this.reemplazar(e) // cambio hecho por cualquier admin: se refleja en vivo aquí
+          : this.feed.update((lista) => [e, ...lista].slice(0, MAX_FEED)),
       (conectado) => this.enVivo.set(conectado),
     );
     this.destroyRef.onDestroy(cerrar);
+  }
+
+  private reemplazar(e: EventoSeguridad): void {
+    this.feed.update((lista) => lista.map((x) => (x.id === e.id ? e : x)));
+  }
+
+  async triar(e: EventoSeguridad, estado: EstadoTriaje): Promise<void> {
+    if (e.estado_triaje === estado) return;
+    this.triando.set(e.id);
+    this.aviso.set(null);
+    try {
+      this.reemplazar(await this.api.triarEvento(e.id, { estado }));
+    } catch (err) {
+      this.aviso.set({ ok: false, texto: mensajeGeneral(err) });
+    } finally {
+      this.triando.set(null);
+    }
+  }
+
+  abrirNota(e: EventoSeguridad): void {
+    this.textoNota.setValue(e.nota ?? '');
+    this.editandoNota.set(e.id);
+  }
+
+  async guardarNota(e: EventoSeguridad): Promise<void> {
+    if (this.textoNota.invalid) return;
+    this.triando.set(e.id);
+    try {
+      this.reemplazar(await this.api.triarEvento(e.id, { nota: this.textoNota.value.trim() }));
+      this.editandoNota.set(null);
+    } catch (err) {
+      this.aviso.set({ ok: false, texto: mensajeGeneral(err) });
+    } finally {
+      this.triando.set(null);
+    }
   }
 
   cambiarRango(horas: number): void {
@@ -118,7 +176,7 @@ export class Monitorizacion implements OnInit {
     try {
       const incidente = await this.api.incidenteDesdeEvento(e.id);
       this.feed.update((lista) =>
-        lista.map((x) => (x.id === e.id ? { ...x, incidente_id: incidente.id } : x)),
+        lista.map((x) => (x.id === e.id ? { ...x, incidente_id: incidente.id, estado_triaje: 'revisado' } : x)),
       );
       await this.router.navigate(['/incidentes', incidente.id]);
     } catch (err) {

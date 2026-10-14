@@ -14,6 +14,7 @@ import {
   ResumenEventos,
   Rol,
   Severidad,
+  EstadoTriaje,
   TipoEvento,
   Usuario,
 } from './modelos';
@@ -152,5 +153,13 @@ export class Api {
 
   incidenteDesdeEvento(id: number): Promise<Incidente> {
     return firstValueFrom(this.http.post<Incidente>(`/api/eventos/${id}/incidente`, null));
+  }
+
+  triarEvento(id: number, cambios: { estado?: EstadoTriaje; nota?: string }): Promise<EventoSeguridad> {
+    return firstValueFrom(this.http.patch<EventoSeguridad>(`/api/eventos/${id}`, cambios));
+  }
+
+  eventoDeIncidente(incidenteId: number): Promise<EventoSeguridad> {
+    return firstValueFrom(this.http.get<EventoSeguridad>(`/api/eventos/por-incidente/${incidenteId}`));
   }
 }

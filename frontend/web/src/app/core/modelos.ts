@@ -104,6 +104,14 @@ export const CATEGORIAS: Record<Categoria, string> = {
 };
 
 /** Mismo grafo que TRANSICIONES en app/servicios/incidentes.py. */
+export type EstadoTriaje = 'nuevo' | 'revisado' | 'ignorado';
+
+export const ESTADOS_TRIAJE: Record<EstadoTriaje, { nombre: string; clase: string }> = {
+  nuevo: { nombre: 'Nuevo', clase: 't-nuevo' },
+  revisado: { nombre: 'Revisado', clase: 't-revisado' },
+  ignorado: { nombre: 'Ignorado', clase: 't-ignorado' },
+};
+
 export type TipoEvento =
   | 'sondeo_rutas'
   | 'fichero_sensible'
@@ -134,6 +142,8 @@ export interface EventoSeguridad {
   agente: string | null;
   servicio: string;
   detalle: string | null;
+  estado_triaje: EstadoTriaje;
+  nota: string | null;
   incidente_id: number | null;
 }
 
@@ -187,6 +197,7 @@ export const ACCIONES_AUDITORIA = [
   'asignar_incidente',
   'editar_notas',
   'borrar_incidente',
+  'triaje_evento',
 ] as const;
 
 export const AUDITORIA_ALERTA = new Set(['login_fallido', 'reutilizacion_token', 'cambio_contrasena_fallido']);

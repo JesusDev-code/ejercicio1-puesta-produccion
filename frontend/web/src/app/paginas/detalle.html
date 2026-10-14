@@ -105,6 +105,20 @@
           </dl>
         </section>
 
+        @if (origen(); as o) {
+          <section aria-labelledby="h-origen" class="cristal bloque compacto origen">
+            <h2 id="h-origen" class="cabecera-mono">ORIGEN · EVENTO #{{ o.id }}</h2>
+            <dl class="datos">
+              <div><dt>Host de origen</dt><dd class="mono">{{ o.origen_ip }}</dd></div>
+              <div><dt>Tipo</dt><dd>{{ TIPOS[o.tipo] }}</dd></div>
+              <div><dt>Petición</dt><dd class="mono peticion-origen" [title]="o.metodo + ' ' + o.ruta">{{ o.metodo }} {{ o.ruta }}</dd></div>
+              <div><dt>Detectado por</dt><dd>{{ o.servicio }}</dd></div>
+              <div><dt>Fecha</dt><dd class="mono">{{ o.fecha | date: 'dd/MM/yyyy HH:mm:ss' }}</dd></div>
+            </dl>
+            <a class="btn btn-oro" routerLink="/monitorizacion">Ver en Monitorización</a>
+          </section>
+        }
+
         @if (gestiona()) {
           <section aria-labelledby="h-estado" class="cristal bloque compacto">
             <h2 id="h-estado" class="cabecera-mono">CAMBIAR ESTADO</h2>

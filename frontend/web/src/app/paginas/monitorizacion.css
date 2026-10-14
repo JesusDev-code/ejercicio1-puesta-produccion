@@ -122,7 +122,9 @@
   margin: 0;
 }
 .feed-ayuda {
+  margin: -6px 0 16px;
   font-size: 13px;
+  line-height: 1.5;
   color: var(--apagado);
 }
 .espera {
@@ -138,25 +140,98 @@
   gap: 2px;
 }
 .evento {
-  display: grid;
-  grid-template-columns: auto 10px minmax(120px, 160px) minmax(110px, 140px) 1fr auto;
-  align-items: center;
-  gap: 14px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  transition: background 0.2s;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  transition: background 0.2s, opacity 0.2s;
+  animation: entrar 0.4s ease;
 }
 .evento:hover {
   background: rgba(255, 255, 255, 0.04);
 }
-.entrando {
-  animation: entrar 0.4s ease;
+.evento.t-nuevo {
+  box-shadow: inset 3px 0 0 rgba(224, 30, 60, 0.7);
+}
+.evento.t-revisado {
+  box-shadow: inset 3px 0 0 rgba(143, 211, 184, 0.6);
+}
+.evento.t-ignorado {
+  opacity: 0.5;
 }
 @keyframes entrar {
   from {
     opacity: 0;
     transform: translateY(-6px);
   }
+}
+.linea-datos {
+  display: grid;
+  grid-template-columns: auto 10px minmax(120px, 170px) minmax(110px, 140px) 1fr;
+  align-items: center;
+  gap: 14px;
+}
+.linea-triaje {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding-left: 2px;
+}
+.estado-triaje {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--apagado);
+  min-width: 72px;
+}
+.t-nuevo .estado-triaje {
+  color: var(--sangre-claro);
+}
+.t-revisado .estado-triaje {
+  color: var(--menta);
+}
+.nota {
+  flex: 1 1 200px;
+  min-width: 0;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--texto-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+}
+.form-nota {
+  flex: 1 1 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.form-nota .entrada {
+  flex: 1 1 260px;
+  width: auto;
+  min-height: 36px;
+}
+.interruptor {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--texto-2);
+  cursor: pointer;
+}
+.interruptor input {
+  accent-color: var(--sangre);
+  width: 16px;
+  height: 16px;
 }
 .hora {
   font-size: 12px;
@@ -207,8 +282,8 @@
 }
 
 @media (max-width: 760px) {
-  .evento {
-    grid-template-columns: auto 10px 1fr auto;
+  .linea-datos {
+    grid-template-columns: auto 10px 1fr;
     row-gap: 4px;
   }
   .ip,

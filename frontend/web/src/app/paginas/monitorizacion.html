@@ -66,26 +66,58 @@
   <section aria-labelledby="t-feed" class="cristal panel feed">
     <div class="feed-cabecera">
       <h2 id="t-feed" class="titulo-panel">Flujo en vivo</h2>
-      <span class="feed-ayuda">Los últimos {{ feedMax }} eventos según llegan. «Abrir incidencia» crea un ticket a partir del evento.</span>
+      <label class="interruptor">
+        <input type="checkbox" [checked]="ocultarIgnorados()" (change)="ocultarIgnorados.set(!ocultarIgnorados())" />
+        <span>Ocultar ignorados{{ ignoradosOcultos() ? ' (' + ignoradosOcultos() + ')' : '' }}</span>
+      </label>
     </div>
-    @if (feed().length === 0) {
+    <p class="feed-ayuda">Los últimos {{ feedMax }} eventos según llegan. Triaje: <strong>Revisado</strong> si lo miraste, <strong>Ignorar</strong> si es ruido. Los cambios se ven al momento en todos los paneles abiertos.</p>
+
+    @if (feedVisible().length === 0) {
       <p class="espera">A la espera de eventos… En cuanto el señuelo reciba un sondeo, aparecerá aquí.</p>
     } @else {
       <ul class="lista-feed">
-        @for (e of feed(); track e.id) {
-          <li class="evento" [class.entrando]="true">
-            <span class="hora mono">{{ e.fecha | date: 'HH:mm:ss' }}</span>
-            <span class="sev" [class]="'s-' + e.severidad" [title]="SEV[e.severidad].nombre"></span>
-            <span class="tipo">{{ TIPOS[e.tipo] }}</span>
-            <span class="ip mono">{{ e.origen_ip }}</span>
-            <span class="peticion mono" [title]="e.metodo + ' ' + e.ruta">{{ e.metodo }} {{ e.ruta }}</span>
-            @if (e.incidente_id) {
-              <a class="btn compacto btn-suave" [routerLink]="['/incidentes', e.incidente_id]">Ver INC-{{ e.incidente_id }}</a>
-            } @else {
-              <button type="button" class="btn compacto btn-oro" [disabled]="creando() === e.id" (click)="crearIncidencia(e)">
-                {{ creando() === e.id ? 'Abriendo…' : 'Abrir incidencia' }}
-              </button>
-            }
+        @for (e of feedVisible(); track e.id) {
+          <li class="evento" [class]="'evento ' + TRIAJE[e.estado_triaje].clase">
+            <div class="linea-datos">
+              <span class="hora mono">{{ e.fecha | date: 'HH:mm:ss' }}</span>
+              <span class="sev" [class]="'sev s-' + e.severidad" [title]="SEV[e.severidad].nombre"></span>
+              <span class="tipo">{{ TIPOS[e.tipo] }}</span>
+              <span class="ip mono">{{ e.origen_ip }}</span>
+              <span class="peticion mono" [title]="e.metodo + ' ' + e.ruta">{{ e.metodo }} {{ e.ruta }}</span>
+            </div>
+
+            <div class="linea-triaje">
+              <span class="estado-triaje">{{ TRIAJE[e.estado_triaje].nombre }}</span>
+              @if (editandoNota() === e.id) {
+                <form class="form-nota" (ngSubmit)="guardarNota(e)">
+                  <label class="solo-lector" [for]="'nota-' + e.id">Nota del evento {{ e.id }}</label>
+                  <input [id]="'nota-' + e.id" class="entrada compacta" maxlength="1000" placeholder="Qué viste, qué hiciste…" [formControl]="textoNota" />
+                  <button type="submit" class="btn compacto btn-oro" [disabled]="triando() === e.id">Guardar</button>
+                  <button type="button" class="btn compacto btn-texto" (click)="editandoNota.set(null)">Cancelar</button>
+                </form>
+              } @else {
+                @if (e.nota) { <span class="nota" [title]="e.nota">«{{ e.nota }}»</span> }
+                <div class="acciones">
+                  @if (e.estado_triaje !== 'revisado') {
+                    <button type="button" class="btn compacto btn-menta" [disabled]="triando() === e.id" (click)="triar(e, 'revisado')">Revisado</button>
+                  }
+                  @if (e.estado_triaje !== 'ignorado') {
+                    <button type="button" class="btn compacto btn-suave" [disabled]="triando() === e.id" (click)="triar(e, 'ignorado')">Ignorar</button>
+                  } @else {
+                    <button type="button" class="btn compacto btn-suave" [disabled]="triando() === e.id" (click)="triar(e, 'nuevo')">Recuperar</button>
+                  }
+                  <button type="button" class="btn compacto btn-texto" (click)="abrirNota(e)">{{ e.nota ? 'Editar nota' : 'Nota' }}</button>
+                  @if (e.incidente_id) {
+                    <a class="btn compacto btn-suave" [routerLink]="['/incidentes', e.incidente_id]">Ver INC-{{ e.incidente_id }}</a>
+                  } @else {
+                    <button type="button" class="btn compacto btn-oro" [disabled]="creando() === e.id" (click)="crearIncidencia(e)">
+                      {{ creando() === e.id ? 'Abriendo…' : 'Abrir incidencia' }}
+                    </button>
+                  }
+                </div>
+              }
+            </div>
           </li>
         }
       </ul>

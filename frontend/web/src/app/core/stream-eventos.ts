@@ -2,6 +2,9 @@ import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 
 import { EventoSeguridad } from './modelos';
+
+/** `nuevo`: acaba de llegar. `triaje`: alguien cambió su estado o su nota. */
+export type ClaseMensaje = 'nuevo' | 'triaje';
 import { Sesion } from './sesion';
 
 /**
@@ -21,7 +24,7 @@ export class StreamEventos {
    * `alEstado` informa de si está conectado, para pintar el indicador.
    */
   suscribir(
-    alEvento: (e: EventoSeguridad) => void,
+    alEvento: (e: EventoSeguridad, clase: ClaseMensaje) => void,
     alEstado?: (conectado: boolean) => void,
   ): () => void {
     const control = new AbortController();
@@ -71,7 +74,7 @@ export class StreamEventos {
 
   private async leer(
     cuerpo: ReadableStream<Uint8Array>,
-    alEvento: (e: EventoSeguridad) => void,
+    alEvento: (e: EventoSeguridad, clase: ClaseMensaje) => void,
     signal: AbortSignal,
   ): Promise<void> {
     const lector = cuerpo.getReader();
@@ -95,7 +98,7 @@ export class StreamEventos {
     }
   }
 
-  private procesar(bloque: string, alEvento: (e: EventoSeguridad) => void): void {
+  private procesar(bloque: string, alEvento: (e: EventoSeguridad, clase: ClaseMensaje) => void): void {
     // Se ignoran los comentarios (`: latido`) y el evento de cierre (`event: fin`)
     let datos = '';
     for (const linea of bloque.split('\n')) {
@@ -104,7 +107,8 @@ export class StreamEventos {
     }
     if (!datos) return;
     try {
-      alEvento(JSON.parse(datos) as EventoSeguridad);
+      const { clase, evento } = JSON.parse(datos) as { clase: ClaseMensaje; evento: EventoSeguridad };
+      if (evento) alEvento(evento, clase === 'triaje' ? 'triaje' : 'nuevo');
     } catch {
       // Un bloque a medias o malformado se descarta sin tirar el flujo
     }

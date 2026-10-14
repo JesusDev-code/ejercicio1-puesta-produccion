@@ -9,8 +9,10 @@ import {
   CATEGORIAS,
   Categoria,
   Estado,
+  EventoSeguridad,
   Incidente,
   ORDEN_ESTADOS,
+  TIPOS_EVENTO,
   ESTADOS,
   TRANSICIONES,
   Usuario,
@@ -132,9 +134,25 @@ export class Detalle implements OnInit {
     return i.analista_id === this.yo()?.id ? 'Tú' : (i.analista_email ?? `#${i.analista_id}`);
   });
 
+  /** Evento de seguridad del que salió la incidencia (solo admin; null si no procede de uno). */
+  protected readonly origen = signal<EventoSeguridad | null>(null);
+  protected readonly TIPOS = TIPOS_EVENTO;
+
   ngOnInit(): void {
     void this.cargar();
-    if (this.esAdmin()) void this.cargarAnalistas();
+    if (this.esAdmin()) {
+      void this.cargarAnalistas();
+      void this.cargarOrigen();
+    }
+  }
+
+  private async cargarOrigen(): Promise<void> {
+    try {
+      this.origen.set(await this.api.eventoDeIncidente(Number(this.id())));
+    } catch {
+      // 404 = la incidencia la reportó una persona, no un evento: no hay bloque de origen
+      this.origen.set(null);
+    }
   }
 
   async cargar(): Promise<void> {
