@@ -44,7 +44,7 @@ export class Cargando {}
   `,
 })
 export class NoExiste {
-  readonly titulo = input('Este incidente no existe');
+  readonly titulo = input('Esta incidencia no existe');
 }
 
 /** 500/503 o sin conexión. Nunca se muestran trazas ni detalles internos. */

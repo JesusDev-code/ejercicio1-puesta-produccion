@@ -17,10 +17,29 @@ export interface TokenAcceso {
   expira_en_segundos: number;
 }
 
+export interface Empresa {
+  id: number;
+  codigo: string;
+  nombre: string;
+  sector: string | null;
+  activa: boolean;
+  creada_en: string;
+}
+
+export interface EmpresaNueva {
+  codigo: string;
+  nombre: string;
+  sector: string | null;
+}
+
+export type EmpresaEdicion = Partial<Pick<Empresa, 'nombre' | 'activa'>> & { sector?: string };
+
 export interface Usuario {
   id: number;
   email: string;
   rol: Rol;
+  /** null = personal de Kaelum (admin, analista). */
+  empresa_id: number | null;
   activo: boolean;
   creado_en: string;
 }
@@ -34,6 +53,7 @@ export interface Incidente {
   estado: Estado;
   reportante_id: number;
   analista_id: number | null;
+  empresa_id: number | null;
   reportante_email: string | null;
   analista_email: string | null;
   creado_en: string;
@@ -141,10 +161,19 @@ export interface EventoSeguridad {
   ruta: string;
   agente: string | null;
   servicio: string;
+  empresa_id: number | null;
   detalle: string | null;
   estado_triaje: EstadoTriaje;
   nota: string | null;
   incidente_id: number | null;
+}
+
+export interface Sensor {
+  servicio: string;
+  empresa_id: number | null;
+  total: number;
+  ultimas_24h: number;
+  ultimo: string;
 }
 
 export interface Recuento {
@@ -198,6 +227,8 @@ export const ACCIONES_AUDITORIA = [
   'editar_notas',
   'borrar_incidente',
   'triaje_evento',
+  'crear_empresa',
+  'editar_empresa',
 ] as const;
 
 export const AUDITORIA_ALERTA = new Set(['login_fallido', 'reutilizacion_token', 'cambio_contrasena_fallido']);
@@ -210,6 +241,8 @@ export const AUDITORIA_PRIVILEGIO = new Set([
   'desactivar_usuario',
   'reactivar_usuario',
   'crear_admin_cli',
+  'crear_empresa',
+  'editar_empresa',
 ]);
 
 /** Opciones de un desplegable a partir de un diccionario valor → etiqueta. */
@@ -223,6 +256,9 @@ export function opciones<K extends string>(
     clase: clase?.(valor),
   }));
 }
+
+/** Nombre con el que se muestra el personal propio cuando no hay empresa. */
+export const SIN_EMPRESA = 'Kaelum';
 
 export function codigoInc(id: number): string {
   return `INC-${String(id).padStart(4, '0')}`;

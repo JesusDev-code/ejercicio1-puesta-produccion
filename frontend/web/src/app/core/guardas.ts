@@ -10,7 +10,7 @@ export const requiereSesion: CanActivateFn = () =>
   inject(Sesion).autenticado() || inject(Router).createUrlTree(['/login']);
 
 export const soloInvitados: CanActivateFn = () =>
-  !inject(Sesion).autenticado() || inject(Router).createUrlTree(['/incidentes']);
+  !inject(Sesion).autenticado() || inject(Router).createUrlTree(['/']);
 
 /** canMatch: la ruta solo existe para quien no ha entrado (la landing pública). */
 export const sinSesion: CanMatchFn = () => !inject(Sesion).autenticado();

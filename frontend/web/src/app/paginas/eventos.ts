@@ -11,6 +11,7 @@ import { FormBuilder, FormControl, ReactiveFormsModule, Validators } from '@angu
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { Api } from '../core/api';
+import { Clientes } from '../core/clientes';
 import { codigo, mensajeGeneral } from '../core/errores';
 import {
   ESTADOS_TRIAJE,
@@ -40,6 +41,7 @@ export class Eventos implements OnInit {
   private readonly router = inject(Router);
   private readonly ruta = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+  protected readonly clientes = inject(Clientes);
 
   protected readonly TIPOS = TIPOS_EVENTO;
   protected readonly SEV = SEVERIDADES;
@@ -63,6 +65,7 @@ export class Eventos implements OnInit {
     severidad: '' as Severidad | '',
     estado: '' as EstadoTriaje | '',
     ip: ['', Validators.maxLength(45)],
+    empresa: null as number | null,
   });
 
   protected readonly filas = signal<EventoSeguridad[]>([]);
@@ -94,7 +97,9 @@ export class Eventos implements OnInit {
       severidad: (q.get('severidad') as Severidad) ?? '',
       estado: (q.get('estado') as EstadoTriaje) ?? '',
       ip: q.get('ip') ?? '',
+      empresa: Number(q.get('empresa')) > 0 ? Number(q.get('empresa')) : null,
     });
+    void this.clientes.cargar();
     void this.cargar();
 
     const cerrar = this.stream.suscribir(
@@ -102,7 +107,9 @@ export class Eventos implements OnInit {
         if (clase === 'triaje') {
           this.filas.update((lista) => lista.map((x) => (x.id === e.id ? e : x)));
         } else {
-          this.nuevos.update((n) => n + 1);
+          // Con un cliente elegido, solo cuentan los eventos de ese cliente
+          const empresa = this.filtros.controls.empresa.value;
+          if (empresa === null || e.empresa_id === empresa) this.nuevos.update((n) => n + 1);
         }
       },
       (conectado) => this.enVivo.set(conectado),
@@ -115,12 +122,13 @@ export class Eventos implements OnInit {
     this.fallo.set(null);
     try {
       const v = this.filtros.getRawValue();
-      this.hayFiltros.set(Boolean(v.tipo || v.severidad || v.estado || v.ip.trim()));
+      this.hayFiltros.set(Boolean(v.tipo || v.severidad || v.estado || v.ip.trim() || v.empresa));
       const pagina = await this.api.eventos({
         tipo: v.tipo,
         severidad: v.severidad,
         estado: v.estado,
         origen_ip: v.ip.trim(),
+        empresa_id: v.empresa,
         limite: this.limite(),
         desplazamiento: this.desplazamiento(),
       });

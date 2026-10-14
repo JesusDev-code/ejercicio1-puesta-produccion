@@ -17,6 +17,7 @@ from app.esquemas import (
     LoteEventos,
     Pagina,
     ResumenEventos,
+    Sensor,
     TriajeEntrada,
 )
 from app.modelos import EstadoTriaje, Rol, Severidad, TipoEvento
@@ -86,6 +87,11 @@ async def resumen(
     empresa_id: Annotated[int | None, Query(gt=0)] = None,
 ):
     return await servicio.resumen(sesion, horas, empresa_id)
+
+
+@router.get("/sensores", response_model=list[Sensor])
+async def sensores(_: Admin, sesion: Sesion):
+    return await servicio.sensores(sesion)
 
 
 @router.patch("/{evento_id}", response_model=EventoSalida)

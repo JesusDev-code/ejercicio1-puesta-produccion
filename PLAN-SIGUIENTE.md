@@ -22,6 +22,12 @@ en el contenedor de la API **antes** de que arranquen señuelo y generador, o la
 rechaza sus lotes con 422 (empresa desconocida). Variables nuevas, con valor por defecto:
 `EMPRESA_SENUELO` (hotel-mirador) y `EMPRESAS_GENERADOR` (los tres clientes de demo).
 
+**Tanda 2: hecha.** Menú nuevo, pantallas Clientes y Sensores (`GET /eventos/sensores`),
+selector de cliente en Panel, Eventos, Incidencias y Usuarios, entrada según rol y vocabulario
+«incidencia». Además: landing pública en `/` y marca Kaelum Security en login y pestañas.
+
+**Siguiente: Tanda 0 (Firebase).**
+
 Descartado por ahora: precios y facturación (no aportan a PPS). Opcional: un campo `plan`
 descriptivo en la empresa.
 

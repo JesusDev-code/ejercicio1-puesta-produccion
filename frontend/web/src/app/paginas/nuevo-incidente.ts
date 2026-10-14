@@ -24,7 +24,7 @@ const NOMBRES_CAMPO: Record<string, string> = {
       <header class="textos">
         <a routerLink="/incidentes" class="volver">← Volver al listado</a>
         <span class="ruta">~/incidentes/nuevo</span>
-        <h1 class="titulo">Reportar incidente</h1>
+        <h1 class="titulo">Reportar incidencia</h1>
         <p class="subtitulo">Describe qué ha pasado con el mayor detalle posible. Podrás editarlo mientras siga abierto.</p>
       </header>
 
@@ -38,7 +38,7 @@ const NOMBRES_CAMPO: Record<string, string> = {
         </div>
       }
 
-      <form aria-label="Nuevo incidente" class="cristal formulario ancho-form" [formGroup]="form" (ngSubmit)="enviar()" novalidate>
+      <form aria-label="Nueva incidencia" class="cristal formulario ancho-form" [formGroup]="form" (ngSubmit)="enviar()" novalidate>
         <div class="campo">
           <div class="campo-cabecera">
             <label for="n-titulo">Título</label>

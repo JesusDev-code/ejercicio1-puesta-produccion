@@ -12,6 +12,7 @@ import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 
 import { Api } from '../core/api';
+import { Clientes } from '../core/clientes';
 import { codigo, mensajeGeneral } from '../core/errores';
 import {
   ESTADOS_TRIAJE,
@@ -42,6 +43,7 @@ export class Monitorizacion implements OnInit {
   private readonly stream = inject(StreamEventos);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
+  protected readonly clientes = inject(Clientes);
 
   protected readonly TIPOS = TIPOS_EVENTO;
   protected readonly feedMax = MAX_FEED;
@@ -54,6 +56,8 @@ export class Monitorizacion implements OnInit {
     { valor: 168, etiqueta: 'Últimos 7 días' },
   ];
   protected readonly horas = signal(24);
+  /** Cliente elegido; null = todos. Filtra el resumen y el feed en vivo. */
+  protected readonly empresa = signal<number | null>(null);
 
   protected readonly resumen = signal<ResumenEventos | null>(null);
   protected readonly cargando = signal(true);
@@ -103,12 +107,16 @@ export class Monitorizacion implements OnInit {
   );
 
   ngOnInit(): void {
+    void this.clientes.cargar();
     void this.cargar();
     const cerrar = this.stream.suscribir(
-      (e, clase) =>
-        clase === 'triaje'
-          ? this.reemplazar(e) // cambio hecho por cualquier admin: se refleja en vivo aquí
-          : this.feed.update((lista) => [e, ...lista].slice(0, MAX_FEED)),
+      (e, clase) => {
+        if (clase === 'triaje') {
+          this.reemplazar(e); // cambio hecho por cualquier admin: se refleja en vivo aquí
+        } else if (this.empresa() === null || e.empresa_id === this.empresa()) {
+          this.feed.update((lista) => [e, ...lista].slice(0, MAX_FEED));
+        }
+      },
       (conectado) => this.enVivo.set(conectado),
     );
     this.destroyRef.onDestroy(cerrar);
@@ -154,11 +162,17 @@ export class Monitorizacion implements OnInit {
     void this.cargar();
   }
 
+  cambiarEmpresa(empresa: number | null): void {
+    this.empresa.set(empresa);
+    this.feed.set([]); // el feed anterior mezclaba clientes: se empieza de cero
+    void this.cargar();
+  }
+
   async cargar(): Promise<void> {
     this.cargando.set(true);
     this.fallo.set(null);
     try {
-      this.resumen.set(await this.api.resumenEventos(this.horas()));
+      this.resumen.set(await this.api.resumenEventos(this.horas(), this.empresa()));
     } catch (e) {
       this.fallo.set(codigo(e));
     } finally {

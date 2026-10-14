@@ -1,6 +1,8 @@
+import { inject } from '@angular/core';
 import { Routes } from '@angular/router';
 
 import { requiereSesion, sinSesion, soloAdmin, soloInvitados } from './core/guardas';
+import { Sesion } from './core/sesion';
 import { Shell } from './ui/shell';
 
 export const routes: Routes = [
@@ -14,7 +16,7 @@ export const routes: Routes = [
   },
   {
     path: 'login',
-    title: 'Iniciar sesión · Incidentes',
+    title: 'Iniciar sesión · Kaelum Security',
     canActivate: [soloInvitados],
     loadComponent: () => import('./paginas/login').then((m) => m.Login),
   },
@@ -23,54 +25,71 @@ export const routes: Routes = [
     component: Shell,
     canActivate: [requiereSesion],
     children: [
-      { path: '', pathMatch: 'full', redirectTo: 'incidentes' },
+      // El admin aterriza en el Panel; el resto, en sus incidencias
+      {
+        path: '',
+        pathMatch: 'full',
+        redirectTo: () => (inject(Sesion).esAdmin() ? 'monitorizacion' : 'incidentes'),
+      },
       {
         path: 'incidentes',
-        title: 'Incidentes',
+        title: 'Incidencias · Kaelum Security',
         loadComponent: () => import('./paginas/incidentes').then((m) => m.Incidentes),
       },
       {
         path: 'incidentes/nuevo',
-        title: 'Nuevo incidente · Incidentes',
+        title: 'Reportar incidencia · Kaelum Security',
         loadComponent: () => import('./paginas/nuevo-incidente').then((m) => m.NuevoIncidente),
       },
       {
         path: 'incidentes/:id',
-        title: 'Detalle · Incidentes',
+        title: 'Incidencia · Kaelum Security',
         loadComponent: () => import('./paginas/detalle').then((m) => m.Detalle),
       },
       {
         path: 'usuarios',
-        title: 'Usuarios · Incidentes',
+        title: 'Usuarios · Kaelum Security',
         canActivate: [soloAdmin],
         loadComponent: () => import('./paginas/usuarios').then((m) => m.Usuarios),
       },
       {
         path: 'monitorizacion',
-        title: 'Monitorización · Incidentes',
+        title: 'Panel · Kaelum Security',
         canActivate: [soloAdmin],
         loadComponent: () => import('./paginas/monitorizacion').then((m) => m.Monitorizacion),
       },
       {
         path: 'eventos',
-        title: 'Historial de eventos · Incidentes',
+        title: 'Eventos · Kaelum Security',
         canActivate: [soloAdmin],
         loadComponent: () => import('./paginas/eventos').then((m) => m.Eventos),
       },
       {
+        path: 'sensores',
+        title: 'Sensores · Kaelum Security',
+        canActivate: [soloAdmin],
+        loadComponent: () => import('./paginas/sensores').then((m) => m.Sensores),
+      },
+      {
+        path: 'clientes',
+        title: 'Clientes · Kaelum Security',
+        canActivate: [soloAdmin],
+        loadComponent: () => import('./paginas/clientes').then((m) => m.ClientesPagina),
+      },
+      {
         path: 'auditoria',
-        title: 'Auditoría · Incidentes',
+        title: 'Auditoría · Kaelum Security',
         canActivate: [soloAdmin],
         loadComponent: () => import('./paginas/auditoria').then((m) => m.Auditoria),
       },
       {
         path: 'cuenta',
-        title: 'Mi cuenta · Incidentes',
+        title: 'Mi cuenta · Kaelum Security',
         loadComponent: () => import('./paginas/cuenta').then((m) => m.Cuenta),
       },
       {
         path: '**',
-        title: 'No encontrado · Incidentes',
+        title: 'No encontrado · Kaelum Security',
         loadComponent: () => import('./paginas/no-encontrado').then((m) => m.NoEncontrado),
       },
     ],

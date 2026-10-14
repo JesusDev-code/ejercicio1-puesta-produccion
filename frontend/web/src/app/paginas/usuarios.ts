@@ -11,7 +11,10 @@ import {
 } from '@angular/core';
 import { FormBuilder, FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 
+import { ActivatedRoute } from '@angular/router';
+
 import { Api } from '../core/api';
+import { Clientes } from '../core/clientes';
 import { codigo, mensajeGeneral } from '../core/errores';
 import { ROLES, Rol, Usuario, entradas } from '../core/modelos';
 import { Sesion } from '../core/sesion';
@@ -31,6 +34,8 @@ export class Usuarios implements OnInit {
   private readonly api = inject(Api);
   private readonly sesion = inject(Sesion);
   private readonly fb = inject(FormBuilder).nonNullable;
+  private readonly ruta = inject(ActivatedRoute);
+  protected readonly clientes = inject(Clientes);
 
   protected readonly minimo = MINIMO_CONTRASENA;
   protected readonly opcionesRol: Opcion<Rol>[] = entradas(ROLES).map(([valor, etiqueta]) => ({
@@ -44,7 +49,11 @@ export class Usuarios implements OnInit {
   ];
 
   // --- Listado ---
-  protected readonly filtros = this.fb.group({ email: '', rol: '' as Rol | '' });
+  protected readonly filtros = this.fb.group({
+    email: '',
+    rol: '' as Rol | '',
+    empresa: null as number | null,
+  });
   protected readonly filas = signal<Usuario[]>([]);
   protected readonly total = signal(0);
   protected readonly desplazamiento = signal(0);
@@ -65,6 +74,8 @@ export class Usuarios implements OnInit {
   protected readonly alta = this.fb.group({
     email: ['', [Validators.required, Validators.email, Validators.maxLength(254)]],
     rol: ['usuario' as Rol, Validators.required],
+    // Solo para el rol usuario: admin y analista son personal de Kaelum
+    empresa_id: null as number | null,
     contrasena: ['', [Validators.required, Validators.minLength(MINIMO_CONTRASENA), Validators.maxLength(128)]],
   });
 
@@ -80,6 +91,10 @@ export class Usuarios implements OnInit {
   });
 
   ngOnInit(): void {
+    // /usuarios?empresa=3 llega desde la pantalla de Clientes
+    const empresa = Number(this.ruta.snapshot.queryParamMap.get('empresa'));
+    if (empresa > 0) this.filtros.controls.empresa.setValue(empresa);
+    void this.clientes.cargar();
     void this.cargar();
   }
 
@@ -95,6 +110,7 @@ export class Usuarios implements OnInit {
       const pagina = await this.api.usuarios({
         email: v.email.trim(),
         rol: v.rol,
+        empresa_id: v.empresa,
         limite: this.limite(),
         desplazamiento: this.desplazamiento(),
       });
@@ -140,11 +156,15 @@ export class Usuarios implements OnInit {
     this.enviandoAlta.set(true);
     this.errorAlta.set(null);
     try {
-      const nuevo = await this.api.crearUsuario(this.alta.getRawValue());
+      const v = this.alta.getRawValue();
+      const nuevo = await this.api.crearUsuario({
+        ...v,
+        empresa_id: v.rol === 'usuario' ? v.empresa_id : null,
+      });
       this.creando.set(false);
       this.aviso.set({
         ok: true,
-        texto: `Cuenta ${nuevo.email} creada como ${ROLES[nuevo.rol].toLowerCase()}. Pásale la contraseña por un canal seguro: podrá cambiarla en Mi cuenta.`,
+        texto: `Cuenta ${nuevo.email} creada como ${ROLES[nuevo.rol].toLowerCase()} de ${this.clientes.nombre(nuevo.empresa_id)}. Pásale la contraseña por un canal seguro: podrá cambiarla en Mi cuenta.`,
       });
       this.desplazamiento.set(0);
       await this.cargar();
@@ -153,7 +173,7 @@ export class Usuarios implements OnInit {
         codigo(e) === 409
           ? 'Ese email ya tiene cuenta.'
           : codigo(e) === 422
-            ? 'Revisa el email y la contraseña (mínimo 12 caracteres).'
+            ? 'Revisa el email, la contraseña (mínimo 12 caracteres) y el cliente.'
             : mensajeGeneral(e),
       );
     } finally {

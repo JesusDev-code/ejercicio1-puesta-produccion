@@ -15,30 +15,42 @@ import { Marca } from './marca';
       <app-glifos [densidad]="30" />
 
       <nav aria-label="Principal" class="menu">
-        <app-marca class="marca" [tam]="32" />
+        <app-marca class="marca" nombre="Kaelum" subtitulo="SECURITY · UMBRAL" [tam]="32" />
 
         <div class="grupo">
-          <span class="cabecera-mono grupo-titulo">OPERACIÓN</span>
+          <span class="cabecera-mono grupo-titulo">INCIDENCIAS</span>
           <a routerLink="/incidentes" routerLinkActive="activo" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page" class="item">
             <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z" /></svg>
-            Incidentes
+            Incidencias
           </a>
           <a routerLink="/incidentes/nuevo" routerLinkActive="activo" ariaCurrentWhenActive="page" class="item">
             <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M12 5v14M5 12h14" /></svg>
-            Nuevo incidente
+            Reportar incidencia
           </a>
         </div>
 
         @if (sesion.esAdmin()) {
           <div class="grupo">
-            <span class="cabecera-mono grupo-titulo">ADMINISTRACIÓN</span>
+            <span class="cabecera-mono grupo-titulo">CENTRO DE SEGURIDAD</span>
             <a routerLink="/monitorizacion" routerLinkActive="activo" ariaCurrentWhenActive="page" class="item">
               <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3 8 4-16 3 8h4" /></svg>
-              Monitorización
+              Panel
             </a>
             <a routerLink="/eventos" routerLinkActive="activo" ariaCurrentWhenActive="page" class="item">
               <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10" /></svg>
-              Historial de eventos
+              Eventos
+            </a>
+            <a routerLink="/sensores" routerLinkActive="activo" ariaCurrentWhenActive="page" class="item">
+              <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="2" /><path d="M8.5 8.5a5 5 0 000 7M15.5 8.5a5 5 0 010 7M5.6 5.6a9 9 0 000 12.8M18.4 5.6a9 9 0 010 12.8" /></svg>
+              Sensores
+            </a>
+          </div>
+
+          <div class="grupo">
+            <span class="cabecera-mono grupo-titulo">ADMINISTRACIÓN</span>
+            <a routerLink="/clientes" routerLinkActive="activo" ariaCurrentWhenActive="page" class="item">
+              <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V7l6-4v18M10 21h10V10l-10-3M14 13h2M14 17h2M6 11h1M6 15h1" /></svg>
+              Clientes
             </a>
             <a routerLink="/usuarios" routerLinkActive="activo" ariaCurrentWhenActive="page" class="item">
               <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5M16 4.5a3.5 3.5 0 010 7M18 14.8c2 .7 3.2 2.4 3.5 5.2" /></svg>
@@ -51,14 +63,6 @@ import { Marca } from './marca';
           </div>
         }
 
-        <div class="grupo">
-          <span class="cabecera-mono grupo-titulo">CUENTA</span>
-          <a routerLink="/cuenta" routerLinkActive="activo" ariaCurrentWhenActive="page" class="item">
-            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 21c1-4.2 4.2-6.5 8-6.5s7 2.3 8 6.5" /></svg>
-            Mi cuenta
-          </a>
-        </div>
-
         <div class="tarjeta-usuario">
           <a routerLink="/cuenta" class="usuario" title="Ir a Mi cuenta">
             <span aria-hidden="true" class="avatar">{{ inicial() }}</span>
@@ -66,6 +70,10 @@ import { Marca } from './marca';
               <span class="email">{{ sesion.usuario()?.email }}</span>
               <span class="rol">{{ rol() }}</span>
             </span>
+          </a>
+          <a routerLink="/cuenta" routerLinkActive="activo" ariaCurrentWhenActive="page" class="item cuenta">
+            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 21c1-4.2 4.2-6.5 8-6.5s7 2.3 8 6.5" /></svg>
+            Mi cuenta
           </a>
           <button type="button" class="item salir" (click)="salir()">
             <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h3a2 2 0 012 2v12a2 2 0 01-2 2h-3M10 17l5-5-5-5M15 12H4" /></svg>
@@ -117,7 +125,8 @@ import { Marca } from './marca';
     .datos { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
     .email { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; transition: color 0.2s; }
     .rol { font-family: var(--mono); font-size: 10px; letter-spacing: 2px; color: var(--oro); }
-    .salir { justify-content: center; background: rgba(255, 255, 255, 0.04); font-size: 13px; font-weight: 600; min-height: 44px; }
+    .salir, .cuenta { justify-content: center; background: rgba(255, 255, 255, 0.04); font-size: 13px; font-weight: 600; min-height: 44px; }
+    .tarjeta-usuario .item + .item { margin-top: -6px; }
     .principal {
       position: relative; flex: 1 1 auto; min-width: 0; padding: 40px 48px 56px;
     }

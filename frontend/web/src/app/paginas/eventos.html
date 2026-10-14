@@ -2,8 +2,8 @@
   <header class="cabecera">
     <div class="textos">
       <span class="ruta">~/eventos</span>
-      <h1 class="titulo">Historial de eventos</h1>
-      <p class="subtitulo">Todos los eventos registrados, con filtros y triaje. Pulsa una IP para ver solo lo que llegó desde ella.</p>
+      <h1 class="titulo">Eventos</h1>
+      <p class="subtitulo">Todo lo que han detectado los sensores de los clientes, con filtros y triaje. Pulsa una IP para ver solo lo que llegó desde ella.</p>
     </div>
     <span class="vivo" [class.activo]="enVivo()">
       <span aria-hidden="true" class="punto"></span>{{ enVivo() ? 'En vivo' : 'Reconectando…' }}
@@ -16,6 +16,10 @@
 
   <section aria-label="Eventos" class="cristal panel">
     <form role="search" aria-label="Filtros de eventos" class="filtros" [formGroup]="filtros" (ngSubmit)="aplicar()">
+      <div class="campo">
+        <label for="ev-empresa">Cliente</label>
+        <app-selector idCampo="ev-empresa" [compacto]="true" [opciones]="clientes.opcionesFiltro()" formControlName="empresa" />
+      </div>
       <div class="campo">
         <label for="ev-tipo">Tipo</label>
         <app-selector idCampo="ev-tipo" [compacto]="true" [opciones]="opcionesTipo" formControlName="tipo" />
@@ -78,7 +82,7 @@
                     <span class="sev" [class]="'sev s-' + e.severidad" [title]="SEV[e.severidad].nombre"></span>
                     <div class="evento-textos">
                       <span class="tipo">{{ TIPOS[e.tipo] }}</span>
-                      <span class="detalle">{{ SEV[e.severidad].nombre }} · {{ e.servicio }}</span>
+                      <span class="detalle">{{ SEV[e.severidad].nombre }} · {{ clientes.nombre(e.empresa_id) }} · {{ e.servicio }}</span>
                     </div>
                   </div>
                 </td>

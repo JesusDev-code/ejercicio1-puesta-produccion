@@ -4,6 +4,9 @@ import { firstValueFrom } from 'rxjs';
 
 import {
   Categoria,
+  Empresa,
+  EmpresaEdicion,
+  EmpresaNueva,
   Estado,
   EventoSeguridad,
   Incidente,
@@ -13,6 +16,7 @@ import {
   RegistroAuditoria,
   ResumenEventos,
   Rol,
+  Sensor,
   Severidad,
   EstadoTriaje,
   TipoEvento,
@@ -40,7 +44,12 @@ export class Api {
     return firstValueFrom(this.http.get('/api/salud'));
   }
 
-  crearUsuario(datos: { email: string; contrasena: string; rol: Rol }): Promise<Usuario> {
+  crearUsuario(datos: {
+    email: string;
+    contrasena: string;
+    rol: Rol;
+    empresa_id: number | null;
+  }): Promise<Usuario> {
     return firstValueFrom(this.http.post<Usuario>('/api/usuarios', datos));
   }
 
@@ -60,6 +69,7 @@ export class Api {
     estado?: Estado | '';
     severidad?: Severidad | '';
     categoria?: Categoria | '';
+    empresa_id?: number | null;
     limite?: number;
     desplazamiento?: number;
   }): Promise<Pagina<Incidente>> {
@@ -105,6 +115,7 @@ export class Api {
   usuarios(filtros: {
     rol?: Rol | '';
     email?: string;
+    empresa_id?: number | null;
     limite?: number;
     desplazamiento?: number;
   }): Promise<Pagina<Usuario>> {
@@ -119,6 +130,22 @@ export class Api {
 
   cambiarActivo(id: number, activo: boolean): Promise<Usuario> {
     return firstValueFrom(this.http.patch<Usuario>(`/api/usuarios/${id}/activo`, { activo }));
+  }
+
+  empresas(filtros: { activa?: boolean | null; limite?: number } = {}): Promise<Pagina<Empresa>> {
+    const params = parametros({
+      activa: filtros.activa === undefined || filtros.activa === null ? null : String(filtros.activa),
+      limite: filtros.limite ?? 100,
+    });
+    return firstValueFrom(this.http.get<Pagina<Empresa>>('/api/empresas', { params }));
+  }
+
+  crearEmpresa(datos: EmpresaNueva): Promise<Empresa> {
+    return firstValueFrom(this.http.post<Empresa>('/api/empresas', datos));
+  }
+
+  editarEmpresa(id: number, cambios: EmpresaEdicion): Promise<Empresa> {
+    return firstValueFrom(this.http.patch<Empresa>(`/api/empresas/${id}`, cambios));
   }
 
   auditoria(filtros: {
@@ -138,6 +165,7 @@ export class Api {
     severidad?: Severidad | '';
     origen_ip?: string;
     estado?: EstadoTriaje | '';
+    empresa_id?: number | null;
     limite?: number;
     desplazamiento?: number;
   }): Promise<Pagina<EventoSeguridad>> {
@@ -146,10 +174,16 @@ export class Api {
     );
   }
 
-  resumenEventos(horas: number): Promise<ResumenEventos> {
+  resumenEventos(horas: number, empresa_id: number | null = null): Promise<ResumenEventos> {
     return firstValueFrom(
-      this.http.get<ResumenEventos>('/api/eventos/resumen', { params: parametros({ horas }) }),
+      this.http.get<ResumenEventos>('/api/eventos/resumen', {
+        params: parametros({ horas, empresa_id }),
+      }),
     );
+  }
+
+  sensores(): Promise<Sensor[]> {
+    return firstValueFrom(this.http.get<Sensor[]>('/api/eventos/sensores'));
   }
 
   incidenteDesdeEvento(id: number): Promise<Incidente> {

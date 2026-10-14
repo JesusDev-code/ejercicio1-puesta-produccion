@@ -67,7 +67,7 @@
           @if (bloqueado()) {
             <div class="candado">
               <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V8a4 4 0 018 0v3" /></svg>
-              Edición bloqueada: el incidente ya no está abierto.
+              Edición bloqueada: la incidencia ya no está abierta.
             </div>
           }
         </section>
@@ -94,10 +94,13 @@
         }
       </div>
 
-      <aside aria-label="Gestión del incidente" class="lateral">
+      <aside aria-label="Gestión de la incidencia" class="lateral">
         <section aria-labelledby="h-meta" class="cristal bloque compacto">
           <h2 id="h-meta" class="cabecera-mono">DATOS</h2>
           <dl class="datos">
+            @if (verCliente()) {
+              <div><dt>Cliente</dt><dd>{{ clientes.nombre(i.empresa_id) }}</dd></div>
+            }
             <div><dt>Reportante</dt><dd>{{ reportante() }}</dd></div>
             <div><dt>Analista</dt><dd>{{ analista() }}</dd></div>
             <div><dt>Creado</dt><dd class="mono">{{ i.creado_en | date: 'dd/MM/yyyy HH:mm' }}</dd></div>
@@ -159,7 +162,7 @@
                 <button type="button" class="btn btn-suave" (click)="confirmandoBorrado.set(false)">Cancelar</button>
               </div>
             } @else {
-              <button type="button" class="btn btn-peligro" (click)="confirmandoBorrado.set(true)">Borrar incidente</button>
+              <button type="button" class="btn btn-peligro" (click)="confirmandoBorrado.set(true)">Borrar incidencia</button>
             }
           </section>
         }

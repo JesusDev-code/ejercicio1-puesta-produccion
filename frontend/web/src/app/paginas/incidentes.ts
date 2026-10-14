@@ -4,6 +4,7 @@ import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 
 import { Api } from '../core/api';
+import { Clientes } from '../core/clientes';
 import { codigo } from '../core/errores';
 import {
   CATEGORIAS,
@@ -37,11 +38,11 @@ interface Contador {
     <div class="pila">
       <header class="cabecera">
         <div class="textos">
-          <span class="ruta">~/incidentes</span>
+          <span class="ruta">~/incidencias</span>
           <h1 class="titulo">{{ textos().titulo }}</h1>
           <p class="subtitulo">{{ textos().subtitulo }}</p>
         </div>
-        <a routerLink="/incidentes/nuevo" class="btn btn-sangre"><span aria-hidden="true" class="mas">+</span> Nuevo incidente</a>
+        <a routerLink="/incidentes/nuevo" class="btn btn-sangre"><span aria-hidden="true" class="mas">+</span> Reportar incidencia</a>
       </header>
 
       <section aria-label="Resumen por estado" class="resumen">
@@ -54,7 +55,7 @@ interface Contador {
         }
       </section>
 
-      <section aria-label="Incidentes" class="cristal panel">
+      <section aria-label="Incidencias" class="cristal panel">
         <form role="search" aria-label="Filtros" class="filtros" [formGroup]="filtros" (ngSubmit)="aplicar()">
           <div class="campo">
             <label for="f-estado">Estado</label>
@@ -68,6 +69,12 @@ interface Contador {
             <label for="f-cat">Categoría</label>
             <app-selector idCampo="f-cat" [compacto]="true" [opciones]="opcionesCategoria" formControlName="categoria" />
           </div>
+          @if (esAdmin()) {
+            <div class="campo ancho">
+              <label for="f-empresa">Cliente</label>
+              <app-selector idCampo="f-empresa" [compacto]="true" [opciones]="clientes.opcionesFiltro()" formControlName="empresa" />
+            </div>
+          }
           <button type="submit" class="btn btn-oro">Aplicar</button>
           <button type="button" class="btn btn-texto" (click)="limpiar()">Limpiar</button>
         </form>
@@ -78,12 +85,12 @@ interface Contador {
           <div class="relleno"><app-fallo-servidor [codigo]="fallo()!" (reintentar)="cargar()" /></div>
         } @else if (filas().length === 0) {
           <div class="vacio">
-            <pre aria-hidden="true" class="terminal">$ ls ~/incidentes
+            <pre aria-hidden="true" class="terminal">$ ls ~/incidencias
 total 0<span class="cursor">_</span></pre>
-            <h2 class="titulo-2 grande">{{ hayFiltros() ? 'Nada con estos filtros' : 'Todavía no hay incidentes' }}</h2>
+            <h2 class="titulo-2 grande">{{ hayFiltros() ? 'Nada con estos filtros' : 'Todavía no hay incidencias' }}</h2>
             <div class="acciones">
               @if (hayFiltros()) { <button type="button" class="btn btn-oro" (click)="limpiar()">Limpiar filtros</button> }
-              <a routerLink="/incidentes/nuevo" class="btn btn-sangre">+ Nuevo incidente</a>
+              <a routerLink="/incidentes/nuevo" class="btn btn-sangre">+ Reportar incidencia</a>
             </div>
           </div>
         } @else {
@@ -92,7 +99,8 @@ total 0<span class="cursor">_</span></pre>
               <thead>
                 <tr>
                   <th scope="col">ID</th>
-                  <th scope="col">INCIDENTE</th>
+                  <th scope="col">INCIDENCIA</th>
+                  @if (esAdmin()) { <th scope="col">CLIENTE</th> }
                   <th scope="col">SEVERIDAD</th>
                   <th scope="col">ESTADO</th>
                   <th scope="col">ANALISTA</th>
@@ -109,6 +117,7 @@ total 0<span class="cursor">_</span></pre>
                         <span class="categoria">{{ categoria(f.categoria) }}</span>
                       </a>
                     </td>
+                    @if (esAdmin()) { <td class="analista">{{ clientes.nombre(f.empresa_id) }}</td> }
                     <td><app-severidad [valor]="f.severidad" /></td>
                     <td><app-estado [valor]="f.estado" /></td>
                     <td class="analista">{{ f.analista_email ?? 'Sin asignar' }}</td>
@@ -166,6 +175,8 @@ total 0<span class="cursor">_</span></pre>
 export class Incidentes implements OnInit {
   private readonly api = inject(Api);
   private readonly sesion = inject(Sesion);
+  protected readonly clientes = inject(Clientes);
+  protected readonly esAdmin = this.sesion.esAdmin;
 
   protected readonly opcionesEstado: Opcion<Estado | ''>[] = [
     { valor: '', etiqueta: 'Todos' },
@@ -184,6 +195,7 @@ export class Incidentes implements OnInit {
     estado: '' as Estado | '',
     severidad: '' as Severidad | '',
     categoria: '' as Categoria | '',
+    empresa: null as number | null,
   });
 
   protected readonly filas = signal<Incidente[]>([]);
@@ -204,15 +216,16 @@ export class Incidentes implements OnInit {
   protected readonly textos = computed(() => {
     switch (this.sesion.usuario()?.rol) {
       case 'admin':
-        return { titulo: 'Todos los incidentes', subtitulo: 'Vista completa de la organización.' };
+        return { titulo: 'Todas las incidencias', subtitulo: 'Las de todos los clientes. Filtra por cliente para ver solo las de uno.' };
       case 'analista':
-        return { titulo: 'Mis incidentes', subtitulo: 'Los que tienes asignados y los que has reportado.' };
+        return { titulo: 'Mis incidencias', subtitulo: 'Las que tienes asignadas y las que has reportado.' };
       default:
-        return { titulo: 'Mis incidentes', subtitulo: 'Los incidentes que has reportado.' };
+        return { titulo: 'Mis incidencias', subtitulo: 'Las incidencias que has reportado.' };
     }
   });
 
   ngOnInit(): void {
+    if (this.esAdmin()) void this.clientes.cargar();
     void this.cargar();
     void this.cargarContadores();
   }
@@ -227,8 +240,10 @@ export class Incidentes implements OnInit {
     this.cargando.set(true);
     this.fallo.set(null);
     try {
+      const { empresa, ...resto } = this.filtros.getRawValue();
       const pagina = await this.api.incidentes({
-        ...this.filtros.getRawValue(),
+        ...resto,
+        empresa_id: empresa,
         limite: this.limite(),
         desplazamiento: this.desplazamiento(),
       });
@@ -262,7 +277,7 @@ export class Incidentes implements OnInit {
 
   aplicar(): void {
     const v = this.filtros.getRawValue();
-    this.hayFiltros.set(Boolean(v.estado || v.severidad || v.categoria));
+    this.hayFiltros.set(Boolean(v.estado || v.severidad || v.categoria || v.empresa));
     this.desplazamiento.set(0);
     void this.cargar();
   }

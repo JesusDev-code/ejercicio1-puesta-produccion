@@ -4,6 +4,7 @@ import { FormBuilder, FormControl, ReactiveFormsModule, Validators } from '@angu
 import { Router, RouterLink } from '@angular/router';
 
 import { Api } from '../core/api';
+import { Clientes } from '../core/clientes';
 import { codigo, mensajeGeneral } from '../core/errores';
 import {
   CATEGORIAS,
@@ -27,10 +28,10 @@ import { Opcion, Selector } from '../ui/selector';
 type Seccion = 'editar' | 'notas' | 'estado' | 'asignar' | 'borrar';
 
 const ETIQUETAS_TRANSICION: Record<Estado, string> = {
-  abierto: '↺ Reabrir incidente',
+  abierto: '↺ Reabrir incidencia',
   en_analisis: 'Pasar a en análisis →',
   resuelto: 'Marcar como resuelto →',
-  cerrado: 'Cerrar incidente →',
+  cerrado: 'Cerrar incidencia →',
 };
 
 const AYUDAS_ESTADO: Record<Estado, string> = {
@@ -53,6 +54,8 @@ export class Detalle implements OnInit {
 
   private readonly api = inject(Api);
   private readonly sesion = inject(Sesion);
+  protected readonly clientes = inject(Clientes);
+  protected readonly verCliente = this.sesion.esAdmin;
   private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder).nonNullable;
 
@@ -139,6 +142,7 @@ export class Detalle implements OnInit {
   protected readonly TIPOS = TIPOS_EVENTO;
 
   ngOnInit(): void {
+    if (this.verCliente()) void this.clientes.cargar();
     void this.cargar();
     if (this.esAdmin()) {
       void this.cargarAnalistas();

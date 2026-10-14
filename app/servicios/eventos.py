@@ -1,7 +1,7 @@
 import random
 from datetime import datetime, timedelta
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import case, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import obtener_configuracion
@@ -11,6 +11,7 @@ from app.esquemas import (
     EventoSalida,
     Recuento,
     ResumenEventos,
+    Sensor,
     Tramo,
     TriajeEntrada,
 )
@@ -212,6 +213,33 @@ async def resumen(
         por_minuto=await _tramos(sesion, momento - timedelta(minutes=59), 60, 60, filtro),
         por_hora=await _tramos(sesion, momento - timedelta(hours=167), 3600, 168, filtro),
     )
+
+
+async def sensores(sesion: AsyncSession) -> list[Sensor]:
+    """Estado de cada sensor según sus eventos: cuántos y cuándo llegó el último. Un sensor
+    que deja de enviar se ve aquí antes que en ningún otro sitio."""
+    desde = ahora() - timedelta(hours=24)
+    consulta = (
+        select(
+            EventoSeguridad.servicio,
+            EventoSeguridad.empresa_id,
+            func.count(EventoSeguridad.id),
+            func.sum(case((EventoSeguridad.fecha >= desde, 1), else_=0)),
+            func.max(EventoSeguridad.fecha),
+        )
+        .group_by(EventoSeguridad.servicio, EventoSeguridad.empresa_id)
+        .order_by(EventoSeguridad.servicio, EventoSeguridad.empresa_id)
+    )
+    return [
+        Sensor(
+            servicio=servicio,
+            empresa_id=empresa_id,
+            total=total,
+            ultimas_24h=recientes or 0,
+            ultimo=a_utc(ultimo),
+        )
+        for servicio, empresa_id, total, recientes, ultimo in await sesion.execute(consulta)
+    ]
 
 
 async def triar(

@@ -18,10 +18,10 @@ import { Marca } from '../ui/marca';
       <app-glifos [densidad]="60" />
 
       <section aria-label="Presentación" class="presentacion">
-        <app-marca [tam]="40" subtitulo="CONSOLA · v0.1" />
+        <app-marca [tam]="40" nombre="Kaelum" subtitulo="SECURITY · UMBRAL" />
         <h1 class="lema">Lo que ocurre en la red, <span class="cursiva-sangre">bajo control.</span></h1>
         <p class="entradilla">
-          Registro, análisis y cierre de incidentes de ciberseguridad, con trazabilidad completa de cada acción.
+          Umbral, la plataforma de Kaelum Security: tus incidencias, los eventos de tus sensores y cada acción, con trazabilidad completa.
         </p>
         <div class="chips">
           <span class="chip">
@@ -37,7 +37,7 @@ import { Marca } from '../ui/marca';
         <div aria-hidden="true" class="halo"></div>
         <form class="formulario" aria-labelledby="titulo-login" [formGroup]="form" (ngSubmit)="entrar()" novalidate>
           <div class="cabecera-form">
-            <span class="etiqueta-mono">ACCESO RESTRINGIDO</span>
+            <span class="etiqueta-mono">ACCESO CLIENTES</span>
             <h2 id="titulo-login">Iniciar sesión</h2>
           </div>
 
@@ -111,7 +111,7 @@ export class Login implements OnInit {
     try {
       const { email, contrasena } = this.form.getRawValue();
       await this.sesion.entrar(email, contrasena);
-      await this.router.navigate(['/incidentes']);
+      await this.router.navigate(['/']); // la raíz decide: Panel (admin) o Incidencias
     } catch (e) {
       this.error.set(codigo(e));
       this.mensaje.set(mensajeGeneral(e));

@@ -277,6 +277,17 @@ class Tramo(BaseModel):
     total: int
 
 
+class Sensor(BaseModel):
+    """Un sensor es la pareja (servicio, empresa) que firma los eventos: no hay registro de
+    sensores aparte, se deducen de lo que llega."""
+
+    servicio: str
+    empresa_id: int | None
+    total: int
+    ultimas_24h: int
+    ultimo: datetime
+
+
 class ResumenEventos(BaseModel):
     horas: int
     total: int

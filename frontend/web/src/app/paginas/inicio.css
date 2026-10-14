@@ -2,9 +2,26 @@
 
 .inicio {
   overflow: visible;
+  background: var(--fondo);
+}
+/* El resplandor va en una capa fija: acompaña todo el scroll en vez de quedarse arriba */
+.inicio::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(900px 600px at 12% 0%, rgba(196, 18, 47, 0.3), transparent 65%),
+    radial-gradient(800px 600px at 100% 100%, rgba(212, 175, 110, 0.12), transparent 60%),
+    radial-gradient(700px 500px at 100% 30%, rgba(196, 18, 47, 0.12), transparent 60%);
+}
+.inicio > * {
+  position: relative;
+  z-index: 1;
 }
 
-.barra {
+.inicio > .barra {
   position: sticky;
   top: 0;
   z-index: 10;
@@ -48,9 +65,6 @@ main {
   display: flex;
   align-items: center;
   padding: 64px 48px;
-  background:
-    radial-gradient(900px 600px at 18% 20%, rgba(196, 18, 47, 0.34), transparent 65%),
-    radial-gradient(700px 500px at 92% 96%, rgba(212, 175, 110, 0.12), transparent 60%);
 }
 
 .heroe-texto {

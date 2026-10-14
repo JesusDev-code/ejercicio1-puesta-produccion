@@ -1,14 +1,15 @@
 <div class="pila">
   <header class="cabecera">
     <div class="textos">
-      <span class="ruta">~/monitorizacion</span>
-      <h1 class="titulo">Monitorización</h1>
-      <p class="subtitulo">Sondeos que llega a recibir la infraestructura, en tiempo real. El señuelo los registra; aquí se ven y se convierten en incidencias.</p>
+      <span class="ruta">~/panel</span>
+      <h1 class="titulo">Panel</h1>
+      <p class="subtitulo">Lo que detectan los sensores de los clientes, en tiempo real. Aquí se hace el triaje y se convierten en incidencias.</p>
     </div>
     <div class="controles">
       <span class="vivo" [class.activo]="enVivo()">
         <span aria-hidden="true" class="punto"></span>{{ enVivo() ? 'En vivo' : 'Reconectando…' }}
       </span>
+      <app-selector class="rango" [compacto]="true" [opciones]="clientes.opcionesFiltro()" [valor]="empresa()" [etiquetaAria]="'Cliente'" (cambio)="cambiarEmpresa($event)" />
       <app-selector class="rango" [compacto]="true" [opciones]="rangos" [valor]="horas()" [etiquetaAria]="'Periodo'" (cambio)="cambiarRango($event)" />
     </div>
   </header>
@@ -85,6 +86,7 @@
               <span class="sev" [class]="'sev s-' + e.severidad" [title]="SEV[e.severidad].nombre"></span>
               <span class="tipo">{{ TIPOS[e.tipo] }}</span>
               <span class="ip mono">{{ e.origen_ip }}</span>
+              <span class="cliente-feed">{{ clientes.nombre(e.empresa_id) }}</span>
               <span class="peticion mono" [title]="e.metodo + ' ' + e.ruta">{{ e.metodo }} {{ e.ruta }}</span>
             </div>
 

@@ -3,7 +3,7 @@
     <div class="textos">
       <span class="ruta">~/usuarios</span>
       <h1 class="titulo">Usuarios</h1>
-      <p class="subtitulo">Altas, roles, acceso y contraseñas. No hay registro público: cada cuenta la crea un administrador y queda en la auditoría.</p>
+      <p class="subtitulo">Altas, roles, acceso y contraseñas. No hay registro público: cada cuenta la crea un administrador y queda en la auditoría. Los usuarios de un cliente solo ven lo de su empresa.</p>
     </div>
     @if (!creando()) {
       <button type="button" class="btn btn-sangre" (click)="abrirAlta()"><span aria-hidden="true" class="mas">+</span> Nuevo usuario</button>
@@ -42,6 +42,15 @@
           <label for="a-rol">Rol</label>
           <app-selector idCampo="a-rol" [opciones]="opcionesRol" formControlName="rol" />
         </div>
+
+        @if (alta.controls.rol.value === 'usuario') {
+          <div class="campo">
+            <label for="a-empresa">Cliente</label>
+            <app-selector idCampo="a-empresa" [opciones]="clientes.opcionesAlta()" formControlName="empresa_id" />
+          </div>
+        } @else {
+          <p class="ayuda">Admin y analista son personal de Kaelum: ven a todos los clientes y no pertenecen a ninguno.</p>
+        }
 
         <div class="campo contrasena">
           <div class="campo-cabecera">
@@ -84,6 +93,10 @@
         <label for="u-rol">Rol</label>
         <app-selector idCampo="u-rol" [compacto]="true" [opciones]="opcionesFiltroRol" formControlName="rol" />
       </div>
+      <div class="campo">
+        <label for="u-empresa">Cliente</label>
+        <app-selector idCampo="u-empresa" [compacto]="true" [opciones]="clientes.opcionesFiltro()" formControlName="empresa" />
+      </div>
       <button type="submit" class="btn btn-oro">Aplicar</button>
     </form>
 
@@ -99,6 +112,7 @@
           <thead>
             <tr>
               <th scope="col">USUARIO</th>
+              <th scope="col">CLIENTE</th>
               <th scope="col">ROL</th>
               <th scope="col">ESTADO</th>
               <th scope="col">ALTA</th>
@@ -117,6 +131,7 @@
                     </div>
                   </div>
                 </td>
+                <td class="cliente">{{ clientes.nombre(u.empresa_id) }}</td>
                 <td>
                   <app-selector [pildora]="true" [opciones]="opcionesRol" [valor]="u.rol" [etiquetaAria]="'Rol de ' + u.email"
                     [bloqueado]="esYo(u) || ocupado() === u.id" (cambio)="cambiarRol(u, $event)" />

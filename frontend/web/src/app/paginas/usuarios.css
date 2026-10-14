@@ -227,3 +227,9 @@
     padding: 22px;
   }
 }
+
+.cliente {
+  font-size: 13px;
+  color: var(--texto-2);
+  white-space: nowrap;
+}

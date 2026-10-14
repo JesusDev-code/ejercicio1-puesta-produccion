@@ -298,3 +298,8 @@
   font-weight: 600;
   text-decoration: none;
 }
+
+.cliente-feed {
+  font-size: 12px;
+  color: var(--oro);
+}

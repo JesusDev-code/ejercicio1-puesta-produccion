@@ -293,3 +293,25 @@ async def test_incidencia_desde_evento_es_del_cliente_del_sensor(
     r = await cliente.post(f"/eventos/{evento['id']}/incidente", headers=adm)
     assert r.status_code == 201
     assert r.json()["empresa_id"] == clientes.ids["ibarra"]
+
+
+async def test_sensores_por_servicio_y_empresa(cliente, actores, clientes, ingesta):
+    await _ingestar(
+        cliente,
+        ingesta,
+        {**EVENTO, "empresa": "clinica-solana"},
+        {**EVENTO, "empresa": "clinica-solana"},
+        {**EVENTO, "servicio": "generador-demo", "empresa": "transportes-ibarra"},
+    )
+    r = await cliente.get("/eventos/sensores", headers=actores.cab["admin"])
+    assert r.status_code == 200
+    vistos = {(s["servicio"], s["empresa_id"]): s for s in r.json()}
+    solana = vistos[("senuelo", clientes.ids["solana"])]
+    assert solana["total"] == 2
+    assert solana["ultimas_24h"] == 2
+    assert vistos[("generador-demo", clientes.ids["ibarra"])]["total"] == 1
+
+
+async def test_sensores_solo_admin(cliente, actores, clientes):
+    r = await cliente.get("/eventos/sensores", headers=clientes.cab["ibarra"])
+    assert r.status_code == 403
