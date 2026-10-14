@@ -5,7 +5,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import obtener_configuracion
-from app.errores import Conflicto, NoEncontrado
+from app.errores import Conflicto, Invalido, NoEncontrado
 from app.esquemas import (
     EventoEntrada,
     EventoSalida,
@@ -26,6 +26,7 @@ from app.modelos import (
     a_utc,
     ahora,
 )
+from app.repositorios import RepositorioEmpresas
 from app.servicios.auditoria import auditar
 from app.tiempo_real import difusor
 
@@ -55,7 +56,20 @@ _PROBABILIDAD_PURGA = 1 / 200
 
 async def ingestar(sesion: AsyncSession, eventos: list[EventoEntrada]) -> int:
     momento = ahora()
-    filas = [EventoSeguridad(**e.model_dump(), fecha=momento) for e in eventos]
+    codigos = {e.empresa for e in eventos if e.empresa}
+    ids = await RepositorioEmpresas(sesion).ids_por_codigo(codigos)
+    if desconocidos := codigos - ids.keys():
+        # Mejor rechazar el lote que guardar eventos sin dueño: un sensor mal configurado
+        # se ve en su log al momento, en vez de llenar el panel de eventos huérfanos
+        raise Invalido(f"Empresa desconocida: {', '.join(sorted(desconocidos))}")
+    filas = [
+        EventoSeguridad(
+            **e.model_dump(exclude={"empresa"}),
+            empresa_id=ids[e.empresa] if e.empresa else None,
+            fecha=momento,
+        )
+        for e in eventos
+    ]
     sesion.add_all(filas)
     await sesion.flush()
 
@@ -93,10 +107,13 @@ async def listar(
     severidad: Severidad | None,
     origen_ip: str | None,
     estado: EstadoTriaje | None = None,
+    empresa_id: int | None = None,
     limite: int,
     desplazamiento: int,
 ) -> tuple[int, list[EventoSeguridad]]:
     consulta = select(EventoSeguridad)
+    if empresa_id is not None:
+        consulta = consulta.where(EventoSeguridad.empresa_id == empresa_id)
     if tipo:
         consulta = consulta.where(EventoSeguridad.tipo == tipo)
     if severidad:
@@ -114,11 +131,13 @@ async def _contar(sesion: AsyncSession, *condiciones) -> int:
     return (await sesion.scalar(select(func.count(EventoSeguridad.id)).where(*condiciones))) or 0
 
 
-async def _agrupar(sesion: AsyncSession, columna, desde: datetime, limite: int | None = None):
+async def _agrupar(
+    sesion: AsyncSession, columna, desde: datetime, filtro: list, limite: int | None = None
+):
     total = func.count(EventoSeguridad.id).label("total")
     consulta = (
         select(columna, total)
-        .where(EventoSeguridad.fecha >= desde)
+        .where(EventoSeguridad.fecha >= desde, *filtro)
         .group_by(columna)
         .order_by(total.desc())
     )
@@ -128,7 +147,7 @@ async def _agrupar(sesion: AsyncSession, columna, desde: datetime, limite: int |
 
 
 async def _tramos(
-    sesion: AsyncSession, desde: datetime, segundos: int, cuantos: int
+    sesion: AsyncSession, desde: datetime, segundos: int, cuantos: int, filtro: list
 ) -> list[Tramo]:
     """Recuento por tramos de tamaño fijo desde `desde`. En PostgreSQL agrupa la base de
     datos; en SQLite (tests) se agrupa aquí, porque no tiene una función de epoch fiable."""
@@ -138,14 +157,14 @@ async def _tramos(
         cubo = func.floor(func.extract("epoch", EventoSeguridad.fecha) / segundos)
         consulta = (
             select(cubo.label("cubo"), func.count(EventoSeguridad.id))
-            .where(EventoSeguridad.fecha >= desde)
+            .where(EventoSeguridad.fecha >= desde, *filtro)
             .group_by("cubo")
         )
         for cubo_n, n in await sesion.execute(consulta):
             cuentas[int(cubo_n) * segundos] = n
     else:
         fechas = await sesion.scalars(
-            select(EventoSeguridad.fecha).where(EventoSeguridad.fecha >= desde)
+            select(EventoSeguridad.fecha).where(EventoSeguridad.fecha >= desde, *filtro)
         )
         for fecha in fechas:
             inicio = int(a_utc(fecha).timestamp()) // segundos * segundos
@@ -160,18 +179,22 @@ async def _tramos(
     ]
 
 
-async def resumen(sesion: AsyncSession, horas: int) -> ResumenEventos:
+async def resumen(
+    sesion: AsyncSession, horas: int, empresa_id: int | None = None
+) -> ResumenEventos:
     momento = ahora()
     desde = momento - timedelta(hours=horas)
     hace_hora = momento - timedelta(hours=1)
+    # Condición común a todas las métricas: el panel de un cliente no mezcla datos de otro
+    filtro = [] if empresa_id is None else [EventoSeguridad.empresa_id == empresa_id]
     return ResumenEventos(
         horas=horas,
-        total=await _contar(sesion, EventoSeguridad.fecha >= desde),
-        ultima_hora=await _contar(sesion, EventoSeguridad.fecha >= hace_hora),
+        total=await _contar(sesion, EventoSeguridad.fecha >= desde, *filtro),
+        ultima_hora=await _contar(sesion, EventoSeguridad.fecha >= hace_hora, *filtro),
         ips_unicas=(
             await sesion.scalar(
                 select(func.count(func.distinct(EventoSeguridad.origen_ip))).where(
-                    EventoSeguridad.fecha >= desde
+                    EventoSeguridad.fecha >= desde, *filtro
                 )
             )
         )
@@ -180,13 +203,14 @@ async def resumen(sesion: AsyncSession, horas: int) -> ResumenEventos:
             sesion,
             EventoSeguridad.fecha >= desde,
             EventoSeguridad.severidad == Severidad.critica,
+            *filtro,
         ),
-        por_tipo=await _agrupar(sesion, EventoSeguridad.tipo, desde),
-        por_severidad=await _agrupar(sesion, EventoSeguridad.severidad, desde),
-        top_ips=await _agrupar(sesion, EventoSeguridad.origen_ip, desde, limite=10),
+        por_tipo=await _agrupar(sesion, EventoSeguridad.tipo, desde, filtro),
+        por_severidad=await _agrupar(sesion, EventoSeguridad.severidad, desde, filtro),
+        top_ips=await _agrupar(sesion, EventoSeguridad.origen_ip, desde, filtro, limite=10),
         # El minuto/hora en curso es el último tramo: +1 para incluirlo
-        por_minuto=await _tramos(sesion, momento - timedelta(minutes=59), 60, 60),
-        por_hora=await _tramos(sesion, momento - timedelta(hours=167), 3600, 168),
+        por_minuto=await _tramos(sesion, momento - timedelta(minutes=59), 60, 60, filtro),
+        por_hora=await _tramos(sesion, momento - timedelta(hours=167), 3600, 168, filtro),
     )
 
 
@@ -248,6 +272,8 @@ async def crear_incidente(
         categoria=CATEGORIA_DE_TIPO[evento.tipo],
         estado=Estado.abierto,
         reportante_id=admin.id,
+        # La incidencia es del cliente dueño del sensor, no de quien la abre
+        empresa_id=evento.empresa_id,
     )
     sesion.add(incidente)
     await sesion.flush()

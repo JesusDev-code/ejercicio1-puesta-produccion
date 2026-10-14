@@ -4,6 +4,9 @@ Política de respuestas:
 - Si el usuario no puede VER el incidente → 404 (no se confirma que exista).
 - Si lo ve pero no puede hacer esa acción → 403.
 - Si puede, pero el estado actual no lo permite → 409.
+
+Aislamiento entre clientes: un usuario de una empresa nunca ve nada de otra, aunque una
+regla de rol lo permitiera. Se comprueba primero y por separado (defensa en profundidad).
 """
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -35,7 +38,14 @@ def es_analista_asignado(usuario: Usuario, incidente: Incidente) -> bool:
     return usuario.rol == Rol.analista and incidente.analista_id == usuario.id
 
 
+def misma_empresa(usuario: Usuario, incidente: Incidente) -> bool:
+    """El personal del MSSP (sin empresa) cruza clientes; un usuario de cliente, no."""
+    return usuario.empresa_id is None or usuario.empresa_id == incidente.empresa_id
+
+
 def puede_ver(usuario: Usuario, incidente: Incidente) -> bool:
+    if not misma_empresa(usuario, incidente):
+        return False
     return (
         usuario.rol == Rol.admin
         or incidente.reportante_id == usuario.id
@@ -58,7 +68,12 @@ async def crear(
     sesion: AsyncSession, usuario: Usuario, datos: IncidenteCrear, ip: str | None
 ) -> Incidente:
     incidente = await RepositorioIncidentes(sesion).crear(
-        Incidente(**datos.model_dump(), reportante_id=usuario.id, estado=Estado.abierto)
+        Incidente(
+            **datos.model_dump(),
+            reportante_id=usuario.id,
+            empresa_id=usuario.empresa_id,
+            estado=Estado.abierto,
+        )
     )
     await auditar(
         sesion,
@@ -76,15 +91,20 @@ async def listar(
     sesion: AsyncSession,
     usuario: Usuario,
     *,
+    empresa_id: int | None = None,
     estado: Estado | None,
     severidad: Severidad | None,
     categoria: Categoria | None,
     limite: int,
     desplazamiento: int,
 ) -> tuple[int, list[Incidente]]:
+    # Un usuario de cliente no elige empresa: se le fija la suya, mande lo que mande
+    if usuario.empresa_id is not None:
+        empresa_id = usuario.empresa_id
     return await RepositorioIncidentes(sesion).listar(
         visible_para=None if usuario.rol == Rol.admin else usuario.id,
         incluir_asignados=usuario.rol == Rol.analista,
+        empresa_id=empresa_id,
         estado=estado,
         severidad=severidad,
         categoria=categoria,
@@ -171,7 +191,12 @@ async def asignar(
         raise Conflicto("No se puede asignar un incidente cerrado")
 
     analista = await RepositorioUsuarios(sesion).por_id(analista_id)
-    if not analista or not analista.activo or analista.rol != Rol.analista:
+    if (
+        not analista
+        or not analista.activo
+        or analista.rol != Rol.analista
+        or analista.empresa_id is not None
+    ):
         raise Invalido("El usuario indicado no es un analista activo")
 
     anterior = incidente.analista_id

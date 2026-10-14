@@ -49,18 +49,21 @@ async def listar(
     sesion: Sesion,
     rol: Rol | None = None,
     email: Annotated[str | None, Query(max_length=254)] = None,
+    empresa_id: Annotated[int | None, Query(gt=0)] = None,
     limite: Annotated[int, Query(ge=1, le=100)] = 20,
     desplazamiento: Annotated[int, Query(ge=0)] = 0,
 ):
     total, elementos = await RepositorioUsuarios(sesion).listar(
-        limite, desplazamiento, rol=rol, email=email
+        limite, desplazamiento, rol=rol, email=email, empresa_id=empresa_id
     )
     return Pagina(total=total, limite=limite, desplazamiento=desplazamiento, elementos=elementos)
 
 
 @router.post("", response_model=UsuarioSalida, status_code=status.HTTP_201_CREATED)
 async def crear(datos: UsuarioCrear, admin: Admin, sesion: Sesion, ip: IpCliente):
-    return await servicio.crear(sesion, admin, datos.email, datos.contrasena, datos.rol, ip)
+    return await servicio.crear(
+        sesion, admin, datos.email, datos.contrasena, datos.rol, datos.empresa_id, ip
+    )
 
 
 @router.patch("/{usuario_id}/contrasena", status_code=status.HTTP_204_NO_CONTENT)

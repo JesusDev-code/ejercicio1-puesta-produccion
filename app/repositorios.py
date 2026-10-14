@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modelos import (
     Categoria,
+    Empresa,
     Estado,
     Incidente,
     RegistroAuditoria,
@@ -15,6 +16,45 @@ from app.modelos import (
     TokenRefresco,
     Usuario,
 )
+
+
+class RepositorioEmpresas:
+    def __init__(self, sesion: AsyncSession):
+        self.sesion = sesion
+
+    async def por_id(self, empresa_id: int) -> Empresa | None:
+        return await self.sesion.get(Empresa, empresa_id)
+
+    async def ids_por_codigo(self, codigos: set[str]) -> dict[str, int]:
+        if not codigos:
+            return {}
+        filas = await self.sesion.execute(
+            select(Empresa.codigo, Empresa.id).where(Empresa.codigo.in_(codigos))
+        )
+        return {codigo: empresa_id for codigo, empresa_id in filas.all()}
+
+    async def existe(self, codigo: str, nombre: str, excluir_id: int | None = None) -> bool:
+        consulta = select(Empresa.id).where(
+            or_(Empresa.codigo == codigo, func.lower(Empresa.nombre) == nombre.lower())
+        )
+        if excluir_id is not None:
+            consulta = consulta.where(Empresa.id != excluir_id)
+        return await self.sesion.scalar(consulta.limit(1)) is not None
+
+    async def crear(self, empresa: Empresa) -> Empresa:
+        self.sesion.add(empresa)
+        await self.sesion.flush()
+        return empresa
+
+    async def listar(
+        self, activa: bool | None, limite: int, desplazamiento: int
+    ) -> tuple[int, list[Empresa]]:
+        consulta: Select = select(Empresa)
+        if activa is not None:
+            consulta = consulta.where(Empresa.activa == activa)
+        total = await self.sesion.scalar(select(func.count()).select_from(consulta.subquery()))
+        pagina = consulta.order_by(Empresa.nombre).limit(limite).offset(desplazamiento)
+        return total or 0, list(await self.sesion.scalars(pagina))
 
 
 class RepositorioUsuarios:
@@ -28,8 +68,16 @@ class RepositorioUsuarios:
         consulta = select(Usuario).where(func.lower(Usuario.email) == email.lower())
         return await self.sesion.scalar(consulta)
 
-    async def crear(self, email: str, hash_contrasena: str, rol: Rol = Rol.usuario) -> Usuario:
-        usuario = Usuario(email=email.lower(), hash_contrasena=hash_contrasena, rol=rol)
+    async def crear(
+        self,
+        email: str,
+        hash_contrasena: str,
+        rol: Rol = Rol.usuario,
+        empresa_id: int | None = None,
+    ) -> Usuario:
+        usuario = Usuario(
+            email=email.lower(), hash_contrasena=hash_contrasena, rol=rol, empresa_id=empresa_id
+        )
         self.sesion.add(usuario)
         await self.sesion.flush()
         return usuario
@@ -40,10 +88,13 @@ class RepositorioUsuarios:
         desplazamiento: int,
         rol: Rol | None = None,
         email: str | None = None,
+        empresa_id: int | None = None,
     ) -> tuple[int, list[Usuario]]:
         consulta: Select = select(Usuario)
         if rol:
             consulta = consulta.where(Usuario.rol == rol)
+        if empresa_id is not None:
+            consulta = consulta.where(Usuario.empresa_id == empresa_id)
         if email:
             # autoescape: un `%` o `_` del cliente se busca literal, no como comodín de LIKE
             consulta = consulta.where(
@@ -84,6 +135,7 @@ class RepositorioIncidentes:
         *,
         visible_para: int | None,
         incluir_asignados: bool,
+        empresa_id: int | None,
         estado: Estado | None,
         severidad: Severidad | None,
         categoria: Categoria | None,
@@ -98,6 +150,8 @@ class RepositorioIncidentes:
             if incluir_asignados:
                 condicion = or_(condicion, Incidente.analista_id == visible_para)
             consulta = consulta.where(condicion)
+        if empresa_id is not None:
+            consulta = consulta.where(Incidente.empresa_id == empresa_id)
         if estado:
             consulta = consulta.where(Incidente.estado == estado)
         if severidad:
@@ -127,6 +181,14 @@ class RepositorioTokens:
         await self.sesion.execute(
             update(TokenRefresco)
             .where(TokenRefresco.familia_id == familia_id, TokenRefresco.revocado_en.is_(None))
+            .values(revocado_en=momento)
+        )
+
+    async def revocar_de_empresa(self, empresa_id: int, momento: datetime) -> None:
+        de_la_empresa = select(Usuario.id).where(Usuario.empresa_id == empresa_id)
+        await self.sesion.execute(
+            update(TokenRefresco)
+            .where(TokenRefresco.usuario_id.in_(de_la_empresa), TokenRefresco.revocado_en.is_(None))
             .values(revocado_en=momento)
         )
 

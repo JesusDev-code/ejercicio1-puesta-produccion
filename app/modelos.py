@@ -75,6 +75,20 @@ def _enum(tipo: type[enum.Enum]) -> Enum:
     )
 
 
+class Empresa(Base):
+    """Cliente del MSSP. `codigo` es el identificador estable que usan los sensores para
+    declarar de quién es un evento: no se edita nunca, el nombre sí."""
+
+    __tablename__ = "empresas"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    codigo: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    nombre: Mapped[str] = mapped_column(String(120), unique=True)
+    sector: Mapped[str | None] = mapped_column(String(80))
+    activa: Mapped[bool] = mapped_column(default=True)
+    creada_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+
+
 class Usuario(Base):
     __tablename__ = "usuarios"
 
@@ -82,6 +96,8 @@ class Usuario(Base):
     email: Mapped[str] = mapped_column(String(254), unique=True, index=True)
     hash_contrasena: Mapped[str] = mapped_column(String(255))
     rol: Mapped[Rol] = mapped_column(_enum(Rol), default=Rol.usuario)
+    # None = personal del MSSP (admin, analista); con valor = trabajador de un cliente
+    empresa_id: Mapped[int | None] = mapped_column(ForeignKey("empresas.id"), index=True)
     activo: Mapped[bool] = mapped_column(default=True)
     creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
 
@@ -97,6 +113,8 @@ class Incidente(Base):
     estado: Mapped[Estado] = mapped_column(_enum(Estado), default=Estado.abierto, index=True)
     reportante_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)
     analista_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id"), index=True)
+    # Se copia del reportante (o del evento de origen) al crearla y no cambia después
+    empresa_id: Mapped[int | None] = mapped_column(ForeignKey("empresas.id"), index=True)
     notas_internas: Mapped[str | None] = mapped_column(Text)
     creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
     actualizado_en: Mapped[datetime] = mapped_column(
@@ -145,6 +163,7 @@ class EventoSeguridad(Base):
     ruta: Mapped[str] = mapped_column(String(512))
     agente: Mapped[str | None] = mapped_column(String(512))
     servicio: Mapped[str] = mapped_column(String(64))
+    empresa_id: Mapped[int | None] = mapped_column(ForeignKey("empresas.id"), index=True)
     detalle: Mapped[str | None] = mapped_column(String(1000))
     estado_triaje: Mapped[EstadoTriaje] = mapped_column(
         _enum(EstadoTriaje), default=EstadoTriaje.nuevo, index=True

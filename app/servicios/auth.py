@@ -15,6 +15,7 @@ from app.seguridad import (
     verificar_contrasena,
 )
 from app.servicios.auditoria import auditar
+from app.servicios.empresas import cuenta_habilitada
 
 _CREDENCIALES_INVALIDAS = "Credenciales inválidas"
 # Mensaje de error, no un secreto: bandit lo confunde por la palabra "token"
@@ -43,7 +44,9 @@ async def login(sesion: AsyncSession, email: str, contrasena: str, ip: str | Non
     usuario = await RepositorioUsuarios(sesion).por_email(email)
     hash_guardado = usuario.hash_contrasena if usuario else None
 
-    if not verificar_contrasena(hash_guardado, contrasena) or not usuario or not usuario.activo:
+    # Se verifica la contraseña siempre, exista o no el usuario: mismo tiempo de respuesta
+    contrasena_ok = verificar_contrasena(hash_guardado, contrasena)
+    if not contrasena_ok or not usuario or not await cuenta_habilitada(sesion, usuario):
         await auditar(
             sesion,
             accion="login_fallido",
@@ -88,7 +91,7 @@ async def refrescar(sesion: AsyncSession, token: str, ip: str | None) -> ParToke
         raise NoAutenticado(_TOKEN_INVALIDO)
 
     usuario = await RepositorioUsuarios(sesion).por_id(guardado.usuario_id)
-    if not usuario or not usuario.activo:
+    if not usuario or not await cuenta_habilitada(sesion, usuario):
         raise NoAutenticado(_TOKEN_INVALIDO)
 
     guardado.revocado_en = momento

@@ -11,6 +11,20 @@ Decidido el 2026-10-14. Este fichero es la fuente de verdad para retomar en cual
 - Autenticación actual: **propia** (PyJWT HS256 + argon2 + refresco con hash en
   `tokens_refresco` + cookie HttpOnly en `/auth/web/*`). No hay nada de Firebase todavía.
 
+## Orden acordado (2026-10-14)
+
+Tanda 1 → Tanda 2 → Tanda 0 (Firebase al final). La Tanda 1 no depende de Firebase y así
+producción nunca queda sin login a medias. Al migrar, `POST /usuarios` pasa a crear la cuenta
+con el Admin SDK manteniendo las reglas de empresa.
+
+**Tanda 1: hecha** (migración `0004`). Pendiente al desplegar: `python -m app.cli sembrar-demo`
+en el contenedor de la API **antes** de que arranquen señuelo y generador, o la ingesta
+rechaza sus lotes con 422 (empresa desconocida). Variables nuevas, con valor por defecto:
+`EMPRESA_SENUELO` (hotel-mirador) y `EMPRESAS_GENERADOR` (los tres clientes de demo).
+
+Descartado por ahora: precios y facturación (no aportan a PPS). Opcional: un campo `plan`
+descriptivo en la empresa.
+
 ## Tanda 0 — Migrar la autenticación a Firebase
 
 **Antes de empezar, el alumno aporta** (nunca en el chat ni en el repo):

@@ -3,7 +3,9 @@
 - Idempotente: si ya hay datos de demo, no hace nada.
 - Las cuentas de demo tienen contraseñas aleatorias que nadie conoce: no se puede entrar con
   ellas. Solo sirven para que haya reportantes, analistas e historial.
-- Dominio ficticio: ningún correo se envía nunca a estas direcciones."""
+- Dominio ficticio: ningún correo se envía nunca a estas direcciones.
+- Los clientes del MSSP se crean aparte y también son idempotentes: en una BD sembrada antes de
+  que existieran las empresas, se crean y se reparten los usuarios de demo que no tengan."""
 
 import secrets
 from datetime import timedelta
@@ -13,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modelos import (
     Categoria,
+    Empresa,
     Estado,
     Incidente,
     RegistroAuditoria,
@@ -25,15 +28,22 @@ from app.seguridad import hashear_contrasena
 
 DOMINIO = "demo-incidentes.es"
 
-# (email, rol, activo, días desde el alta)
+# (código, nombre, sector). El código es el que declaran los sensores en EMPRESA/EMPRESAS
+EMPRESAS = [
+    ("transportes-ibarra", "Transportes Ibarra", "Logística"),
+    ("clinica-solana", "Clínica Solana", "Sanidad"),
+    ("hotel-mirador", "Hotel Mirador", "Hostelería"),
+]
+
+# (email, rol, activo, días desde el alta, empresa). Sin empresa = personal del MSSP
 USUARIOS = [
-    ("a.ruiz", Rol.analista, True, 12),
-    ("m.soto", Rol.analista, True, 12),
-    ("l.vega", Rol.analista, False, 10),
-    ("p.lopez", Rol.usuario, True, 9),
-    ("c.navarro", Rol.usuario, True, 8),
-    ("j.moreno", Rol.usuario, True, 6),
-    ("becario", Rol.usuario, True, 3),
+    ("a.ruiz", Rol.analista, True, 12, None),
+    ("m.soto", Rol.analista, True, 12, None),
+    ("l.vega", Rol.analista, False, 10, None),
+    ("p.lopez", Rol.usuario, True, 9, "transportes-ibarra"),
+    ("c.navarro", Rol.usuario, True, 8, "transportes-ibarra"),
+    ("j.moreno", Rol.usuario, True, 6, "clinica-solana"),
+    ("becario", Rol.usuario, True, 3, "hotel-mirador"),
 ]
 
 # (título, descripción, severidad, categoría, estado, reportante, analista, notas, días atrás)
@@ -205,10 +215,40 @@ async def ya_sembrado(sesion: AsyncSession) -> bool:
     return existe is not None
 
 
+async def sembrar_empresas(sesion: AsyncSession) -> dict[str, int]:
+    """Crea las que falten y reparte a los usuarios de demo que aún no tengan empresa (y sus
+    incidencias). Devuelve código -> id."""
+    existentes = {e.codigo: e for e in await sesion.scalars(select(Empresa))}
+    for codigo, nombre, sector in EMPRESAS:
+        if codigo not in existentes:
+            existentes[codigo] = Empresa(codigo=codigo, nombre=nombre, sector=sector)
+            sesion.add(existentes[codigo])
+    await sesion.flush()
+    ids = {codigo: e.id for codigo, e in existentes.items()}
+
+    for nombre, _, _, _, empresa in USUARIOS:
+        if not empresa:
+            continue
+        usuario = await sesion.scalar(select(Usuario).where(Usuario.email == _email(nombre)))
+        if usuario and usuario.empresa_id is None:
+            usuario.empresa_id = ids[empresa]
+            for inc in await sesion.scalars(
+                select(Incidente).where(
+                    Incidente.reportante_id == usuario.id, Incidente.empresa_id.is_(None)
+                )
+            ):
+                inc.empresa_id = ids[empresa]
+    return ids
+
+
 async def sembrar_demo(sesion: AsyncSession) -> bool:
-    """Devuelve False si ya había datos de demo."""
+    """Devuelve False si ya había datos de demo (las empresas se completan igualmente)."""
     if await ya_sembrado(sesion):
+        await sembrar_empresas(sesion)
+        await sesion.commit()
         return False
+
+    empresas = await sembrar_empresas(sesion)
 
     momento = ahora()
     auditoria: list[RegistroAuditoria] = []
@@ -228,11 +268,12 @@ async def sembrar_demo(sesion: AsyncSession) -> bool:
 
     # Contraseña aleatoria por cuenta, no se guarda en ningún sitio: nadie puede entrar con ellas
     usuarios: dict[str, Usuario] = {}
-    for nombre, rol, activo, dias in USUARIOS:
+    for nombre, rol, activo, dias, empresa in USUARIOS:
         u = Usuario(
             email=_email(nombre),
             hash_contrasena=hashear_contrasena(secrets.token_urlsafe(32)),
             rol=rol,
+            empresa_id=empresas[empresa] if empresa else None,
             activo=activo,
             creado_en=momento - timedelta(days=dias),
         )
@@ -240,7 +281,7 @@ async def sembrar_demo(sesion: AsyncSession) -> bool:
         usuarios[nombre] = u
     await sesion.flush()
 
-    for nombre, rol, activo, dias in USUARIOS:
+    for nombre, rol, activo, dias, _ in USUARIOS:
         u = usuarios[nombre]
         alta = momento - timedelta(days=dias)
         registro("registro", "usuario", u.id, u.id, alta)
@@ -266,6 +307,7 @@ async def sembrar_demo(sesion: AsyncSession) -> bool:
             categoria=cat,
             estado=estado,
             reportante_id=usuarios[rep].id,
+            empresa_id=usuarios[rep].empresa_id,
             analista_id=usuarios[ana].id if ana else None,
             notas_internas=notas,
             creado_en=creado,

@@ -63,12 +63,12 @@ def _ip() -> str:
     return f"{random.choice(_PREFIJOS)}.{random.randint(1, 254)}"
 
 
-def _evento() -> dict:
+def _evento(empresas: list[str]) -> dict:
     metodo = random.choice(_METODOS)
     ruta = random.choice(_RUTAS)
     agente = random.choice(_AGENTES)
     tipo, severidad = clasificar(metodo, ruta, agente)
-    return {
+    evento = {
         "origen_ip": _ip(),
         "tipo": tipo,
         "severidad": severidad,
@@ -77,6 +77,9 @@ def _evento() -> dict:
         "agente": agente,
         "servicio": "generador-demo",
     }
+    if empresas:
+        evento["empresa"] = random.choice(empresas)
+    return evento
 
 
 def main() -> None:
@@ -87,12 +90,14 @@ def main() -> None:
 
     minimo = float(os.environ.get("INTERVALO_MIN", "1.5"))
     maximo = float(os.environ.get("INTERVALO_MAX", "6.0"))
+    # Códigos de cliente separados por comas: cada evento se atribuye a uno al azar
+    empresas = [c.strip() for c in os.environ.get("EMPRESAS", "").split(",") if c.strip()]
     # Semilla no criptográfica: es una demo, no hay nada que proteger
     rng = random.Random()  # noqa: S311
     print(f"[generador] emitiendo eventos de demo cada {minimo}-{maximo}s", flush=True)
     while True:
         for _ in range(rng.randint(1, 3)):
-            enviador.encolar(_evento())
+            enviador.encolar(_evento(empresas))
         time.sleep(rng.uniform(minimo, maximo))
 
 

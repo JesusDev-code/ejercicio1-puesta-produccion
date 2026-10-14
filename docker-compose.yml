@@ -58,6 +58,8 @@ services:
       MODO: senuelo
       API_URL: http://api:8000
       INGESTA_TOKEN: ${INGESTA_TOKEN:-}
+      # Cliente al que protege este sensor (código de /empresas); vacío = del propio MSSP
+      EMPRESA: ${EMPRESA_SENUELO:-hotel-mirador}
     expose:
       - "8000"
     read_only: true
@@ -77,6 +79,8 @@ services:
       MODO: generador
       API_URL: http://api:8000
       INGESTA_TOKEN: ${INGESTA_TOKEN:-}
+      # Reparte los eventos de demo entre estos clientes (códigos de /empresas)
+      EMPRESAS: ${EMPRESAS_GENERADOR:-transportes-ibarra,clinica-solana,hotel-mirador}
     read_only: true
     cap_drop:
       - ALL

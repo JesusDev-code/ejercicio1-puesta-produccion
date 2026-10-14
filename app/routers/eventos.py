@@ -53,6 +53,7 @@ async def listar(
     severidad: Severidad | None = None,
     origen_ip: Annotated[str | None, Query(max_length=45)] = None,
     estado: EstadoTriaje | None = None,
+    empresa_id: Annotated[int | None, Query(gt=0)] = None,
     limite: Annotated[int, Query(ge=1, le=100)] = 25,
     desplazamiento: Annotated[int, Query(ge=0)] = 0,
 ):
@@ -62,6 +63,7 @@ async def listar(
         severidad=severidad,
         origen_ip=origen_ip,
         estado=estado,
+        empresa_id=empresa_id,
         limite=limite,
         desplazamiento=desplazamiento,
     )
@@ -77,8 +79,13 @@ async def por_incidente(incidente_id: int, _: Admin, sesion: Sesion):
 
 
 @router.get("/resumen", response_model=ResumenEventos)
-async def resumen(_: Admin, sesion: Sesion, horas: Annotated[int, Query(ge=1, le=168)] = 24):
-    return await servicio.resumen(sesion, horas)
+async def resumen(
+    _: Admin,
+    sesion: Sesion,
+    horas: Annotated[int, Query(ge=1, le=168)] = 24,
+    empresa_id: Annotated[int | None, Query(gt=0)] = None,
+):
+    return await servicio.resumen(sesion, horas, empresa_id)
 
 
 @router.patch("/{evento_id}", response_model=EventoSalida)

@@ -5,15 +5,29 @@ from app.modelos import Rol, Usuario, ahora
 from app.repositorios import RepositorioTokens, RepositorioUsuarios
 from app.seguridad import hashear_contrasena, verificar_contrasena
 from app.servicios.auditoria import auditar
+from app.servicios.empresas import empresa_asignable
+
+# Roles del MSSP: ven datos de todos los clientes, así que nunca pertenecen a uno
+ROLES_PERSONAL = {Rol.admin, Rol.analista}
 
 
 async def crear(
-    sesion: AsyncSession, admin: Usuario, email: str, contrasena: str, rol: Rol, ip: str | None
+    sesion: AsyncSession,
+    admin: Usuario,
+    email: str,
+    contrasena: str,
+    rol: Rol,
+    empresa_id: int | None,
+    ip: str | None,
 ) -> Usuario:
+    if empresa_id is not None:
+        if rol in ROLES_PERSONAL:
+            raise Invalido("Un admin o analista es personal del MSSP: no puede tener empresa")
+        await empresa_asignable(sesion, empresa_id)
     usuarios = RepositorioUsuarios(sesion)
     if await usuarios.por_email(email):
         raise Conflicto("El email ya está registrado")
-    usuario = await usuarios.crear(email, hashear_contrasena(contrasena), rol)
+    usuario = await usuarios.crear(email, hashear_contrasena(contrasena), rol, empresa_id)
     await auditar(
         sesion,
         accion="crear_usuario",
@@ -21,7 +35,7 @@ async def crear(
         usuario_id=admin.id,
         recurso_id=usuario.id,
         ip=ip,
-        detalle=f"{email} ({rol})",
+        detalle=f"{email} ({rol}, empresa {empresa_id})" if empresa_id else f"{email} ({rol})",
     )
     await sesion.commit()
     return usuario
@@ -60,6 +74,9 @@ async def cambiar_rol(
     if usuario.id == admin.id:
         # Evita que el último admin se quite el rol por error y deje el sistema sin admin
         raise Conflicto("Un admin no puede cambiar su propio rol")
+    if rol in ROLES_PERSONAL and usuario.empresa_id is not None:
+        # Un trabajador de un cliente con rol de analista vería los datos de los demás clientes
+        raise Conflicto("Un usuario de un cliente no puede ser admin ni analista")
 
     anterior = usuario.rol
     usuario.rol = rol

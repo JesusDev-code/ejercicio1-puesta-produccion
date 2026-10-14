@@ -51,12 +51,14 @@ async def listar(
     estado: Estado | None = None,
     severidad: Severidad | None = None,
     categoria: Categoria | None = None,
+    empresa_id: Annotated[int | None, Query(gt=0)] = None,
     limite: Annotated[int, Query(ge=1, le=100)] = 20,
     desplazamiento: Annotated[int, Query(ge=0)] = 0,
 ):
     total, elementos = await servicio.listar(
         sesion,
         usuario,
+        empresa_id=empresa_id,
         estado=estado,
         severidad=severidad,
         categoria=categoria,

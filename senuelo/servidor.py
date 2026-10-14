@@ -21,6 +21,7 @@ class Manejador(BaseHTTPRequestHandler):
     sys_version = ""
     protocol_version = "HTTP/1.1"
     enviador: Enviador
+    empresa: str | None = None  # código del cliente que protege este señuelo
 
     def _registrar(self, metodo: str) -> None:
         ruta = self.path[:_MAX_RUTA]
@@ -29,17 +30,18 @@ class Manejador(BaseHTTPRequestHandler):
         # pero es justo el dato que interesa). Si es basura, se usa la IP de la conexión.
         xff = (self.headers.get("X-Forwarded-For") or "").split(",")[0]
         tipo, severidad = clasificar(metodo, ruta, agente)
-        self.enviador.encolar(
-            {
-                "origen_ip": ip_valida(xff, self.client_address[0]),
-                "tipo": tipo,
-                "severidad": severidad,
-                "metodo": metodo,
-                "ruta": ruta,
-                "agente": agente,
-                "servicio": "senuelo",
-            }
-        )
+        evento = {
+            "origen_ip": ip_valida(xff, self.client_address[0]),
+            "tipo": tipo,
+            "severidad": severidad,
+            "metodo": metodo,
+            "ruta": ruta,
+            "agente": agente,
+            "servicio": "senuelo",
+        }
+        if self.empresa:
+            evento["empresa"] = self.empresa
+        self.enviador.encolar(evento)
 
     def _responder(self, metodo: str) -> None:
         self._registrar(metodo)
@@ -74,6 +76,7 @@ def main() -> None:
     esperar_api(api)
     enviador.iniciar()
     Manejador.enviador = enviador
+    Manejador.empresa = os.environ.get("EMPRESA", "").strip() or None
     puerto = int(os.environ.get("PUERTO", "8000"))
     servidor = ThreadingHTTPServer(("0.0.0.0", puerto), Manejador)  # noqa: S104 - en contenedor
     print(f"[senuelo] escuchando en :{puerto}", flush=True)

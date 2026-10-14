@@ -10,6 +10,7 @@ from app.errores import NoAutenticado, Prohibido
 from app.modelos import Rol, Usuario
 from app.repositorios import RepositorioUsuarios
 from app.seguridad import decodificar_token_acceso
+from app.servicios.empresas import cuenta_habilitada
 
 _bearer = HTTPBearer(auto_error=False)
 
@@ -35,7 +36,7 @@ async def usuario_actual(
         raise NoAutenticado("Token inválido o caducado")
     # El rol se lee de la BD en cada petición, nunca del token: un cambio de rol es inmediato
     usuario = await RepositorioUsuarios(sesion).por_id(usuario_id)
-    if not usuario or not usuario.activo:
+    if not usuario or not await cuenta_habilitada(sesion, usuario):
         raise NoAutenticado("Token inválido o caducado")
     return usuario
 

@@ -45,6 +45,34 @@ class TokenAcceso(BaseModel):
     expira_en_segundos: int
 
 
+# --- Empresas (clientes del MSSP) ---
+
+CODIGO_EMPRESA = r"^[a-z0-9]+(-[a-z0-9]+)*$"
+
+
+class EmpresaCrear(Entrada):
+    codigo: str = Field(min_length=2, max_length=40, pattern=CODIGO_EMPRESA)
+    nombre: str = Field(min_length=2, max_length=120)
+    sector: str | None = Field(default=None, max_length=80)
+
+
+class EmpresaEditar(Entrada):
+    """El código no se edita: es lo que los sensores declaran en cada evento."""
+
+    nombre: str | None = Field(default=None, min_length=2, max_length=120)
+    sector: str | None = Field(default=None, max_length=80)
+    activa: bool | None = None
+
+
+class EmpresaSalida(Salida):
+    id: int
+    codigo: str
+    nombre: str
+    sector: str | None
+    activa: bool
+    creada_en: datetime
+
+
 # --- Usuarios ---
 
 
@@ -52,6 +80,7 @@ class UsuarioSalida(Salida):
     id: int
     email: EmailStr
     rol: Rol
+    empresa_id: int | None
     activo: bool
     creado_en: datetime
 
@@ -62,6 +91,8 @@ class UsuarioCrear(Entrada):
     email: EmailStr
     contrasena: str = Field(min_length=12, max_length=128)
     rol: Rol = Rol.usuario
+    # Sin empresa = personal del MSSP. Admin y analista no pueden tener empresa
+    empresa_id: int | None = Field(default=None, gt=0)
 
 
 class RestablecerContrasenaEntrada(Entrada):
@@ -120,6 +151,7 @@ class IncidenteSalida(Salida):
     estado: Estado
     reportante_id: int
     analista_id: int | None
+    empresa_id: int | None
     # No son columnas del incidente: el router los resuelve con una consulta aparte
     reportante_email: str | None = None
     analista_email: str | None = None
@@ -177,6 +209,8 @@ class EventoEntrada(Entrada):
     ruta: str = Field(min_length=1, max_length=4096)
     agente: str | None = Field(default=None, max_length=4096)
     servicio: str = Field(default="senuelo", min_length=1, max_length=64, pattern=r"^[a-z0-9_-]+$")
+    # Código del cliente al que pertenece el sensor; sin él, el evento es del propio MSSP
+    empresa: str | None = Field(default=None, max_length=40, pattern=CODIGO_EMPRESA)
     detalle: str | None = Field(default=None, max_length=4096)
 
     @field_validator("origen_ip")
@@ -219,6 +253,7 @@ class EventoSalida(Salida):
     ruta: str
     agente: str | None
     servicio: str
+    empresa_id: int | None
     detalle: str | None
     estado_triaje: EstadoTriaje
     nota: str | None
