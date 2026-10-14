@@ -182,3 +182,77 @@ async def test_difusor_reparte_a_todos_y_no_bloquea():
     difusor.baja(a)
     assert difusor.suscriptores == 1
     await asyncio.sleep(0)
+
+
+# --- Triaje ---
+
+
+async def test_triar_cambia_estado_y_nota(cliente, actores, ingesta):
+    await _ingestar(cliente, ingesta, EVENTO)
+    cab = actores.cab["admin"]
+    eid = (await cliente.get("/eventos", headers=cab)).json()["elementos"][0]["id"]
+
+    r = await cliente.patch(
+        f"/eventos/{eid}", json={"estado": "ignorado", "nota": "ruido de bot"}, headers=cab
+    )
+    assert r.status_code == 200
+    assert r.json()["estado_triaje"] == "ignorado"
+    assert r.json()["nota"] == "ruido de bot"
+
+    # Solo la nota, sin tocar el estado
+    r = await cliente.patch(f"/eventos/{eid}", json={"nota": "revisado a mano"}, headers=cab)
+    assert r.json()["estado_triaje"] == "ignorado"
+    assert r.json()["nota"] == "revisado a mano"
+
+
+async def test_triar_queda_auditado(cliente, actores, ingesta):
+    await _ingestar(cliente, ingesta, EVENTO)
+    cab = actores.cab["admin"]
+    eid = (await cliente.get("/eventos", headers=cab)).json()["elementos"][0]["id"]
+    await cliente.patch(f"/eventos/{eid}", json={"estado": "revisado"}, headers=cab)
+    r = await cliente.get("/auditoria?accion=triaje_evento", headers=cab)
+    assert r.json()["total"] == 1
+
+
+async def test_triar_solo_admin(cliente, actores, ingesta):
+    await _ingestar(cliente, ingesta, EVENTO)
+    eid = (await cliente.get("/eventos", headers=actores.cab["admin"])).json()["elementos"][0]["id"]
+    r = await cliente.patch(
+        f"/eventos/{eid}", json={"estado": "revisado"}, headers=actores.cab["analista"]
+    )
+    assert r.status_code == 403
+
+
+async def test_triar_evento_inexistente_404(cliente, actores):
+    r = await cliente.patch(
+        "/eventos/999", json={"estado": "revisado"}, headers=actores.cab["admin"]
+    )
+    assert r.status_code == 404
+
+
+async def test_crear_incidencia_marca_el_evento_como_revisado(cliente, actores, ingesta):
+    await _ingestar(cliente, ingesta, EVENTO)
+    cab = actores.cab["admin"]
+    eid = (await cliente.get("/eventos", headers=cab)).json()["elementos"][0]["id"]
+    await cliente.post(f"/eventos/{eid}/incidente", headers=cab)
+    evento = (await cliente.get("/eventos", headers=cab)).json()["elementos"][0]
+    assert evento["estado_triaje"] == "revisado"
+
+
+# --- Evento de origen de una incidencia ---
+
+
+async def test_evento_por_incidente(cliente, actores, ingesta):
+    await _ingestar(cliente, ingesta, EVENTO)
+    cab = actores.cab["admin"]
+    eid = (await cliente.get("/eventos", headers=cab)).json()["elementos"][0]["id"]
+    inc = (await cliente.post(f"/eventos/{eid}/incidente", headers=cab)).json()
+
+    r = await cliente.get(f"/eventos/por-incidente/{inc['id']}", headers=cab)
+    assert r.status_code == 200
+    assert r.json()["id"] == eid
+
+
+async def test_evento_por_incidente_sin_origen_404(cliente, actores):
+    r = await cliente.get("/eventos/por-incidente/999", headers=actores.cab["admin"])
+    assert r.status_code == 404

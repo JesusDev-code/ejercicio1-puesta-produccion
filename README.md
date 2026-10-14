@@ -124,6 +124,8 @@ uv run alembic revision --autogenerate -m "descripcion del cambio"
 | `POST` | `/eventos` | Señuelo/generador (cabecera `X-Ingesta-Token`, no JWT) |
 | `GET` | `/eventos`, `/eventos/resumen`, `/eventos/stream` | admin (listado, agregados para gráficos, SSE en vivo) |
 | `POST` | `/eventos/{id}/incidente` | admin: abre una incidencia desde un evento |
+| `PATCH` | `/eventos/{id}` | admin: triaje del evento (`nuevo` / `revisado` / `ignorado` y nota). Se difunde en vivo |
+| `GET` | `/eventos/por-incidente/{id}` | admin: evento del que salió una incidencia |
 | `GET` | `/salud` | Público |
 
 Un recurso que no te pertenece devuelve **404**, no 403, para no confirmar que existe.

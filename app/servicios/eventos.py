@@ -6,10 +6,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import obtener_configuracion
 from app.errores import Conflicto, NoEncontrado
-from app.esquemas import EventoEntrada, EventoSalida, Recuento, ResumenEventos, Tramo
+from app.esquemas import (
+    EventoEntrada,
+    EventoSalida,
+    Recuento,
+    ResumenEventos,
+    Tramo,
+    TriajeEntrada,
+)
 from app.modelos import (
     Categoria,
     Estado,
+    EstadoTriaje,
     EventoSeguridad,
     Incidente,
     Severidad,
@@ -57,8 +65,15 @@ async def ingestar(sesion: AsyncSession, eventos: list[EventoEntrada]) -> int:
     await sesion.commit()
 
     for fila in filas:
-        difusor.publicar(EventoSalida.model_validate(fila).model_dump_json())
+        _difundir("nuevo", fila)
     return len(filas)
+
+
+def _difundir(clase: str, evento: EventoSeguridad) -> None:
+    """Difunde el evento a los paneles abiertos.
+    `clase` distingue uno nuevo de un cambio de triaje."""
+    carga = EventoSalida.model_validate(evento).model_dump_json()
+    difusor.publicar(f'{{"clase":"{clase}","evento":{carga}}}')
 
 
 async def purgar(sesion: AsyncSession) -> None:
@@ -172,6 +187,36 @@ async def resumen(sesion: AsyncSession, horas: int) -> ResumenEventos:
     )
 
 
+async def triar(
+    sesion: AsyncSession, admin: Usuario, evento_id: int, datos: TriajeEntrada, ip: str | None
+) -> EventoSeguridad:
+    evento = await sesion.get(EventoSeguridad, evento_id)
+    if not evento:
+        raise NoEncontrado("Evento no encontrado")
+    if datos.estado is not None:
+        evento.estado_triaje = datos.estado
+    if datos.nota is not None:
+        evento.nota = datos.nota or None
+    await auditar(
+        sesion,
+        accion="triaje_evento",
+        recurso="evento_seguridad",
+        usuario_id=admin.id,
+        recurso_id=evento.id,
+        ip=ip,
+        detalle=str(evento.estado_triaje),
+    )
+    await sesion.commit()
+    _difundir("triaje", evento)
+    return evento
+
+
+async def evento_por_incidente(sesion: AsyncSession, incidente_id: int) -> EventoSeguridad | None:
+    return await sesion.scalar(
+        select(EventoSeguridad).where(EventoSeguridad.incidente_id == incidente_id)
+    )
+
+
 async def crear_incidente(
     sesion: AsyncSession, admin: Usuario, evento_id: int, ip: str | None
 ) -> Incidente:
@@ -204,6 +249,7 @@ async def crear_incidente(
     sesion.add(incidente)
     await sesion.flush()
     evento.incidente_id = incidente.id
+    evento.estado_triaje = EstadoTriaje.revisado
     await auditar(
         sesion,
         accion="crear_incidente",
@@ -214,4 +260,5 @@ async def crear_incidente(
         detalle=f"desde evento #{evento.id}",
     )
     await sesion.commit()
+    _difundir("triaje", evento)  # el resto de paneles ven el enlace al ticket al momento
     return incidente

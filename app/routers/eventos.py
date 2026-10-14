@@ -10,13 +10,14 @@ from fastapi.security import HTTPAuthorizationCredentials
 from app.config import obtener_configuracion
 from app.db import FabricaSesion
 from app.dependencias import Admin, IpCliente, Sesion, _bearer, usuario_actual
-from app.errores import NoAutenticado, Prohibido
+from app.errores import NoAutenticado, NoEncontrado, Prohibido
 from app.esquemas import (
     EventoSalida,
     IncidenteSalidaInterna,
     LoteEventos,
     Pagina,
     ResumenEventos,
+    TriajeEntrada,
 )
 from app.modelos import Rol, Severidad, TipoEvento
 from app.servicios import eventos as servicio
@@ -65,9 +66,22 @@ async def listar(
     return Pagina(total=total, limite=limite, desplazamiento=desplazamiento, elementos=elementos)
 
 
+@router.get("/por-incidente/{incidente_id}", response_model=EventoSalida)
+async def por_incidente(incidente_id: int, _: Admin, sesion: Sesion):
+    evento = await servicio.evento_por_incidente(sesion, incidente_id)
+    if not evento:
+        raise NoEncontrado("Esta incidencia no procede de un evento")
+    return evento
+
+
 @router.get("/resumen", response_model=ResumenEventos)
 async def resumen(_: Admin, sesion: Sesion, horas: Annotated[int, Query(ge=1, le=168)] = 24):
     return await servicio.resumen(sesion, horas)
+
+
+@router.patch("/{evento_id}", response_model=EventoSalida)
+async def triar(evento_id: int, datos: TriajeEntrada, admin: Admin, sesion: Sesion, ip: IpCliente):
+    return await servicio.triar(sesion, admin, evento_id, datos, ip)
 
 
 async def _admin_breve(

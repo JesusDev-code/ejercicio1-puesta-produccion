@@ -6,7 +6,7 @@ from ipaddress import ip_address
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
-from app.modelos import Categoria, Estado, Rol, Severidad, TipoEvento
+from app.modelos import Categoria, Estado, EstadoTriaje, Rol, Severidad, TipoEvento
 
 
 class Entrada(BaseModel):
@@ -220,7 +220,16 @@ class EventoSalida(Salida):
     agente: str | None
     servicio: str
     detalle: str | None
+    estado_triaje: EstadoTriaje
+    nota: str | None
     incidente_id: int | None
+
+
+class TriajeEntrada(Entrada):
+    """Lo editable de un evento. Ambos campos opcionales: se puede cambiar solo uno."""
+
+    estado: EstadoTriaje | None = None
+    nota: str | None = Field(default=None, max_length=1000)
 
 
 class Recuento(BaseModel):

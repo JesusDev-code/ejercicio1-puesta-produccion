@@ -45,6 +45,14 @@ class Categoria(enum.StrEnum):
     otro = "otro"
 
 
+class EstadoTriaje(enum.StrEnum):
+    """Triaje del analista sobre un evento: separa el ruido de lo que merece atención."""
+
+    nuevo = "nuevo"
+    revisado = "revisado"
+    ignorado = "ignorado"
+
+
 class TipoEvento(enum.StrEnum):
     """Clasificación defensiva de lo que detecta el señuelo, como una regla de un WAF."""
 
@@ -122,8 +130,9 @@ class RegistroAuditoria(Base):
 
 
 class EventoSeguridad(Base):
-    """Un evento detectado por el señuelo (o generado para la demo). Solo lectura: nunca se
-    edita, igual que la auditoría. Los campos de texto vienen de internet: no son de fiar."""
+    """Un evento detectado por el señuelo (o generado para la demo). Los campos que vienen de
+    internet (ruta, agente...) no se editan nunca; solo el triaje del analista (estado y nota).
+    Los campos de texto no son de fiar: la API los limpia y los trunca antes de guardarlos."""
 
     __tablename__ = "eventos_seguridad"
 
@@ -137,4 +146,8 @@ class EventoSeguridad(Base):
     agente: Mapped[str | None] = mapped_column(String(512))
     servicio: Mapped[str] = mapped_column(String(64))
     detalle: Mapped[str | None] = mapped_column(String(1000))
+    estado_triaje: Mapped[EstadoTriaje] = mapped_column(
+        _enum(EstadoTriaje), default=EstadoTriaje.nuevo, index=True
+    )
+    nota: Mapped[str | None] = mapped_column(String(1000))
     incidente_id: Mapped[int | None] = mapped_column(ForeignKey("incidentes.id"), index=True)
