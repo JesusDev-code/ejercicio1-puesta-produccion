@@ -5,13 +5,16 @@ import { firstValueFrom } from 'rxjs';
 import {
   Categoria,
   Estado,
+  EventoSeguridad,
   Incidente,
   IncidenteEdicion,
   IncidenteNuevo,
   Pagina,
   RegistroAuditoria,
+  ResumenEventos,
   Rol,
   Severidad,
+  TipoEvento,
   Usuario,
 } from './modelos';
 
@@ -125,5 +128,29 @@ export class Api {
     return firstValueFrom(
       this.http.get<Pagina<RegistroAuditoria>>('/api/auditoria', { params: parametros(filtros) }),
     );
+  }
+
+  // --- Eventos de seguridad (solo admin) ---
+
+  eventos(filtros: {
+    tipo?: TipoEvento | '';
+    severidad?: Severidad | '';
+    origen_ip?: string;
+    limite?: number;
+    desplazamiento?: number;
+  }): Promise<Pagina<EventoSeguridad>> {
+    return firstValueFrom(
+      this.http.get<Pagina<EventoSeguridad>>('/api/eventos', { params: parametros(filtros) }),
+    );
+  }
+
+  resumenEventos(horas: number): Promise<ResumenEventos> {
+    return firstValueFrom(
+      this.http.get<ResumenEventos>('/api/eventos/resumen', { params: parametros({ horas }) }),
+    );
+  }
+
+  incidenteDesdeEvento(id: number): Promise<Incidente> {
+    return firstValueFrom(this.http.post<Incidente>(`/api/eventos/${id}/incidente`, null));
   }
 }

@@ -1,0 +1,94 @@
+<div class="pila">
+  <header class="cabecera">
+    <div class="textos">
+      <span class="ruta">~/monitorizacion</span>
+      <h1 class="titulo">Monitorización</h1>
+      <p class="subtitulo">Sondeos que llega a recibir la infraestructura, en tiempo real. El señuelo los registra; aquí se ven y se convierten en incidencias.</p>
+    </div>
+    <div class="controles">
+      <span class="vivo" [class.activo]="enVivo()">
+        <span aria-hidden="true" class="punto"></span>{{ enVivo() ? 'En vivo' : 'Reconectando…' }}
+      </span>
+      <app-selector class="rango" [compacto]="true" [opciones]="rangos" [valor]="horas()" [etiquetaAria]="'Periodo'" (cambio)="cambiarRango($event)" />
+    </div>
+  </header>
+
+  @if (aviso(); as a) {
+    <div role="alert" class="aviso aviso-error"><span>{{ a.texto }}</span></div>
+  }
+
+  @if (cargando()) {
+    <section class="cristal panel"><app-cargando /></section>
+  } @else if (fallo() !== null) {
+    <section class="cristal panel"><app-fallo-servidor [codigo]="fallo()!" (reintentar)="cargar()" /></section>
+  } @else if (resumen(); as r) {
+    <section aria-label="Resumen" class="kpis">
+      <div class="kpi">
+        <span class="cabecera-mono etiqueta">EVENTOS · {{ etiquetaRango() }}</span>
+        <span class="hero">{{ r.total | number }}</span>
+      </div>
+      <div class="kpi">
+        <span class="cabecera-mono etiqueta">ÚLTIMA HORA</span>
+        <span class="cifra">{{ r.ultima_hora | number }}</span>
+      </div>
+      <div class="kpi">
+        <span class="cabecera-mono etiqueta">ORÍGENES ÚNICOS</span>
+        <span class="cifra">{{ r.ips_unicas | number }}</span>
+      </div>
+      <div class="kpi critico">
+        <span class="cabecera-mono etiqueta">SEVERIDAD CRÍTICA</span>
+        <span class="cifra rojo">{{ r.criticos | number }}</span>
+      </div>
+    </section>
+
+    <section aria-labelledby="t-serie" class="cristal panel ancho">
+      <h2 id="t-serie" class="titulo-panel">{{ serie().etiqueta }}</h2>
+      <app-grafico-lineas [datos]="serie().datos" [unidad]="serie().unidad" [etiqueta]="serie().etiqueta" />
+    </section>
+
+    <div class="rejilla-2">
+      <section aria-labelledby="t-tipo" class="cristal panel">
+        <h2 id="t-tipo" class="titulo-panel">Por tipo de sondeo</h2>
+        <app-grafico-barras [datos]="barrasTipo()" etiqueta="Eventos por tipo" />
+      </section>
+      <section aria-labelledby="t-sev" class="cristal panel">
+        <h2 id="t-sev" class="titulo-panel">Por severidad</h2>
+        <app-grafico-barras [datos]="barrasSeveridad()" etiqueta="Eventos por severidad" />
+      </section>
+    </div>
+
+    <section aria-labelledby="t-ip" class="cristal panel">
+      <h2 id="t-ip" class="titulo-panel">Orígenes más activos</h2>
+      <app-grafico-barras [datos]="barrasIp()" etiqueta="Top de IPs de origen" />
+    </section>
+  }
+
+  <section aria-labelledby="t-feed" class="cristal panel feed">
+    <div class="feed-cabecera">
+      <h2 id="t-feed" class="titulo-panel">Flujo en vivo</h2>
+      <span class="feed-ayuda">Los últimos {{ feedMax }} eventos según llegan. «Abrir incidencia» crea un ticket a partir del evento.</span>
+    </div>
+    @if (feed().length === 0) {
+      <p class="espera">A la espera de eventos… En cuanto el señuelo reciba un sondeo, aparecerá aquí.</p>
+    } @else {
+      <ul class="lista-feed">
+        @for (e of feed(); track e.id) {
+          <li class="evento" [class.entrando]="true">
+            <span class="hora mono">{{ e.fecha | date: 'HH:mm:ss' }}</span>
+            <span class="sev" [class]="'s-' + e.severidad" [title]="SEV[e.severidad].nombre"></span>
+            <span class="tipo">{{ TIPOS[e.tipo] }}</span>
+            <span class="ip mono">{{ e.origen_ip }}</span>
+            <span class="peticion mono" [title]="e.metodo + ' ' + e.ruta">{{ e.metodo }} {{ e.ruta }}</span>
+            @if (e.incidente_id) {
+              <a class="btn compacto btn-suave" [routerLink]="['/incidentes', e.incidente_id]">Ver INC-{{ e.incidente_id }}</a>
+            } @else {
+              <button type="button" class="btn compacto btn-oro" [disabled]="creando() === e.id" (click)="crearIncidencia(e)">
+                {{ creando() === e.id ? 'Abriendo…' : 'Abrir incidencia' }}
+              </button>
+            }
+          </li>
+        }
+      </ul>
+    }
+  </section>
+</div>

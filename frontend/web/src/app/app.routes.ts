@@ -38,6 +38,12 @@ export const routes: Routes = [
         loadComponent: () => import('./paginas/usuarios').then((m) => m.Usuarios),
       },
       {
+        path: 'monitorizacion',
+        title: 'Monitorización · Incidentes',
+        canActivate: [soloAdmin],
+        loadComponent: () => import('./paginas/monitorizacion').then((m) => m.Monitorizacion),
+      },
+      {
         path: 'auditoria',
         title: 'Auditoría · Incidentes',
         canActivate: [soloAdmin],

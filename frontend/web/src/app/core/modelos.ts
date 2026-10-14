@@ -104,6 +104,62 @@ export const CATEGORIAS: Record<Categoria, string> = {
 };
 
 /** Mismo grafo que TRANSICIONES en app/servicios/incidentes.py. */
+export type TipoEvento =
+  | 'sondeo_rutas'
+  | 'fichero_sensible'
+  | 'fuerza_bruta'
+  | 'inyeccion'
+  | 'recorrido_rutas'
+  | 'escaner'
+  | 'otro';
+
+export const TIPOS_EVENTO: Record<TipoEvento, string> = {
+  sondeo_rutas: 'Sondeo de rutas',
+  fichero_sensible: 'Fichero sensible',
+  fuerza_bruta: 'Fuerza bruta',
+  inyeccion: 'Inyección',
+  recorrido_rutas: 'Recorrido de rutas',
+  escaner: 'Escáner',
+  otro: 'Otro',
+};
+
+export interface EventoSeguridad {
+  id: number;
+  fecha: string;
+  origen_ip: string;
+  tipo: TipoEvento;
+  severidad: Severidad;
+  metodo: string;
+  ruta: string;
+  agente: string | null;
+  servicio: string;
+  detalle: string | null;
+  incidente_id: number | null;
+}
+
+export interface Recuento {
+  clave: string;
+  total: number;
+}
+
+export interface Tramo {
+  inicio: string;
+  total: number;
+}
+
+export interface ResumenEventos {
+  horas: number;
+  total: number;
+  ultima_hora: number;
+  ips_unicas: number;
+  criticos: number;
+  por_tipo: Recuento[];
+  por_severidad: Recuento[];
+  top_ips: Recuento[];
+  por_minuto: Tramo[];
+  por_hora: Tramo[];
+}
+
 export const TRANSICIONES: Record<Estado, Estado | null> = {
   abierto: 'en_analisis',
   en_analisis: 'resuelto',
