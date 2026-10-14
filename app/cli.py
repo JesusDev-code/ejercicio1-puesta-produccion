@@ -1,4 +1,6 @@
 """Uso: python -m app.cli crear-admin <email>
+     python -m app.cli sembrar-demo
+
 
 La contraseña se pide por consola y no queda en el historial ni en ningún fichero.
 Si el email ya existe, el usuario se asciende a admin y se le pone la contraseña nueva."""
@@ -11,6 +13,7 @@ import sys
 from pydantic import EmailStr, TypeAdapter, ValidationError
 
 from app.db import FabricaSesion
+from app.demo import sembrar_demo
 from app.modelos import Rol
 from app.repositorios import RepositorioUsuarios
 from app.seguridad import hashear_contrasena
@@ -37,11 +40,22 @@ async def crear_admin(email: str, contrasena: str) -> None:
         await sesion.commit()
 
 
+async def _sembrar() -> None:
+    async with FabricaSesion() as sesion:
+        hecho = await sembrar_demo(sesion)
+    print("Datos de demo creados" if hecho else "Ya había datos de demo: no se ha tocado nada")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
     sub = parser.add_subparsers(dest="comando", required=True)
     sub.add_parser("crear-admin").add_argument("email")
+    sub.add_parser("sembrar-demo", help="Datos ficticios para enseñar la aplicación")
     args = parser.parse_args()
+
+    if args.comando == "sembrar-demo":
+        asyncio.run(_sembrar())
+        return
 
     try:
         email = TypeAdapter(EmailStr).validate_python(args.email)
