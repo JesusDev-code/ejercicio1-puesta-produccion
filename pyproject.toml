@@ -32,6 +32,8 @@ ignore = ["B008"]
 "tests/**" = ["S101", "S105", "S106"]
 # Migraciones autogeneradas: las cadenas SQL de los CHECK no se pueden partir
 "alembic/versions/**" = ["E501"]
+"senuelo/**" = ["S311", "S104", "S310"]
+"senuelo/test_*.py" = ["S101"]
 
 [tool.bandit]
 exclude_dirs = ["tests", ".venv"]

@@ -93,6 +93,7 @@ uv run alembic revision --autogenerate -m "descripcion del cambio"
 | `ENTORNO` | No | `produccion` en la imagen | `desarrollo`, `produccion` o `test`. En producción no existen `/docs` ni `/openapi.json` |
 | `CORS_ORIGENES` | No | vacío | Orígenes permitidos, separados por comas. Nunca `*`. El frontend propio va en el mismo origen y no lo necesita |
 | `API_PREFIJO` | No | vacío (`/api` en el compose) | Prefijo con el que el proxy publica la API. La API lo quita ella misma: no depende del «strip path» del proxy |
+| `INGESTA_TOKEN` | Para el panel | vacío (ingesta desactivada) | Token de servicio que comparten la API, el señuelo y el generador. Mínimo 32 caracteres. **No** es un JWT de usuario |
 | `COOKIE_REFRESCO_RUTA` | No | `/auth/web` (`/api/auth/web` en el compose) | `Path` de la cookie de refresco tal como la ve el navegador |
 | `ACCESO_MINUTOS` | No | `15` | Vida del token de acceso. El compose no la pasa al contenedor |
 | `REFRESCO_DIAS` | No | `7` | Vida del token de refresco. El compose no la pasa al contenedor |
@@ -120,6 +121,9 @@ uv run alembic revision --autogenerate -m "descripcion del cambio"
 | `PATCH` | `/incidentes/{id}/notas` | analista asignado o admin |
 | `DELETE` | `/incidentes/{id}` | admin (borrado lógico) |
 | `GET` | `/auditoria` | admin |
+| `POST` | `/eventos` | Señuelo/generador (cabecera `X-Ingesta-Token`, no JWT) |
+| `GET` | `/eventos`, `/eventos/resumen`, `/eventos/stream` | admin (listado, agregados para gráficos, SSE en vivo) |
+| `POST` | `/eventos/{id}/incidente` | admin: abre una incidencia desde un evento |
 | `GET` | `/salud` | Público |
 
 Un recurso que no te pertenece devuelve **404**, no 403, para no confirmar que existe.

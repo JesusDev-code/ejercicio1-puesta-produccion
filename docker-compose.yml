@@ -32,6 +32,7 @@ services:
       CORS_ORIGENES: ${CORS_ORIGENES:-}
       # Traefik publica la API bajo /api del mismo dominio que el front (strip path)
       COOKIE_REFRESCO_RUTA: ${COOKIE_REFRESCO_RUTA:-/api/auth/web}
+      INGESTA_TOKEN: ${INGESTA_TOKEN:-}
       API_PREFIJO: ${API_PREFIJO:-/api}
       # La api no publica puerto: solo le llega tráfico de Traefik, así que se fía de su X-Forwarded-For
       FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-*}
@@ -40,6 +41,43 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  # Señuelo (honeypot de registro): expuesto a internet, NO vulnerable. Recibe sondeos y los
+  # manda a la API. Dominio propio en Dokploy (host distinto al de la web).
+  senuelo:
+    build: ./senuelo
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      MODO: senuelo
+      API_URL: http://api:8000
+      INGESTA_TOKEN: ${INGESTA_TOKEN:-}
+    expose:
+      - "8000"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  # Generador de eventos de DEMOSTRACIÓN: telemetría de mentira para el panel. Sin puerto.
+  generador:
+    build: ./senuelo
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      MODO: generador
+      API_URL: http://api:8000
+      INGESTA_TOKEN: ${INGESTA_TOKEN:-}
+    read_only: true
     cap_drop:
       - ALL
     security_opt:

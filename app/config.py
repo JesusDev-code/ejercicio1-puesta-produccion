@@ -27,6 +27,11 @@ class Configuracion(BaseSettings):
     # bajo un prefijo (Traefik con strip path en /api), aquí va ese prefijo: /api/auth/web
     cookie_refresco_ruta: str = Field(default="/auth/web", pattern=r"^/[A-Za-z0-9/_-]*$")
 
+    # Token de servicio para POST /eventos (señuelo y generador). Vacío = ingesta desactivada.
+    # No es un JWT de usuario: lo comparten servicios de confianza dentro del mismo compose.
+    ingesta_token: str = Field(default="", pattern=r"^$|^.{32,}$")
+    eventos_retencion_dias: int = Field(default=30, ge=1, le=365)
+
     limite_auth: str = "5/minute"
     limitador_activo: bool = True
 

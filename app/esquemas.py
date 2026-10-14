@@ -2,10 +2,11 @@
 campos como `rol`, `estado` o `reportante_id`, y `extra="forbid"` rechaza los desconocidos."""
 
 from datetime import datetime
+from ipaddress import ip_address
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
-from app.modelos import Categoria, Estado, Rol, Severidad
+from app.modelos import Categoria, Estado, Rol, Severidad, TipoEvento
 
 
 class Entrada(BaseModel):
@@ -152,3 +153,94 @@ class AuditoriaSalida(Salida):
     ip: str | None
     detalle: str | None
     fecha: datetime
+
+
+# --- Eventos de seguridad ---
+
+_CONTROL = dict.fromkeys(range(32))  # caracteres de control: fuera (inyección en logs)
+
+
+def _limpiar(valor: str | None, maximo: int) -> str | None:
+    if valor is None:
+        return None
+    return valor.translate(_CONTROL)[:maximo]
+
+
+class EventoEntrada(Entrada):
+    """Lo que manda el señuelo. Se trunca en vez de rechazar: un evento con una ruta de
+    2000 caracteres es justo el tipo de cosa que interesa registrar."""
+
+    origen_ip: str = Field(max_length=45)
+    tipo: TipoEvento
+    severidad: Severidad
+    metodo: str = Field(min_length=1, max_length=10)
+    ruta: str = Field(min_length=1, max_length=4096)
+    agente: str | None = Field(default=None, max_length=4096)
+    servicio: str = Field(default="senuelo", min_length=1, max_length=64, pattern=r"^[a-z0-9_-]+$")
+    detalle: str | None = Field(default=None, max_length=4096)
+
+    @field_validator("origen_ip")
+    @classmethod
+    def ip_valida(cls, v: str) -> str:
+        return str(ip_address(v))
+
+    @field_validator("metodo")
+    @classmethod
+    def metodo_limpio(cls, v: str) -> str:
+        return v.upper().translate(_CONTROL)[:10]
+
+    @field_validator("ruta")
+    @classmethod
+    def ruta_limpia(cls, v: str) -> str:
+        return _limpiar(v, 512) or "/"
+
+    @field_validator("agente")
+    @classmethod
+    def agente_limpio(cls, v: str | None) -> str | None:
+        return _limpiar(v, 512)
+
+    @field_validator("detalle")
+    @classmethod
+    def detalle_limpio(cls, v: str | None) -> str | None:
+        return _limpiar(v, 1000)
+
+
+class LoteEventos(Entrada):
+    eventos: list[EventoEntrada] = Field(min_length=1, max_length=100)
+
+
+class EventoSalida(Salida):
+    id: int
+    fecha: datetime
+    origen_ip: str
+    tipo: TipoEvento
+    severidad: Severidad
+    metodo: str
+    ruta: str
+    agente: str | None
+    servicio: str
+    detalle: str | None
+    incidente_id: int | None
+
+
+class Recuento(BaseModel):
+    clave: str
+    total: int
+
+
+class Tramo(BaseModel):
+    inicio: datetime
+    total: int
+
+
+class ResumenEventos(BaseModel):
+    horas: int
+    total: int
+    ultima_hora: int
+    ips_unicas: int
+    criticos: int
+    por_tipo: list[Recuento]
+    por_severidad: list[Recuento]
+    top_ips: list[Recuento]
+    por_minuto: list[Tramo]  # últimos 60 minutos, uno por minuto
+    por_hora: list[Tramo]  # últimas 168 horas (7 días), una por hora

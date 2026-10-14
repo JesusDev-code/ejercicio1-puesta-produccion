@@ -45,6 +45,18 @@ class Categoria(enum.StrEnum):
     otro = "otro"
 
 
+class TipoEvento(enum.StrEnum):
+    """Clasificación defensiva de lo que detecta el señuelo, como una regla de un WAF."""
+
+    sondeo_rutas = "sondeo_rutas"  # busca paneles de administración o rutas conocidas
+    fichero_sensible = "fichero_sensible"  # pide .env, .git, copias de seguridad...
+    fuerza_bruta = "fuerza_bruta"  # intentos repetidos de inicio de sesión
+    inyeccion = "inyeccion"  # patrones de SQLi o XSS en la petición
+    recorrido_rutas = "recorrido_rutas"  # ../ para salir del directorio servido
+    escaner = "escaner"  # user-agent de una herramienta de escaneo conocida
+    otro = "otro"
+
+
 def _enum(tipo: type[enum.Enum]) -> Enum:
     return Enum(
         tipo,
@@ -107,3 +119,22 @@ class RegistroAuditoria(Base):
     ip: Mapped[str | None] = mapped_column(String(45))
     detalle: Mapped[str | None] = mapped_column(Text)
     fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora, index=True)
+
+
+class EventoSeguridad(Base):
+    """Un evento detectado por el señuelo (o generado para la demo). Solo lectura: nunca se
+    edita, igual que la auditoría. Los campos de texto vienen de internet: no son de fiar."""
+
+    __tablename__ = "eventos_seguridad"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora, index=True)
+    origen_ip: Mapped[str] = mapped_column(String(45), index=True)
+    tipo: Mapped[TipoEvento] = mapped_column(_enum(TipoEvento), index=True)
+    severidad: Mapped[Severidad] = mapped_column(_enum(Severidad))
+    metodo: Mapped[str] = mapped_column(String(10))
+    ruta: Mapped[str] = mapped_column(String(512))
+    agente: Mapped[str | None] = mapped_column(String(512))
+    servicio: Mapped[str] = mapped_column(String(64))
+    detalle: Mapped[str | None] = mapped_column(String(1000))
+    incidente_id: Mapped[int | None] = mapped_column(ForeignKey("incidentes.id"), index=True)

@@ -16,9 +16,18 @@ services:
       FORWARDED_ALLOW_IPS: 127.0.0.1
       # En local el front va con `npm start`, cuyo proxy ya reescribe el Path de la cookie
       COOKIE_REFRESCO_RUTA: /auth/web
+      INGESTA_TOKEN: ${INGESTA_TOKEN:-ingesta-de-desarrollo-local-no-usar-en-produccion}
     ports:
       - "127.0.0.1:${API_PUERTO:-8000}:8000"
 
   backup:
     environment:
       PGPASSWORD: ${POSTGRES_PASSWORD:-desarrollo-local-no-usar-en-produccion}
+
+  senuelo:
+    environment:
+      INGESTA_TOKEN: ${INGESTA_TOKEN:-ingesta-de-desarrollo-local-no-usar-en-produccion}
+
+  generador:
+    environment:
+      INGESTA_TOKEN: ${INGESTA_TOKEN:-ingesta-de-desarrollo-local-no-usar-en-produccion}
