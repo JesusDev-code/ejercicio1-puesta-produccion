@@ -31,3 +31,16 @@ async def test_cors_rechaza_origen_desconocido(cliente):
 async def test_error_de_validacion_422(cliente):
     r = await cliente.post("/auth/login", json={"email": "no-es-email", "contrasena": "x"})
     assert r.status_code == 422
+
+
+async def test_quitar_prefijo_api():
+    """Detrás de Traefik la API recibe /api/...; sin strip path, la propia API lo quita."""
+    from httpx import ASGITransport, AsyncClient
+
+    from app.main import QuitarPrefijo, app
+
+    envuelta = QuitarPrefijo(app, "/api")
+    async with AsyncClient(transport=ASGITransport(app=envuelta), base_url="http://test") as c:
+        assert (await c.get("/api/salud")).status_code == 200
+        assert (await c.get("/salud")).status_code == 200
+        assert (await c.get("/apix/salud")).status_code == 404

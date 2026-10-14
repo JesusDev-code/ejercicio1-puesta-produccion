@@ -69,3 +69,23 @@ async def manejar_error_inesperado(_: Request, error: Exception):
 
 for modulo in (auth, usuarios, incidentes, auditoria, salud):
     app.include_router(modulo.router)
+
+
+class QuitarPrefijo:
+    """Middleware ASGI: /api/salud -> /salud. Las rutas sin el prefijo siguen funcionando,
+    así que vale tanto si el proxy ya lo quitó (strip path) como si no."""
+
+    def __init__(self, app, prefijo: str):
+        self.app = app
+        self.prefijo = prefijo
+
+    async def __call__(self, scope, receive, send):
+        if self.prefijo and scope["type"] == "http":
+            ruta = scope["path"]
+            if ruta == self.prefijo or ruta.startswith(self.prefijo + "/"):
+                nueva = ruta[len(self.prefijo) :] or "/"
+                scope = {**scope, "path": nueva, "raw_path": nueva.encode()}
+        await self.app(scope, receive, send)
+
+
+app.add_middleware(QuitarPrefijo, prefijo=config.api_prefijo)

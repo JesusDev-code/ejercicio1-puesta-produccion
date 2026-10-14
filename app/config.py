@@ -19,6 +19,10 @@ class Configuracion(BaseSettings):
     # Lista separada por comas, p. ej. "https://app.example.com,http://localhost:4321"
     cors_origenes: str = ""
 
+    # Prefijo bajo el que el proxy publica la API (/api). La API lo quita ella misma, así no
+    # depende de que el proxy haga "strip path". Vacío = sin prefijo.
+    api_prefijo: str = Field(default="", pattern=r"^(/[A-Za-z0-9_-]+)?$")
+
     # Path de la cookie de refresco tal como la ve el NAVEGADOR. Si un proxy publica la API
     # bajo un prefijo (Traefik con strip path en /api), aquí va ese prefijo: /api/auth/web
     cookie_refresco_ruta: str = Field(default="/auth/web", pattern=r"^/[A-Za-z0-9/_-]*$")

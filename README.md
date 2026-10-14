@@ -92,6 +92,7 @@ uv run alembic revision --autogenerate -m "descripcion del cambio"
 | `BACKUP_RETENCION_DIAS` | No | `7` | Días que se conservan los volcados |
 | `ENTORNO` | No | `produccion` en la imagen | `desarrollo`, `produccion` o `test`. En producción no existen `/docs` ni `/openapi.json` |
 | `CORS_ORIGENES` | No | vacío | Orígenes permitidos, separados por comas. Nunca `*`. El frontend propio va en el mismo origen y no lo necesita |
+| `API_PREFIJO` | No | vacío (`/api` en el compose) | Prefijo con el que el proxy publica la API. La API lo quita ella misma: no depende del «strip path» del proxy |
 | `COOKIE_REFRESCO_RUTA` | No | `/auth/web` (`/api/auth/web` en el compose) | `Path` de la cookie de refresco tal como la ve el navegador |
 | `ACCESO_MINUTOS` | No | `15` | Vida del token de acceso. El compose no la pasa al contenedor |
 | `REFRESCO_DIAS` | No | `7` | Vida del token de refresco. El compose no la pasa al contenedor |
@@ -154,7 +155,7 @@ En Dokploy, dos dominios con el **mismo host**:
 
 | Servicio | Host | Path | Strip path | Puerto |
 |---|---|---|---|---|
-| `api` | `incidentes.ejemplo.com` | `/api` | Sí | `8000` |
+| `api` | `incidentes.ejemplo.com` | `/api` | No hace falta | `8000` |
 | `web` | `incidentes.ejemplo.com` | `/` | No | `8080` |
 
 ---
