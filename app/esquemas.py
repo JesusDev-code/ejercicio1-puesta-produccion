@@ -43,6 +43,15 @@ class ParTokens(BaseModel):
     expira_en_segundos: int
 
 
+class TokenAcceso(BaseModel):
+    """Respuesta de las rutas /auth/web: el refresco viaja en una cookie HttpOnly, nunca en el
+    cuerpo, para que el JavaScript del navegador (y un XSS) no pueda leerlo."""
+
+    token_acceso: str
+    tipo_token: str = "bearer"  # noqa: S105
+    expira_en_segundos: int
+
+
 # --- Usuarios ---
 
 

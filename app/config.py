@@ -19,6 +19,10 @@ class Configuracion(BaseSettings):
     # Lista separada por comas, p. ej. "https://app.example.com,http://localhost:4321"
     cors_origenes: str = ""
 
+    # Path de la cookie de refresco tal como la ve el NAVEGADOR. Si un proxy publica la API
+    # bajo un prefijo (Traefik con strip path en /api), aquí va ese prefijo: /api/auth/web
+    cookie_refresco_ruta: str = Field(default="/auth/web", pattern=r"^/[A-Za-z0-9/_-]*$")
+
     limite_auth: str = "5/minute"
     limitador_activo: bool = True
 
