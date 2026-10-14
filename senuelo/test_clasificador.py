@@ -39,3 +39,15 @@ def test_ip_valida():
     assert ip_valida("no-es-ip", "1.2.3.4") == "1.2.3.4"  # cae al respaldo
     assert ip_valida("x", "y") == "0.0.0.0"
     assert ip_valida(None, "::1") == "::1"
+
+
+def test_informe_periodico_cuenta_entregados_y_perdidos(capsys):
+    from enviar import Enviador
+
+    enviador = Enviador("http://127.0.0.1:9", "x", informe_cada=0)
+    enviador._entregados, enviador._perdidos = 7, 2
+    enviador._informar()
+    salida = capsys.readouterr().out
+    assert "7 eventos entregados y 2 perdidos" in salida
+    # El contador se reinicia tras cada informe
+    assert enviador._entregados == 0

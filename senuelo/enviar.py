@@ -25,7 +25,14 @@ def ip_valida(candidata: str | None, respaldo: str) -> str:
 class Enviador:
     """Acumula eventos y los manda en lotes: por tamaño o cada `intervalo` segundos."""
 
-    def __init__(self, api_url: str, token: str, tam_lote: int = 20, intervalo: float = 3.0):
+    def __init__(
+        self,
+        api_url: str,
+        token: str,
+        tam_lote: int = 20,
+        intervalo: float = 3.0,
+        informe_cada: float = 300.0,
+    ):
         self._url = api_url.rstrip("/") + "/eventos"
         self._token = token
         self._tam_lote = tam_lote
@@ -34,6 +41,12 @@ class Enviador:
         self._lock = threading.Lock()
         self._parar = threading.Event()
         self._hilo = threading.Thread(target=self._bucle, daemon=True)
+        # Resumen periódico en el log: sin él, un log vacío no distingue «todo bien» de
+        # «no llega nada», porque solo se registraban los fallos
+        self._informe_cada = informe_cada
+        self._ultimo_informe = time.monotonic()
+        self._entregados = 0
+        self._perdidos = 0
 
     def iniciar(self) -> None:
         self._hilo.start()
@@ -55,6 +68,22 @@ class Enviador:
                 lote = self._tomar() if self._buffer else None
             if lote:
                 self._enviar(lote)
+            self._informar()
+
+    def _informar(self) -> None:
+        ahora = time.monotonic()
+        if ahora - self._ultimo_informe < self._informe_cada:
+            return
+        minutos = round((ahora - self._ultimo_informe) / 60)
+        with self._lock:
+            entregados, perdidos = self._entregados, self._perdidos
+            self._entregados = self._perdidos = 0
+        self._ultimo_informe = ahora
+        print(
+            f"[enviar] {entregados} eventos entregados y {perdidos} perdidos "
+            f"en los últimos {minutos} min",
+            flush=True,
+        )
 
     def _enviar(self, lote: list[dict]) -> None:
         cuerpo = json.dumps({"eventos": lote}).encode()
@@ -67,7 +96,11 @@ class Enviador:
         try:
             with urllib.request.urlopen(peticion, timeout=5) as respuesta:  # noqa: S310 - URL fija de env
                 respuesta.read()
+            with self._lock:
+                self._entregados += len(lote)
         except (urllib.error.URLError, TimeoutError, OSError) as e:
+            with self._lock:
+                self._perdidos += len(lote)
             # Si la API no está disponible, se pierden estos eventos. Para una demo es aceptable;
             # no se reintenta para no acumular memoria sin límite.
             print(f"[enviar] no se pudieron enviar {len(lote)} eventos: {e}", flush=True)
