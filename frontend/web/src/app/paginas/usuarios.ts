@@ -48,7 +48,7 @@ export class Usuarios implements OnInit {
   protected readonly filas = signal<Usuario[]>([]);
   protected readonly total = signal(0);
   protected readonly desplazamiento = signal(0);
-  protected readonly limite = signal(20);
+  protected readonly limite = signal(10);
   protected readonly cargando = signal(true);
   protected readonly fallo = signal<number | null>(null);
   protected readonly ocupado = signal<number | null>(null);

@@ -72,10 +72,12 @@ import { Marca } from './marca';
     </div>
   `,
   styles: `
-    .contenedor { display: flex; flex-wrap: wrap; }
+    /* overflow: clip y no hidden: hidden convierte el contenedor en caja de scroll y anula el sticky */
+    .contenedor { display: flex; align-items: flex-start; overflow: clip; }
     .menu {
-      position: relative; flex: 1 1 248px; max-width: 100%; margin: 16px 0 16px 16px; padding: 28px 18px;
-      border-radius: 22px; display: flex; flex-direction: column; gap: 34px;
+      position: sticky; top: 16px; z-index: 2; flex: 0 0 264px; height: calc(100vh - 32px); overflow-y: auto;
+      margin: 16px 0 16px 16px; padding: 24px 16px; border-radius: 22px;
+      display: flex; flex-direction: column; gap: 26px;
       background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
       backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
@@ -109,11 +111,39 @@ import { Marca } from './marca';
     .rol { font-family: var(--mono); font-size: 10px; letter-spacing: 2px; color: var(--oro); }
     .salir { justify-content: center; background: rgba(255, 255, 255, 0.04); font-size: 13px; font-weight: 600; min-height: 44px; }
     .principal {
-      position: relative; flex: 999 1 560px; min-width: 0; padding: 40px 48px 56px;
+      position: relative; flex: 1 1 auto; min-width: 0; padding: 40px 48px 56px;
     }
-    @media (max-width: 720px) {
-      .menu { margin: 12px 12px 0; gap: 20px; }
+
+    /* Pantallas bajas (portátil a 768 px de alto): el menú se compacta para que quepa entero */
+    @media (max-height: 820px) and (min-width: 901px) {
+      .menu { gap: 16px; padding: 18px 14px; }
+      .grupo-titulo { padding-bottom: 4px; }
+      .item { min-height: 40px; }
+      .tarjeta-usuario { gap: 10px; padding: 12px; }
+    }
+
+    /* Tablet y móvil: barra compacta arriba, enlaces en fila */
+    @media (max-width: 900px) {
+      .contenedor { flex-direction: column; align-items: stretch; }
+      .menu {
+        position: relative; top: 0; flex: none; height: auto; overflow: visible;
+        margin: 12px 12px 0; padding: 14px; gap: 12px;
+        flex-direction: row; flex-wrap: wrap; align-items: center;
+      }
+      .marca { flex: 1 1 100%; padding: 0 4px 4px; }
+      .grupo { flex-direction: row; flex-wrap: wrap; gap: 6px; }
+      .grupo-titulo { display: none; }
+      .item { min-height: 42px; padding: 0 12px; }
+      .tarjeta-usuario {
+        margin-top: 0; margin-left: auto; flex-direction: row; align-items: center; gap: 10px;
+        padding: 8px 8px 8px 12px; background: rgba(0, 0, 0, 0.22);
+      }
+      .salir { min-height: 40px; padding: 0 12px; }
       .principal { padding: 28px 16px 40px; }
+    }
+    @media (max-width: 560px) {
+      .tarjeta-usuario { margin-left: 0; flex: 1 1 100%; justify-content: space-between; }
+      .datos .email { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     }
   `,
 })

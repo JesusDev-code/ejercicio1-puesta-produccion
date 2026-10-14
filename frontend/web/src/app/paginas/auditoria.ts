@@ -138,7 +138,7 @@ export class Auditoria implements OnInit {
   protected readonly filas = signal<RegistroAuditoria[]>([]);
   protected readonly total = signal(0);
   protected readonly desplazamiento = signal(0);
-  protected readonly limite = signal(50);
+  protected readonly limite = signal(25);
   protected readonly cargando = signal(true);
   protected readonly fallo = signal<number | null>(null);
 
