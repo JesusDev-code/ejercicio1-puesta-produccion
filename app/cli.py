@@ -11,10 +11,11 @@ import getpass
 import sys
 
 from pydantic import EmailStr, TypeAdapter, ValidationError
+from sqlalchemy import select
 
 from app.db import FabricaSesion
 from app.demo import sembrar_demo
-from app.modelos import Rol
+from app.modelos import Empresa, Rol
 from app.repositorios import RepositorioUsuarios
 from app.seguridad import hashear_contrasena
 from app.servicios.auditoria import auditar
@@ -43,7 +44,14 @@ async def crear_admin(email: str, contrasena: str) -> None:
 async def _sembrar() -> None:
     async with FabricaSesion() as sesion:
         hecho = await sembrar_demo(sesion)
-    print("Datos de demo creados" if hecho else "Ya había datos de demo: no se ha tocado nada")
+        codigos = list(await sesion.scalars(select(Empresa.codigo).order_by(Empresa.codigo)))
+    # Con datos previos solo se completan las empresas: se dice, para no confundir
+    print(
+        "Datos de demo creados"
+        if hecho
+        else "Ya había datos de demo: solo se completan las empresas"
+    )
+    print(f"Empresas: {', '.join(codigos) or 'ninguna'}")
 
 
 def main() -> None:
