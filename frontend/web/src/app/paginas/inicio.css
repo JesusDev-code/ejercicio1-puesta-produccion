@@ -20,6 +20,12 @@
   position: relative;
   z-index: 1;
 }
+/* Más específico que la regla anterior y que el :host del componente (position: absolute) */
+.inicio > .fondo-glifos {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+}
 
 .inicio > .barra {
   position: sticky;

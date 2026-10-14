@@ -105,6 +105,8 @@ const CLIENTES = ['Transportes Ibarra', 'Clínica Solana', 'Hotel Mirador'];
   styleUrl: './inicio.css',
   template: `
     <div class="pagina inicio">
+      <!-- Fuera del héroe: capa fija que se ve en toda la página mientras se baja -->
+      <app-glifos class="fondo-glifos" [densidad]="70" />
       <header class="barra">
         <app-marca nombre="Kaelum" subtitulo="SECURITY" [tam]="34" />
         <nav aria-label="Secciones" class="enlaces">
@@ -117,7 +119,6 @@ const CLIENTES = ['Transportes Ibarra', 'Clínica Solana', 'Hotel Mirador'];
 
       <main>
         <section class="heroe" aria-labelledby="titulo-heroe">
-          <app-glifos [densidad]="45" />
           <div class="heroe-texto">
             <span class="etiqueta-mono">CIBERSEGURIDAD GESTIONADA PARA PYMES</span>
             <h1 id="titulo-heroe" class="lema">
