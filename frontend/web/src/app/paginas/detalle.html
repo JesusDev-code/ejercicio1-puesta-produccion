@@ -115,7 +115,7 @@
               <div><dt>Detectado por</dt><dd>{{ o.servicio }}</dd></div>
               <div><dt>Fecha</dt><dd class="mono">{{ o.fecha | date: 'dd/MM/yyyy HH:mm:ss' }}</dd></div>
             </dl>
-            <a class="btn btn-oro" routerLink="/monitorizacion">Ver en Monitorización</a>
+            <a class="btn btn-oro" routerLink="/eventos" [queryParams]="{ ip: o.origen_ip }">Ver todo lo de esta IP</a>
           </section>
         }
 

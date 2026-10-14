@@ -137,6 +137,7 @@ export class Api {
     tipo?: TipoEvento | '';
     severidad?: Severidad | '';
     origen_ip?: string;
+    estado?: EstadoTriaje | '';
     limite?: number;
     desplazamiento?: number;
   }): Promise<Pagina<EventoSeguridad>> {

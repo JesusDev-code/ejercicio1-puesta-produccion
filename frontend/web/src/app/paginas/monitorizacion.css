@@ -291,3 +291,10 @@
     grid-column: 3 / -1;
   }
 }
+
+.enlace-historial {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}

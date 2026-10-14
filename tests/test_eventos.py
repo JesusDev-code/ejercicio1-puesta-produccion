@@ -256,3 +256,14 @@ async def test_evento_por_incidente(cliente, actores, ingesta):
 async def test_evento_por_incidente_sin_origen_404(cliente, actores):
     r = await cliente.get("/eventos/por-incidente/999", headers=actores.cab["admin"])
     assert r.status_code == 404
+
+
+async def test_filtrar_por_estado_de_triaje(cliente, actores, ingesta):
+    await _ingestar(cliente, ingesta, EVENTO, EVENTO, EVENTO)
+    cab = actores.cab["admin"]
+    eid = (await cliente.get("/eventos", headers=cab)).json()["elementos"][0]["id"]
+    await cliente.patch(f"/eventos/{eid}", json={"estado": "ignorado"}, headers=cab)
+
+    assert (await cliente.get("/eventos?estado=nuevo", headers=cab)).json()["total"] == 2
+    assert (await cliente.get("/eventos?estado=ignorado", headers=cab)).json()["total"] == 1
+    assert (await cliente.get("/eventos?estado=otro", headers=cab)).status_code == 422

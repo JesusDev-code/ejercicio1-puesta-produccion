@@ -19,7 +19,7 @@ from app.esquemas import (
     ResumenEventos,
     TriajeEntrada,
 )
-from app.modelos import Rol, Severidad, TipoEvento
+from app.modelos import EstadoTriaje, Rol, Severidad, TipoEvento
 from app.servicios import eventos as servicio
 from app.tiempo_real import difusor
 
@@ -52,6 +52,7 @@ async def listar(
     tipo: TipoEvento | None = None,
     severidad: Severidad | None = None,
     origen_ip: Annotated[str | None, Query(max_length=45)] = None,
+    estado: EstadoTriaje | None = None,
     limite: Annotated[int, Query(ge=1, le=100)] = 25,
     desplazamiento: Annotated[int, Query(ge=0)] = 0,
 ):
@@ -60,6 +61,7 @@ async def listar(
         tipo=tipo,
         severidad=severidad,
         origen_ip=origen_ip,
+        estado=estado,
         limite=limite,
         desplazamiento=desplazamiento,
     )

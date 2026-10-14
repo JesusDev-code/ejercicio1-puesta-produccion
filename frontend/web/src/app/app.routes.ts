@@ -44,6 +44,12 @@ export const routes: Routes = [
         loadComponent: () => import('./paginas/monitorizacion').then((m) => m.Monitorizacion),
       },
       {
+        path: 'eventos',
+        title: 'Historial de eventos · Incidentes',
+        canActivate: [soloAdmin],
+        loadComponent: () => import('./paginas/eventos').then((m) => m.Eventos),
+      },
+      {
         path: 'auditoria',
         title: 'Auditoría · Incidentes',
         canActivate: [soloAdmin],

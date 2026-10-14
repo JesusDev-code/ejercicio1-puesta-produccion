@@ -92,6 +92,7 @@ async def listar(
     tipo: TipoEvento | None,
     severidad: Severidad | None,
     origen_ip: str | None,
+    estado: EstadoTriaje | None = None,
     limite: int,
     desplazamiento: int,
 ) -> tuple[int, list[EventoSeguridad]]:
@@ -102,6 +103,8 @@ async def listar(
         consulta = consulta.where(EventoSeguridad.severidad == severidad)
     if origen_ip:
         consulta = consulta.where(EventoSeguridad.origen_ip == origen_ip)
+    if estado:
+        consulta = consulta.where(EventoSeguridad.estado_triaje == estado)
     total = await sesion.scalar(select(func.count()).select_from(consulta.subquery()))
     pagina = consulta.order_by(EventoSeguridad.id.desc()).limit(limite).offset(desplazamiento)
     return total or 0, list(await sesion.scalars(pagina))

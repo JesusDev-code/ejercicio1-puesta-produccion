@@ -66,6 +66,7 @@
   <section aria-labelledby="t-feed" class="cristal panel feed">
     <div class="feed-cabecera">
       <h2 id="t-feed" class="titulo-panel">Flujo en vivo</h2>
+      <a class="enlace-historial" routerLink="/eventos">Historial completo →</a>
       <label class="interruptor">
         <input type="checkbox" [checked]="ocultarIgnorados()" (change)="ocultarIgnorados.set(!ocultarIgnorados())" />
         <span>Ocultar ignorados{{ ignoradosOcultos() ? ' (' + ignoradosOcultos() + ')' : '' }}</span>

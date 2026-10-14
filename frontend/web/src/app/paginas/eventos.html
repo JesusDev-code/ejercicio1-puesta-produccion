@@ -1,0 +1,131 @@
+<div class="pila">
+  <header class="cabecera">
+    <div class="textos">
+      <span class="ruta">~/eventos</span>
+      <h1 class="titulo">Historial de eventos</h1>
+      <p class="subtitulo">Todos los eventos registrados, con filtros y triaje. Pulsa una IP para ver solo lo que llegó desde ella.</p>
+    </div>
+    <span class="vivo" [class.activo]="enVivo()">
+      <span aria-hidden="true" class="punto"></span>{{ enVivo() ? 'En vivo' : 'Reconectando…' }}
+    </span>
+  </header>
+
+  @if (aviso(); as a) {
+    <div role="alert" class="aviso aviso-error"><span>{{ a.texto }}</span></div>
+  }
+
+  <section aria-label="Eventos" class="cristal panel">
+    <form role="search" aria-label="Filtros de eventos" class="filtros" [formGroup]="filtros" (ngSubmit)="aplicar()">
+      <div class="campo">
+        <label for="ev-tipo">Tipo</label>
+        <app-selector idCampo="ev-tipo" [compacto]="true" [opciones]="opcionesTipo" formControlName="tipo" />
+      </div>
+      <div class="campo">
+        <label for="ev-sev">Severidad</label>
+        <app-selector idCampo="ev-sev" [compacto]="true" [opciones]="opcionesSeveridad" formControlName="severidad" />
+      </div>
+      <div class="campo">
+        <label for="ev-estado">Triaje</label>
+        <app-selector idCampo="ev-estado" [compacto]="true" [opciones]="opcionesEstado" formControlName="estado" />
+      </div>
+      <div class="campo ip">
+        <label for="ev-ip">IP de origen</label>
+        <input id="ev-ip" type="search" class="entrada compacta mono" placeholder="203.0.113.7" maxlength="45" formControlName="ip" />
+      </div>
+      <button type="submit" class="btn btn-oro">Aplicar</button>
+      @if (hayFiltros()) {
+        <button type="button" class="btn btn-texto" (click)="limpiar()">Limpiar</button>
+      }
+    </form>
+
+    @if (nuevos() > 0) {
+      <button type="button" class="nuevos" (click)="verNuevos()">
+        <span aria-hidden="true" class="punto"></span>
+        {{ nuevos() }} {{ nuevos() === 1 ? 'evento nuevo' : 'eventos nuevos' }} desde que cargaste · Ver
+      </button>
+    }
+
+    @if (cargando()) {
+      <app-cargando />
+    } @else if (fallo() !== null) {
+      <div class="relleno"><app-fallo-servidor [codigo]="fallo()!" (reintentar)="cargar()" /></div>
+    } @else if (filas().length === 0) {
+      <div class="vacio">
+        <p>{{ hayFiltros() ? 'Ningún evento coincide con los filtros.' : 'Todavía no hay eventos registrados.' }}</p>
+        @if (hayFiltros()) {
+          <button type="button" class="btn btn-oro" (click)="limpiar()">Limpiar filtros</button>
+        }
+      </div>
+    } @else {
+      <div class="tabla-contenedor">
+        <table class="tabla">
+          <thead>
+            <tr>
+              <th scope="col">FECHA</th>
+              <th scope="col">EVENTO</th>
+              <th scope="col">ORIGEN</th>
+              <th scope="col">PETICIÓN</th>
+              <th scope="col">TRIAJE</th>
+              <th scope="col"><span class="solo-lector">Acciones</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (e of filas(); track e.id) {
+              <tr class="fila" [class]="'fila ' + TRIAJE[e.estado_triaje].clase">
+                <td class="mono fecha">{{ e.fecha | date: 'dd/MM HH:mm:ss' }}</td>
+                <td>
+                  <div class="evento">
+                    <span class="sev" [class]="'sev s-' + e.severidad" [title]="SEV[e.severidad].nombre"></span>
+                    <div class="evento-textos">
+                      <span class="tipo">{{ TIPOS[e.tipo] }}</span>
+                      <span class="detalle">{{ SEV[e.severidad].nombre }} · {{ e.servicio }}</span>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <button type="button" class="ip-enlace mono" [title]="'Ver solo los eventos de ' + e.origen_ip" (click)="filtrarIp(e.origen_ip)">{{ e.origen_ip }}</button>
+                </td>
+                <td class="peticion mono" [title]="e.metodo + ' ' + e.ruta + (e.agente ? '\n' + e.agente : '')">{{ e.metodo }} {{ e.ruta }}</td>
+                <td class="triaje">
+                  <span class="estado-triaje">{{ TRIAJE[e.estado_triaje].nombre }}</span>
+                  @if (editandoNota() === e.id) {
+                    <form class="form-nota" (ngSubmit)="guardarNota(e)">
+                      <label class="solo-lector" [for]="'h-nota-' + e.id">Nota del evento {{ e.id }}</label>
+                      <input [id]="'h-nota-' + e.id" class="entrada compacta" maxlength="1000" placeholder="Qué viste, qué hiciste…" [formControl]="textoNota" />
+                      <button type="submit" class="btn compacto btn-oro" [disabled]="ocupado() === e.id">Guardar</button>
+                      <button type="button" class="btn compacto btn-texto" (click)="editandoNota.set(null)">Cancelar</button>
+                    </form>
+                  } @else if (e.nota) {
+                    <span class="nota" [title]="e.nota">«{{ e.nota }}»</span>
+                  }
+                </td>
+                <td class="acciones">
+                  @if (editandoNota() !== e.id) {
+                    @if (e.estado_triaje !== 'revisado') {
+                      <button type="button" class="btn compacto btn-menta" [disabled]="ocupado() === e.id" (click)="triar(e, 'revisado')">Revisado</button>
+                    }
+                    @if (e.estado_triaje !== 'ignorado') {
+                      <button type="button" class="btn compacto btn-suave" [disabled]="ocupado() === e.id" (click)="triar(e, 'ignorado')">Ignorar</button>
+                    } @else {
+                      <button type="button" class="btn compacto btn-suave" [disabled]="ocupado() === e.id" (click)="triar(e, 'nuevo')">Recuperar</button>
+                    }
+                    <button type="button" class="btn compacto btn-texto" (click)="abrirNota(e)">{{ e.nota ? 'Editar nota' : 'Nota' }}</button>
+                    @if (e.incidente_id) {
+                      <a class="btn compacto btn-suave" [routerLink]="['/incidentes', e.incidente_id]">INC-{{ e.incidente_id }}</a>
+                    } @else {
+                      <button type="button" class="btn compacto btn-oro" [disabled]="ocupado() === e.id" (click)="abrirIncidencia(e)">Abrir incidencia</button>
+                    }
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+
+    @if (total() > 0) {
+      <app-paginador [total]="total()" [limite]="limite()" [desplazamiento]="desplazamiento()" [tamanos]="[25, 50, 100]" (cambio)="paginar($event)" />
+    }
+  </section>
+</div>
