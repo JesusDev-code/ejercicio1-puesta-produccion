@@ -1,0 +1,123 @@
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+
+import { ROLES } from '../core/modelos';
+import { Sesion } from '../core/sesion';
+import { Glifos } from './glifos';
+import { Marca } from './marca';
+
+@Component({
+  selector: 'app-shell',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, Glifos, Marca],
+  template: `
+    <div class="pagina contenedor">
+      <app-glifos [densidad]="30" />
+
+      <nav aria-label="Principal" class="menu">
+        <app-marca class="marca" [tam]="32" />
+
+        <div class="grupo">
+          <span class="cabecera-mono grupo-titulo">OPERACIÓN</span>
+          <a routerLink="/incidentes" routerLinkActive="activo" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page" class="item">
+            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z" /></svg>
+            Incidentes
+          </a>
+          <a routerLink="/incidentes/nuevo" routerLinkActive="activo" ariaCurrentWhenActive="page" class="item">
+            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M12 5v14M5 12h14" /></svg>
+            Nuevo incidente
+          </a>
+        </div>
+
+        @if (sesion.esAdmin()) {
+          <div class="grupo">
+            <span class="cabecera-mono grupo-titulo">ADMINISTRACIÓN</span>
+            <a routerLink="/usuarios" routerLinkActive="activo" ariaCurrentWhenActive="page" class="item">
+              <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5M16 4.5a3.5 3.5 0 010 7M18 14.8c2 .7 3.2 2.4 3.5 5.2" /></svg>
+              Usuarios
+            </a>
+            <a routerLink="/auditoria" routerLinkActive="activo" ariaCurrentWhenActive="page" class="item">
+              <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M5 4h14v16H5zM9 9h6M9 13h6M9 17h3" /></svg>
+              Auditoría
+            </a>
+          </div>
+        }
+
+        <div class="tarjeta-usuario">
+          <a routerLink="/cuenta" routerLinkActive="activo-cuenta" ariaCurrentWhenActive="page" class="usuario" aria-label="Mi cuenta">
+            <span aria-hidden="true" class="avatar">{{ inicial() }}</span>
+            <span class="datos">
+              <span class="email">{{ sesion.usuario()?.email }}</span>
+              <span class="rol">{{ rol() }}</span>
+            </span>
+          </a>
+          <button type="button" class="item salir" (click)="salir()">Cerrar sesión</button>
+        </div>
+      </nav>
+
+      <main class="principal">
+        <router-outlet />
+      </main>
+    </div>
+  `,
+  styles: `
+    .contenedor { display: flex; flex-wrap: wrap; }
+    .menu {
+      position: relative; flex: 1 1 248px; max-width: 100%; margin: 16px 0 16px 16px; padding: 28px 18px;
+      border-radius: 22px; display: flex; flex-direction: column; gap: 34px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    }
+    .marca { padding: 0 8px; }
+    .grupo { display: flex; flex-direction: column; gap: 4px; }
+    .grupo-titulo { padding: 0 12px 8px; }
+    .item {
+      min-height: 46px; display: flex; align-items: center; gap: 12px; padding: 0 14px; border: 0; border-radius: 14px;
+      background: transparent; color: var(--texto-2); text-decoration: none; font-family: inherit; font-size: 14px;
+      font-weight: 500; cursor: pointer; transition: background 0.2s;
+    }
+    .item:hover { background: rgba(255, 255, 255, 0.05); color: var(--texto); }
+    .item.activo {
+      background: linear-gradient(90deg, rgba(224, 30, 60, 0.28), rgba(224, 30, 60, 0.06));
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 0 24px -6px rgba(224, 30, 60, 0.5);
+      color: #fff4f1; font-weight: 600;
+    }
+    .tarjeta-usuario {
+      margin-top: auto; display: flex; flex-direction: column; gap: 14px; padding: 16px; border-radius: 16px;
+      background: rgba(0, 0, 0, 0.28);
+    }
+    .usuario { display: flex; align-items: center; gap: 12px; color: var(--texto); text-decoration: none; border-radius: 12px; }
+    .usuario.activo-cuenta .email, .usuario:hover .email { color: var(--oro-claro); }
+    .avatar {
+      width: 36px; height: 36px; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(140deg, #d4af6e, #7a5a26); color: #1a1008; font-weight: 700; font-size: 14px;
+    }
+    .datos { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .email { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; transition: color 0.2s; }
+    .rol { font-family: var(--mono); font-size: 10px; letter-spacing: 2px; color: var(--oro); }
+    .salir { justify-content: center; background: rgba(255, 255, 255, 0.04); font-size: 13px; font-weight: 600; min-height: 44px; }
+    .principal {
+      position: relative; flex: 999 1 560px; min-width: 0; padding: 40px 48px 56px;
+    }
+    @media (max-width: 720px) {
+      .menu { margin: 12px 12px 0; gap: 20px; }
+      .principal { padding: 28px 16px 40px; }
+    }
+  `,
+})
+export class Shell {
+  protected readonly sesion = inject(Sesion);
+  private readonly router = inject(Router);
+
+  protected readonly inicial = computed(() => (this.sesion.usuario()?.email ?? '?').charAt(0).toUpperCase());
+  protected readonly rol = computed(() => {
+    const rol = this.sesion.usuario()?.rol;
+    return rol ? ROLES[rol].toUpperCase() : '';
+  });
+
+  async salir(): Promise<void> {
+    await this.sesion.salir();
+    await this.router.navigate(['/login']);
+  }
+}

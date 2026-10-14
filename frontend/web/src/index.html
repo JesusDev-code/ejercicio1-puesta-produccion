@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Incidentes</title>
+  <base href="/">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="referrer" content="no-referrer">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+</head>
+<body>
+  <!-- nginx sustituye CSP_NONCE por un valor aleatorio en cada respuesta (ver nginx.conf).
+       Angular lo aplica a los <style> de los componentes: la CSP no necesita 'unsafe-inline'. -->
+  <app-root ngCspNonce="CSP_NONCE"></app-root>
+</body>
+</html>

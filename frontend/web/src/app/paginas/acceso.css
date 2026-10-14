@@ -1,0 +1,166 @@
+/* Diseño compartido por login y registro. */
+
+.acceso {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 64px;
+  padding: 64px 48px;
+  background:
+    radial-gradient(900px 600px at 18% 8%, rgba(196, 18, 47, 0.34), transparent 65%),
+    radial-gradient(700px 500px at 92% 96%, rgba(212, 175, 110, 0.14), transparent 60%),
+    var(--fondo);
+}
+.acceso.espejo {
+  background:
+    radial-gradient(900px 600px at 82% 8%, rgba(196, 18, 47, 0.32), transparent 65%),
+    radial-gradient(700px 500px at 6% 96%, rgba(212, 175, 110, 0.12), transparent 60%),
+    var(--fondo);
+}
+
+.presentacion {
+  position: relative;
+  flex: 1 1 440px;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+.lema {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: clamp(48px, 7vw, 76px);
+  line-height: 0.98;
+  letter-spacing: -1px;
+  text-shadow: 0 0 40px rgba(224, 30, 60, 0.35);
+}
+
+.entradilla {
+  font-size: 17px;
+  line-height: 1.7;
+  color: var(--texto-2);
+  max-width: 460px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 1px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--texto-2);
+}
+.chip .punto.ok {
+  color: var(--menta);
+}
+.chip .punto.ko {
+  color: var(--sangre);
+}
+
+.pasos {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.paso {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--texto-2);
+}
+.paso .num {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--oro);
+  padding-top: 3px;
+}
+.paso strong {
+  color: var(--texto);
+  font-weight: 600;
+}
+
+.zona-form {
+  position: relative;
+  flex: 1 1 400px;
+  max-width: 460px;
+}
+.halo {
+  position: absolute;
+  inset: -40px;
+  border-radius: 40px;
+  background: radial-gradient(closest-side, rgba(224, 30, 60, 0.35), transparent);
+  filter: blur(30px);
+  pointer-events: none;
+}
+
+.formulario {
+  position: relative;
+  padding: 44px 40px;
+  border-radius: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.025) 45%, rgba(224, 30, 60, 0.06));
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 40px 100px -30px rgba(0, 0, 0, 0.9);
+}
+
+.cabecera-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.cabecera-form h2 {
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 44px;
+  line-height: 1;
+}
+
+.enlace-alterno {
+  margin-top: 6px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--apagado);
+}
+.enlace-alterno a {
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.pie {
+  position: relative;
+  margin-top: 20px;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--tenue);
+}
+
+@media (max-width: 720px) {
+  .acceso {
+    padding: 40px 16px;
+    gap: 40px;
+  }
+  .formulario {
+    padding: 32px 22px;
+  }
+}

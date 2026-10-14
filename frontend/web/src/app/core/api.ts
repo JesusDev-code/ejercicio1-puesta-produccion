@@ -1,0 +1,125 @@
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { Injectable, inject } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
+
+import {
+  Categoria,
+  Estado,
+  Incidente,
+  IncidenteEdicion,
+  IncidenteNuevo,
+  Pagina,
+  RegistroAuditoria,
+  Rol,
+  Severidad,
+  Usuario,
+} from './modelos';
+
+type Filtros = Record<string, string | number | null | undefined>;
+
+/** Quita los filtros vacíos: la API valida los enums y rechazaría `estado=`. */
+function parametros(filtros: Filtros): HttpParams {
+  let p = new HttpParams();
+  for (const [clave, valor] of Object.entries(filtros)) {
+    if (valor !== null && valor !== undefined && valor !== '') p = p.set(clave, valor);
+  }
+  return p;
+}
+
+@Injectable({ providedIn: 'root' })
+export class Api {
+  private readonly http = inject(HttpClient);
+
+  // --- Salud y cuentas ---
+
+  salud(): Promise<unknown> {
+    return firstValueFrom(this.http.get('/api/salud'));
+  }
+
+  registrar(email: string, contrasena: string): Promise<Usuario> {
+    return firstValueFrom(this.http.post<Usuario>('/api/auth/registro', { email, contrasena }));
+  }
+
+  cambiarContrasena(contrasena_actual: string, contrasena_nueva: string): Promise<unknown> {
+    return firstValueFrom(
+      this.http.patch('/api/usuarios/yo/contrasena', { contrasena_actual, contrasena_nueva }),
+    );
+  }
+
+  // --- Incidentes ---
+
+  incidentes(filtros: {
+    estado?: Estado | '';
+    severidad?: Severidad | '';
+    categoria?: Categoria | '';
+    limite?: number;
+    desplazamiento?: number;
+  }): Promise<Pagina<Incidente>> {
+    return firstValueFrom(
+      this.http.get<Pagina<Incidente>>('/api/incidentes', { params: parametros(filtros) }),
+    );
+  }
+
+  incidente(id: number): Promise<Incidente> {
+    return firstValueFrom(this.http.get<Incidente>(`/api/incidentes/${id}`));
+  }
+
+  crearIncidente(datos: IncidenteNuevo): Promise<Incidente> {
+    return firstValueFrom(this.http.post<Incidente>('/api/incidentes', datos));
+  }
+
+  editarIncidente(id: number, cambios: IncidenteEdicion): Promise<Incidente> {
+    return firstValueFrom(this.http.patch<Incidente>(`/api/incidentes/${id}`, cambios));
+  }
+
+  cambiarEstado(id: number, estado: Estado): Promise<Incidente> {
+    return firstValueFrom(this.http.patch<Incidente>(`/api/incidentes/${id}/estado`, { estado }));
+  }
+
+  asignar(id: number, analista_id: number): Promise<Incidente> {
+    return firstValueFrom(
+      this.http.patch<Incidente>(`/api/incidentes/${id}/asignar`, { analista_id }),
+    );
+  }
+
+  guardarNotas(id: number, notas_internas: string): Promise<Incidente> {
+    return firstValueFrom(
+      this.http.patch<Incidente>(`/api/incidentes/${id}/notas`, { notas_internas }),
+    );
+  }
+
+  borrarIncidente(id: number): Promise<unknown> {
+    return firstValueFrom(this.http.delete(`/api/incidentes/${id}`));
+  }
+
+  // --- Administración ---
+
+  usuarios(filtros: {
+    rol?: Rol | '';
+    email?: string;
+    limite?: number;
+    desplazamiento?: number;
+  }): Promise<Pagina<Usuario>> {
+    return firstValueFrom(
+      this.http.get<Pagina<Usuario>>('/api/usuarios', { params: parametros(filtros) }),
+    );
+  }
+
+  cambiarRol(id: number, rol: Rol): Promise<Usuario> {
+    return firstValueFrom(this.http.patch<Usuario>(`/api/usuarios/${id}/rol`, { rol }));
+  }
+
+  cambiarActivo(id: number, activo: boolean): Promise<Usuario> {
+    return firstValueFrom(this.http.patch<Usuario>(`/api/usuarios/${id}/activo`, { activo }));
+  }
+
+  auditoria(filtros: {
+    accion?: string;
+    limite?: number;
+    desplazamiento?: number;
+  }): Promise<Pagina<RegistroAuditoria>> {
+    return firstValueFrom(
+      this.http.get<Pagina<RegistroAuditoria>>('/api/auditoria', { params: parametros(filtros) }),
+    );
+  }
+}

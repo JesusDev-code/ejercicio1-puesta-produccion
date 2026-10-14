@@ -74,3 +74,35 @@ jobs:
 
       - name: La imagen no corre como root
         run: test "$(docker run --rm --entrypoint id api-incidentes:ci -u)" != "0"
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend/web
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/web/package-lock.json
+
+      - name: Dependencias
+        run: npm ci --no-fund
+
+      - name: npm audit (dependencias de runtime)
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Build
+        run: npx ng build
+
+      - name: Build de la imagen
+        run: docker build -t web-incidentes:ci .
+
+      - name: La imagen no corre como root
+        run: test "$(docker run --rm --entrypoint id web-incidentes:ci -u)" != "0"

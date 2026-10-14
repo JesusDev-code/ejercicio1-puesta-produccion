@@ -91,7 +91,8 @@ uv run alembic revision --autogenerate -m "descripcion del cambio"
 | `BACKUP_INTERVALO_SEGUNDOS` | No | `86400` | Cada cuánto se hace un `pg_dump` |
 | `BACKUP_RETENCION_DIAS` | No | `7` | Días que se conservan los volcados |
 | `ENTORNO` | No | `produccion` en la imagen | `desarrollo`, `produccion` o `test`. En producción no existen `/docs` ni `/openapi.json` |
-| `CORS_ORIGENES` | No | vacío | Orígenes permitidos, separados por comas. Nunca `*` |
+| `CORS_ORIGENES` | No | vacío | Orígenes permitidos, separados por comas. Nunca `*`. El frontend propio va en el mismo origen y no lo necesita |
+| `COOKIE_REFRESCO_RUTA` | No | `/auth/web` (`/api/auth/web` en el compose) | `Path` de la cookie de refresco tal como la ve el navegador |
 | `ACCESO_MINUTOS` | No | `15` | Vida del token de acceso. El compose no la pasa al contenedor |
 | `REFRESCO_DIAS` | No | `7` | Vida del token de refresco. El compose no la pasa al contenedor |
 | `FORWARDED_ALLOW_IPS` | No | `*` en el compose | IPs de las que uvicorn acepta `X-Forwarded-For`. Ver «Despliegue» |
@@ -103,6 +104,7 @@ uv run alembic revision --autogenerate -m "descripcion del cambio"
 | Método | Ruta | Quién |
 |---|---|---|
 | `POST` | `/auth/registro`, `/auth/login`, `/auth/refrescar`, `/auth/logout` | Público |
+| `POST` | `/auth/web/login`, `/auth/web/refrescar`, `/auth/web/logout` | Público. Para el navegador: el refresco va en cookie `HttpOnly`, nunca en el cuerpo |
 | `GET` | `/usuarios/yo` | Autenticado |
 | `PATCH` | `/usuarios/yo/contrasena` | Autenticado (pide la actual; revoca todas las sesiones) |
 | `GET` | `/usuarios` | admin (filtros `rol` y `email`) |
@@ -118,6 +120,42 @@ uv run alembic revision --autogenerate -m "descripcion del cambio"
 | `GET` | `/salud` | Público |
 
 Un recurso que no te pertenece devuelve **404**, no 403, para no confirmar que existe.
+
+---
+
+## Frontend
+
+Angular 21 en `frontend/web`, con el diseño de `frontend/diseno/LEEME.md`.
+
+```bash
+cd frontend/web
+npm ci
+npm start            # http://localhost:4200, con la API en 127.0.0.1:8000
+```
+
+`npm start` reenvía `/api/*` a la API (`proxy.conf.json`), igual que Traefik en producción.
+
+Decisiones de seguridad:
+
+- **Mismo origen.** El front y la API se sirven bajo el mismo dominio (`/` y `/api`). Sin CORS.
+- **Token de acceso solo en memoria**, nunca en `localStorage`. El de refresco va en una cookie
+  `HttpOnly; Secure; SameSite=Strict` con `Path` acotado a `/api/auth/web`: el JavaScript no
+  puede leerla y otra web no puede hacer que el navegador la envíe.
+- **401 → refresco silencioso → reintento.** Un único refresco a la vez: dos en paralelo usarían
+  la misma cookie y la API lo trataría como reutilización (revoca la familia).
+- **CSP estricta** sin `'unsafe-inline'`: nonce por respuesta para los estilos de Angular y
+  Trusted Types. Fuentes servidas desde el propio dominio, sin Google Fonts.
+- La interfaz solo **oculta** acciones según el rol; quien autoriza es la API.
+
+### Despliegue en Dokploy
+
+El servicio `web` es nginx sin privilegios **solo para estáticos**: el enrutado lo hace Traefik.
+En Dokploy, dos dominios con el **mismo host**:
+
+| Servicio | Host | Path | Strip path | Puerto |
+|---|---|---|---|---|
+| `api` | `incidentes.ejemplo.com` | `/api` | Sí | `8000` |
+| `web` | `incidentes.ejemplo.com` | `/` | No | `8080` |
 
 ---
 

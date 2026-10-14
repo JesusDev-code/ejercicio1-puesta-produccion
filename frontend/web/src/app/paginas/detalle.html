@@ -1,0 +1,159 @@
+@if (cargando()) {
+  <app-cargando />
+} @else if (fallo() === 404) {
+  <app-no-existe />
+} @else if (fallo() !== null) {
+  <app-fallo-servidor [codigo]="fallo()!" (reintentar)="cargar()" />
+} @else if (inc(); as i) {
+  <div class="pila">
+    <header class="cabecera">
+      <a routerLink="/incidentes" class="volver">← Volver al listado</a>
+      <div class="chips">
+        <span class="mono codigo-inc">{{ codigoInc(i.id) }}</span>
+        <span class="pildora chip-sev"><app-severidad [valor]="i.severidad" /></span>
+        <app-estado [valor]="i.estado" />
+        <span class="pildora chip-cat">{{ nombreCategoria(i.categoria) }}</span>
+      </div>
+      <h1 class="titulo titulo-detalle">{{ i.titulo }}</h1>
+    </header>
+
+    <section aria-label="Ciclo de vida" class="cristal ciclo">
+      @for (p of pasos(); track p.nombre) {
+        <div class="paso" [class]="p.fase">
+          <div class="barra"></div>
+          <span class="nombre-paso"><span aria-hidden="true" class="mono prefijo">{{ p.prefijo }}</span>{{ p.nombre }}</span>
+        </div>
+      }
+    </section>
+
+    <div class="columnas">
+      <div class="principal">
+        <section aria-labelledby="h-desc" class="cristal bloque">
+          <div class="bloque-cabecera">
+            <h2 id="h-desc" class="titulo-2">Descripción</h2>
+            @if (puedeEditar() && !editando()) {
+              <button type="button" class="btn btn-oro pequeno" (click)="empezarEdicion()">Editar</button>
+            }
+          </div>
+
+          @if (editando()) {
+            <form class="edicion" [formGroup]="edicion" (ngSubmit)="guardarEdicion()" novalidate>
+              <div class="campo">
+                <label for="e-titulo">Título</label>
+                <input id="e-titulo" class="entrada" maxlength="120" formControlName="titulo"
+                  [class.invalida]="edicion.controls.titulo.invalid" />
+              </div>
+              <div class="campo">
+                <label for="e-cat">Categoría</label>
+                <select id="e-cat" class="entrada selector" formControlName="categoria">
+                  @for (c of categorias; track c[0]) { <option [value]="c[0]">{{ c[1] }}</option> }
+                </select>
+              </div>
+              <div class="campo">
+                <label for="e-desc">Descripción</label>
+                <textarea id="e-desc" rows="8" class="entrada" maxlength="5000" formControlName="descripcion"
+                  [class.invalida]="edicion.controls.descripcion.invalid"></textarea>
+              </div>
+              @if (avisos().editar; as a) {
+                <div role="alert" class="aviso aviso-error">{{ a.texto }}</div>
+              }
+              <div class="fila-botones">
+                <button type="submit" class="btn btn-sangre" [disabled]="edicion.invalid || ocupado() === 'editar'">Guardar cambios</button>
+                <button type="button" class="btn btn-suave" (click)="editando.set(false)">Cancelar</button>
+              </div>
+            </form>
+          } @else {
+            <p class="descripcion">{{ i.descripcion }}</p>
+          }
+
+          @if (bloqueado()) {
+            <div class="candado">
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V8a4 4 0 018 0v3" /></svg>
+              Edición bloqueada: el incidente ya no está abierto.
+            </div>
+          }
+        </section>
+
+        @if (gestiona()) {
+          <section aria-labelledby="h-notas" class="cristal cristal-oro bloque">
+            <div class="bloque-cabecera">
+              <h2 id="h-notas" class="titulo-2 oro">Notas internas</h2>
+              <span class="ocultas">
+                <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 3l18 18M10.6 10.6a2 2 0 002.8 2.8M9.9 5.1A9.8 9.8 0 0112 5c5 0 9 5 9 7a9.5 9.5 0 01-2.2 3.3M6.6 6.6C4.4 8 3 10.4 3 12c0 2 4 7 9 7a9.6 9.6 0 004.2-1" /></svg>
+                Ocultas al reportante
+              </span>
+            </div>
+            <label for="d-notas" class="solo-lector">Notas internas</label>
+            <textarea id="d-notas" rows="6" class="entrada notas" maxlength="10000" [formControl]="notas"></textarea>
+            @if (avisos().notas; as a) {
+              <div [attr.role]="a.ok ? 'status' : 'alert'" class="aviso" [class.aviso-ok]="a.ok" [class.aviso-error]="!a.ok">{{ a.texto }}</div>
+            }
+            <div class="bloque-pie">
+              <span class="contador">{{ notas.value.length }}/10000 · cada guardado se audita</span>
+              <button type="button" class="btn btn-oro-macizo" [disabled]="notas.invalid || ocupado() === 'notas'" (click)="guardarNotas()">Guardar notas</button>
+            </div>
+          </section>
+        }
+      </div>
+
+      <aside aria-label="Gestión del incidente" class="lateral">
+        <section aria-labelledby="h-meta" class="cristal bloque compacto">
+          <h2 id="h-meta" class="cabecera-mono">DATOS</h2>
+          <dl class="datos">
+            <div><dt>Reportante</dt><dd>{{ reportante() }}</dd></div>
+            <div><dt>Analista</dt><dd>{{ analista() }}</dd></div>
+            <div><dt>Creado</dt><dd class="mono">{{ i.creado_en | date: 'dd/MM/yyyy HH:mm' }}</dd></div>
+            <div><dt>Actualizado</dt><dd class="mono">{{ i.actualizado_en | date: 'dd/MM/yyyy HH:mm' }}</dd></div>
+          </dl>
+        </section>
+
+        @if (gestiona()) {
+          <section aria-labelledby="h-estado" class="cristal bloque compacto">
+            <h2 id="h-estado" class="cabecera-mono">CAMBIAR ESTADO</h2>
+            @if (siguiente(); as destino) {
+              <button type="button" class="btn transicion" [class.btn-sangre]="destino !== 'abierto'" [class.btn-oro]="destino === 'abierto'"
+                [disabled]="ocupado() === 'estado'" (click)="avanzar()">{{ etiquetaSiguiente() }}</button>
+            } @else {
+              <span class="ayuda">Sin transiciones disponibles para tu rol.</span>
+            }
+            @if (avisos().estado; as a) {
+              <div role="alert" class="aviso aviso-oro">{{ a.texto }} Si el estado cambió mientras tanto, recarga para ver el actual.</div>
+            }
+            <span class="ayuda tenue">{{ ayudaEstado() }}</span>
+          </section>
+        }
+
+        @if (esAdmin()) {
+          <section aria-labelledby="h-asignar" class="cristal bloque compacto">
+            <h2 id="h-asignar" class="cabecera-mono">ASIGNAR ANALISTA</h2>
+            <label for="d-analista" class="etiqueta">Analista</label>
+            <select id="d-analista" class="entrada compacta" [formControl]="analistaElegido">
+              <option [ngValue]="null" disabled>{{ analistas().length ? 'Elige un analista' : 'No hay analistas activos' }}</option>
+              @for (a of analistas(); track a.id) { <option [ngValue]="a.id">{{ a.email }}</option> }
+            </select>
+            @if (avisos().asignar; as a) {
+              <div [attr.role]="a.ok ? 'status' : 'alert'" class="aviso" [class.aviso-ok]="a.ok" [class.aviso-error]="!a.ok">{{ a.texto }}</div>
+            }
+            <button type="button" class="btn btn-oro" [disabled]="!analistaElegido.value || analistaElegido.value === i.analista_id || ocupado() === 'asignar'" (click)="asignar()">Asignar</button>
+          </section>
+
+          <section aria-labelledby="h-borrar" class="cristal-peligro bloque compacto peligro">
+            <h2 id="h-borrar" class="cabecera-mono rosa">ZONA PELIGROSA</h2>
+            <p class="texto-peligro">Borrado lógico: desaparece de los listados pero se conserva en la auditoría.</p>
+            @if (avisos().borrar; as a) {
+              <div role="alert" class="aviso aviso-error">{{ a.texto }}</div>
+            }
+            @if (confirmandoBorrado()) {
+              <div class="fila-botones">
+                <button type="button" class="btn btn-sangre" [disabled]="ocupado() === 'borrar'" (click)="borrar()">Sí, borrar</button>
+                <button type="button" class="btn btn-suave" (click)="confirmandoBorrado.set(false)">Cancelar</button>
+              </div>
+            } @else {
+              <button type="button" class="btn btn-peligro" (click)="confirmandoBorrado.set(true)">Borrar incidente</button>
+            }
+          </section>
+        }
+      </aside>
+    </div>
+  </div>
+}

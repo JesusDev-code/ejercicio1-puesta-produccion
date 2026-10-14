@@ -30,10 +30,30 @@ services:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-incidentes}:${POSTGRES_PASSWORD:-}@db:5432/${POSTGRES_DB:-incidentes}
       JWT_SECRETO: ${JWT_SECRETO:-}
       CORS_ORIGENES: ${CORS_ORIGENES:-}
+      # Traefik publica la API bajo /api del mismo dominio que el front (strip path)
+      COOKIE_REFRESCO_RUTA: ${COOKIE_REFRESCO_RUTA:-/api/auth/web}
       # La api no publica puerto: solo le llega tráfico de Traefik, así que se fía de su X-Forwarded-For
       FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-*}
     expose:
       - "8000"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  # Frontend Angular: solo estáticos. En Dokploy, dos dominios con el MISMO host:
+  #   host /api -> api:8000 con "Strip Path"   ·   host / -> web:8080
+  web:
+    build: ./frontend/web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    expose:
+      - "8080"
     read_only: true
     tmpfs:
       - /tmp
