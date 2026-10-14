@@ -19,14 +19,6 @@ class Salida(BaseModel):
 # --- Autenticación ---
 
 
-class RegistroEntrada(BaseModel):
-    # Sin extra="forbid": un `rol` enviado por el cliente se ignora en silencio
-    model_config = ConfigDict(str_strip_whitespace=True)
-
-    email: EmailStr
-    contrasena: str = Field(min_length=12, max_length=128)
-
-
 class LoginEntrada(Entrada):
     email: EmailStr
     contrasena: str = Field(min_length=1, max_length=128)
@@ -61,6 +53,18 @@ class UsuarioSalida(Salida):
     rol: Rol
     activo: bool
     creado_en: datetime
+
+
+class UsuarioCrear(Entrada):
+    """Alta de cuentas: solo la hace un admin. No hay registro público."""
+
+    email: EmailStr
+    contrasena: str = Field(min_length=12, max_length=128)
+    rol: Rol = Rol.usuario
+
+
+class RestablecerContrasenaEntrada(Entrada):
+    contrasena_nueva: str = Field(min_length=12, max_length=128)
 
 
 class CambioRolEntrada(Entrada):

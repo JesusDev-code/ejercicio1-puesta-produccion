@@ -93,9 +93,11 @@ abierto ──► en_analisis ──► resuelto ──► cerrado
 - **Contraseñas:** argon2, mínimo 12 caracteres.
 - **Refresh tokens:** rotación en cada uso. Si se reutiliza uno ya revocado, se revoca toda su
   familia (señal de robo).
-- **Rate limiting:** `/auth/login` y `/auth/registro`, 5 peticiones por minuto y por IP.
-- **Auditoría:** login con éxito y fallido, registro, cambios de estado, asignaciones, edición
-  de notas, borrados y cambios de rol.
+- **Sin registro público:** solo un admin da de alta cuentas (`POST /usuarios`), con rol y
+  contraseña inicial. Reduce la superficie: nadie de fuera puede crearse una cuenta.
+- **Rate limiting:** `/auth/login` y `/usuarios/yo/contrasena`, 5 peticiones por minuto y por IP.
+- **Auditoría:** login con éxito y fallido, altas de cuentas, restablecimientos de contraseña,
+  cambios de estado, asignaciones, edición de notas, borrados y cambios de rol.
 - **Cabeceras:** `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`,
   `X-Frame-Options: DENY`, `Referrer-Policy`, `Content-Security-Policy` restrictiva.
 - **CORS:** lista blanca de orígenes por variable de entorno, nunca `*`.
@@ -111,7 +113,6 @@ abierto ──► en_analisis ──► resuelto ──► cerrado
 ## 8. Endpoints
 
 ```
-POST   /auth/registro
 POST   /auth/login
 POST   /auth/refrescar
 POST   /auth/logout
@@ -119,6 +120,8 @@ POST   /auth/logout
 GET    /usuarios/yo
 PATCH  /usuarios/yo/contrasena         (autenticado, rate limit como el login)
 GET    /usuarios                       (admin, filtros rol y email)
+POST   /usuarios                       (admin: alta de cuenta)
+PATCH  /usuarios/{id}/contrasena       (admin: restablecer, no sobre sí mismo)
 PATCH  /usuarios/{id}/rol              (admin)
 PATCH  /usuarios/{id}/activo           (admin)
 

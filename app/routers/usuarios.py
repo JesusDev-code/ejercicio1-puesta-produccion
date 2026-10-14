@@ -9,6 +9,8 @@ from app.esquemas import (
     CambioContrasenaEntrada,
     CambioRolEntrada,
     Pagina,
+    RestablecerContrasenaEntrada,
+    UsuarioCrear,
     UsuarioSalida,
 )
 from app.limitador import limitador
@@ -54,6 +56,22 @@ async def listar(
         limite, desplazamiento, rol=rol, email=email
     )
     return Pagina(total=total, limite=limite, desplazamiento=desplazamiento, elementos=elementos)
+
+
+@router.post("", response_model=UsuarioSalida, status_code=status.HTTP_201_CREATED)
+async def crear(datos: UsuarioCrear, admin: Admin, sesion: Sesion, ip: IpCliente):
+    return await servicio.crear(sesion, admin, datos.email, datos.contrasena, datos.rol, ip)
+
+
+@router.patch("/{usuario_id}/contrasena", status_code=status.HTTP_204_NO_CONTENT)
+async def restablecer_contrasena(
+    usuario_id: int,
+    datos: RestablecerContrasenaEntrada,
+    admin: Admin,
+    sesion: Sesion,
+    ip: IpCliente,
+) -> None:
+    await servicio.restablecer_contrasena(sesion, admin, usuario_id, datos.contrasena_nueva, ip)
 
 
 @router.patch("/{usuario_id}/rol", response_model=UsuarioSalida)

@@ -7,9 +7,7 @@ from app.esquemas import (
     LoginEntrada,
     ParTokens,
     RefrescoEntrada,
-    RegistroEntrada,
     TokenAcceso,
-    UsuarioSalida,
 )
 from app.limitador import limitador
 from app.servicios import auth as servicio
@@ -18,12 +16,6 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 _limite = obtener_configuracion().limite_auth
 
 # `request` es obligatorio en la firma para que slowapi pueda aplicar el límite
-
-
-@router.post("/registro", response_model=UsuarioSalida, status_code=status.HTTP_201_CREATED)
-@limitador.limit(_limite)
-async def registro(request: Request, datos: RegistroEntrada, sesion: Sesion, ip: IpCliente):
-    return await servicio.registrar(sesion, datos.email, datos.contrasena, ip)
 
 
 @router.post("/login", response_model=ParTokens)

@@ -195,3 +195,86 @@ async def test_desactivar_usuario_inexistente_404(cliente, actores):
         "/usuarios/99999/activo", json={"activo": False}, headers=actores.cab["admin"]
     )
     assert r.status_code == 404
+
+
+# --- Alta de cuentas y restablecimiento (solo admin) ---
+
+ALTA = {"email": "alta@test.com", "contrasena": "contrasena-inicial-123"}
+
+
+async def test_admin_crea_usuario_con_rol(cliente, actores):
+    r = await cliente.post(
+        "/usuarios", json={**ALTA, "rol": "analista"}, headers=actores.cab["admin"]
+    )
+    assert r.status_code == 201
+    assert r.json()["rol"] == "analista"
+    assert "hash_contrasena" not in r.json()
+    r = await cliente.post("/auth/login", json=ALTA)
+    assert r.status_code == 200
+
+
+async def test_alta_por_defecto_es_usuario(cliente, actores):
+    r = await cliente.post("/usuarios", json=ALTA, headers=actores.cab["admin"])
+    assert r.json()["rol"] == "usuario"
+
+
+async def test_alta_sin_ser_admin_403(cliente, actores):
+    r = await cliente.post("/usuarios", json=ALTA, headers=actores.cab["usuario"])
+    assert r.status_code == 403
+
+
+async def test_alta_email_duplicado_409(cliente, actores):
+    r = await cliente.post(
+        "/usuarios", json={**ALTA, "email": "USUARIO@test.com"}, headers=actores.cab["admin"]
+    )
+    assert r.status_code == 409
+
+
+async def test_alta_contrasena_corta_422(cliente, actores):
+    r = await cliente.post(
+        "/usuarios", json={**ALTA, "contrasena": "corta"}, headers=actores.cab["admin"]
+    )
+    assert r.status_code == 422
+
+
+async def test_alta_queda_auditada(cliente, actores):
+    await cliente.post("/usuarios", json=ALTA, headers=actores.cab["admin"])
+    r = await cliente.get("/auditoria?accion=crear_usuario", headers=actores.cab["admin"])
+    assert r.json()["total"] == 1
+
+
+async def test_admin_restablece_contrasena_y_revoca_sesiones(cliente, actores):
+    login = (
+        await cliente.post("/auth/login", json={"email": "otro@test.com", "contrasena": CONTRASENA})
+    ).json()
+    r = await cliente.patch(
+        f"/usuarios/{actores.ids['otro']}/contrasena",
+        json={"contrasena_nueva": "restablecida-por-admin-1"},
+        headers=actores.cab["admin"],
+    )
+    assert r.status_code == 204
+    # El refresco anterior ya no vale y la contraseña vieja tampoco
+    r = await cliente.post("/auth/refrescar", json={"token_refresco": login["token_refresco"]})
+    assert r.status_code == 401
+    r = await cliente.post(
+        "/auth/login", json={"email": "otro@test.com", "contrasena": "restablecida-por-admin-1"}
+    )
+    assert r.status_code == 200
+
+
+async def test_restablecer_la_propia_409(cliente, actores):
+    r = await cliente.patch(
+        f"/usuarios/{actores.ids['admin']}/contrasena",
+        json={"contrasena_nueva": "otra-contrasena-larga"},
+        headers=actores.cab["admin"],
+    )
+    assert r.status_code == 409
+
+
+async def test_restablecer_sin_ser_admin_403(cliente, actores):
+    r = await cliente.patch(
+        f"/usuarios/{actores.ids['otro']}/contrasena",
+        json={"contrasena_nueva": "otra-contrasena-larga"},
+        headers=actores.cab["usuario"],
+    )
+    assert r.status_code == 403

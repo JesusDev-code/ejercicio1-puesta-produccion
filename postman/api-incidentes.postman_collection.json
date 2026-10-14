@@ -162,7 +162,7 @@
           ]
         },
         {
-          "name": "Registro: el rol enviado se ignora",
+          "name": "Admin da de alta un usuario",
           "request": {
             "method": "POST",
             "header": [
@@ -172,22 +172,28 @@
               }
             ],
             "url": {
-              "raw": "{{url_base}}/auth/registro",
+              "raw": "{{url_base}}/usuarios",
               "host": [
                 "{{url_base}}"
               ],
               "path": [
-                "auth",
-                "registro"
+                "usuarios"
               ]
             },
             "description": "Escalada en el registro: el body pide `admin` y la API crea `usuario`.",
             "auth": {
-              "type": "noauth"
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_admin}}",
+                  "type": "string"
+                }
+              ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"usuario_{{sufijo}}@example.com\",\n  \"contrasena\": \"{{contrasena_pruebas}}\",\n  \"rol\": \"admin\"\n}",
+              "raw": "{\n  \"email\": \"usuario_{{sufijo}}@example.com\",\n  \"contrasena\": \"{{contrasena_pruebas}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -203,7 +209,7 @@
                 "exec": [
                   "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
                   "const u = pm.response.json();",
-                  "pm.test(\"Se crea como usuario\", () => pm.expect(u.rol).to.eql(\"usuario\"));",
+                  "pm.test(\"Se crea como usuario por defecto\", () => pm.expect(u.rol).to.eql(\"usuario\"));",
                   "pm.test(\"No expone el hash\", () => pm.expect(u).to.not.have.property(\"hash_contrasena\"));",
                   "pm.collectionVariables.set(\"id_usuario\", u.id);"
                 ]
@@ -212,7 +218,7 @@
           ]
         },
         {
-          "name": "Registro: otro usuario",
+          "name": "Admin da de alta otro usuario",
           "request": {
             "method": "POST",
             "header": [
@@ -222,17 +228,23 @@
               }
             ],
             "url": {
-              "raw": "{{url_base}}/auth/registro",
+              "raw": "{{url_base}}/usuarios",
               "host": [
                 "{{url_base}}"
               ],
               "path": [
-                "auth",
-                "registro"
+                "usuarios"
               ]
             },
             "auth": {
-              "type": "noauth"
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_admin}}",
+                  "type": "string"
+                }
+              ]
             },
             "body": {
               "mode": "raw",
@@ -258,7 +270,7 @@
           ]
         },
         {
-          "name": "Registro: futuro analista",
+          "name": "Admin da de alta al futuro analista",
           "request": {
             "method": "POST",
             "header": [
@@ -268,17 +280,23 @@
               }
             ],
             "url": {
-              "raw": "{{url_base}}/auth/registro",
+              "raw": "{{url_base}}/usuarios",
               "host": [
                 "{{url_base}}"
               ],
               "path": [
-                "auth",
-                "registro"
+                "usuarios"
               ]
             },
             "auth": {
-              "type": "noauth"
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_admin}}",
+                  "type": "string"
+                }
+              ]
             },
             "body": {
               "mode": "raw",
@@ -304,7 +322,7 @@
           ]
         },
         {
-          "name": "Registro: email duplicado",
+          "name": "Alta: email duplicado",
           "request": {
             "method": "POST",
             "header": [
@@ -314,17 +332,23 @@
               }
             ],
             "url": {
-              "raw": "{{url_base}}/auth/registro",
+              "raw": "{{url_base}}/usuarios",
               "host": [
                 "{{url_base}}"
               ],
               "path": [
-                "auth",
-                "registro"
+                "usuarios"
               ]
             },
             "auth": {
-              "type": "noauth"
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_admin}}",
+                  "type": "string"
+                }
+              ]
             },
             "body": {
               "mode": "raw",
@@ -349,7 +373,7 @@
           ]
         },
         {
-          "name": "Registro: contraseña corta",
+          "name": "Alta: contraseña corta",
           "request": {
             "method": "POST",
             "header": [
@@ -359,17 +383,23 @@
               }
             ],
             "url": {
-              "raw": "{{url_base}}/auth/registro",
+              "raw": "{{url_base}}/usuarios",
               "host": [
                 "{{url_base}}"
               ],
               "path": [
-                "auth",
-                "registro"
+                "usuarios"
               ]
             },
             "auth": {
-              "type": "noauth"
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_admin}}",
+                  "type": "string"
+                }
+              ]
             },
             "body": {
               "mode": "raw",
@@ -392,6 +422,46 @@
               }
             }
           ]
+        },
+        {
+          "name": "Registro público eliminado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 404: no hay alta pública\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"intruso_{{sufijo}}@example.com\",\n  \"contrasena\": \"{{contrasena_pruebas}}\"\n}"
+            },
+            "url": {
+              "raw": "{{url_base}}/auth/registro",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "auth",
+                "registro"
+              ]
+            }
+          }
         },
         {
           "name": "Admin promueve al analista",
@@ -1462,6 +1532,52 @@
               }
             }
           ]
+        },
+        {
+          "name": "Dar de alta una cuenta sin ser admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_usuario}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"colado_{{sufijo}}@example.com\",\n  \"contrasena\": \"{{contrasena_pruebas}}\",\n  \"rol\": \"admin\"\n}"
+            },
+            "url": {
+              "raw": "{{url_base}}/usuarios",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "usuarios"
+              ]
+            }
+          }
         }
       ]
     },
@@ -3670,6 +3786,146 @@
               }
             }
           ]
+        },
+        {
+          "name": "Admin restablece la contraseña del otro usuario",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_admin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contrasena_nueva\": \"{{contrasena_pruebas}}-nueva\"\n}"
+            },
+            "url": {
+              "raw": "{{url_base}}/usuarios/{{id_otro}}/contrasena",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "usuarios",
+                "{{id_otro}}",
+                "contrasena"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Restablecer la propia por la vía de admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 409: la propia se cambia desde Mi cuenta\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_admin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contrasena_nueva\": \"{{contrasena_pruebas}}-nueva\"\n}"
+            },
+            "url": {
+              "raw": "{{url_base}}/usuarios/{{id_admin}}/contrasena",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "usuarios",
+                "{{id_admin}}",
+                "contrasena"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Auditoría: altas de cuentas",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Las altas quedan auditadas\", () => pm.expect(pm.response.json().total).to.be.at.least(3));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_admin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{url_base}}/auditoria?accion=crear_usuario",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "auditoria"
+              ],
+              "query": [
+                {
+                  "key": "accion",
+                  "value": "crear_usuario"
+                }
+              ]
+            }
+          }
         }
       ]
     }

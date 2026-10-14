@@ -4,14 +4,13 @@ from datetime import timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import obtener_configuracion
-from app.errores import Conflicto, NoAutenticado
+from app.errores import NoAutenticado
 from app.esquemas import ParTokens
-from app.modelos import TokenRefresco, Usuario, a_utc, ahora
+from app.modelos import TokenRefresco, a_utc, ahora
 from app.repositorios import RepositorioTokens, RepositorioUsuarios
 from app.seguridad import (
     crear_token_acceso,
     generar_token_refresco,
-    hashear_contrasena,
     hashear_token,
     verificar_contrasena,
 )
@@ -20,24 +19,6 @@ from app.servicios.auditoria import auditar
 _CREDENCIALES_INVALIDAS = "Credenciales inválidas"
 # Mensaje de error, no un secreto: bandit lo confunde por la palabra "token"
 _TOKEN_INVALIDO = "Token de refresco inválido"  # noqa: S105  # nosec B105
-
-
-async def registrar(sesion: AsyncSession, email: str, contrasena: str, ip: str | None) -> Usuario:
-    usuarios = RepositorioUsuarios(sesion)
-    if await usuarios.por_email(email):
-        raise Conflicto("El email ya está registrado")
-    # El rol nunca viene del cliente: todo registro abierto es `usuario`
-    usuario = await usuarios.crear(email, hashear_contrasena(contrasena))
-    await auditar(
-        sesion,
-        accion="registro",
-        recurso="usuario",
-        usuario_id=usuario.id,
-        recurso_id=usuario.id,
-        ip=ip,
-    )
-    await sesion.commit()
-    return usuario
 
 
 async def _emitir_tokens(sesion: AsyncSession, usuario_id: int, familia_id: str) -> ParTokens:

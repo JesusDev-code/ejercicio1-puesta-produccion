@@ -7,6 +7,50 @@ from app.seguridad import hashear_contrasena, verificar_contrasena
 from app.servicios.auditoria import auditar
 
 
+async def crear(
+    sesion: AsyncSession, admin: Usuario, email: str, contrasena: str, rol: Rol, ip: str | None
+) -> Usuario:
+    usuarios = RepositorioUsuarios(sesion)
+    if await usuarios.por_email(email):
+        raise Conflicto("El email ya está registrado")
+    usuario = await usuarios.crear(email, hashear_contrasena(contrasena), rol)
+    await auditar(
+        sesion,
+        accion="crear_usuario",
+        recurso="usuario",
+        usuario_id=admin.id,
+        recurso_id=usuario.id,
+        ip=ip,
+        detalle=f"{email} ({rol})",
+    )
+    await sesion.commit()
+    return usuario
+
+
+async def restablecer_contrasena(
+    sesion: AsyncSession, admin: Usuario, usuario_id: int, nueva: str, ip: str | None
+) -> None:
+    usuario = await RepositorioUsuarios(sesion).por_id(usuario_id)
+    if not usuario:
+        raise NoEncontrado("Usuario no encontrado")
+    if usuario.id == admin.id:
+        # La propia se cambia en /usuarios/yo/contrasena, que exige la actual
+        raise Conflicto("Tu contraseña se cambia desde Mi cuenta")
+
+    usuario.hash_contrasena = hashear_contrasena(nueva)
+    # Quien tuviera una sesión abierta con la contraseña vieja la pierde
+    await RepositorioTokens(sesion).revocar_de_usuario(usuario.id, ahora())
+    await auditar(
+        sesion,
+        accion="restablecer_contrasena",
+        recurso="usuario",
+        usuario_id=admin.id,
+        recurso_id=usuario.id,
+        ip=ip,
+    )
+    await sesion.commit()
+
+
 async def cambiar_rol(
     sesion: AsyncSession, admin: Usuario, usuario_id: int, rol: Rol, ip: str | None
 ) -> Usuario:

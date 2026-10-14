@@ -36,8 +36,8 @@ dentro de `DATABASE_URL`, y caracteres como `@`, `:` o `/` la romperían.
 
 ### Crear el primer admin
 
-El registro público siempre crea usuarios con rol `usuario`. El admin se crea por consola, y la
-contraseña se pide sin eco:
+No hay registro público. El primer admin se crea por consola, con la contraseña pedida sin eco;
+el resto de cuentas las da de alta ese admin desde la web (Usuarios → Nuevo usuario):
 
 ```bash
 docker compose exec api python -m app.cli crear-admin admin@example.com
@@ -104,11 +104,13 @@ uv run alembic revision --autogenerate -m "descripcion del cambio"
 
 | Método | Ruta | Quién |
 |---|---|---|
-| `POST` | `/auth/registro`, `/auth/login`, `/auth/refrescar`, `/auth/logout` | Público |
+| `POST` | `/auth/login`, `/auth/refrescar`, `/auth/logout` | Público. **No hay registro público**: las cuentas las crea un admin |
 | `POST` | `/auth/web/login`, `/auth/web/refrescar`, `/auth/web/logout` | Público. Para el navegador: el refresco va en cookie `HttpOnly`, nunca en el cuerpo |
 | `GET` | `/usuarios/yo` | Autenticado |
 | `PATCH` | `/usuarios/yo/contrasena` | Autenticado (pide la actual; revoca todas las sesiones) |
 | `GET` | `/usuarios` | admin (filtros `rol` y `email`) |
+| `POST` | `/usuarios` | admin: alta de cuenta con email, contraseña inicial y rol |
+| `PATCH` | `/usuarios/{id}/contrasena` | admin: restablece la contraseña y cierra sus sesiones (no sobre sí mismo) |
 | `PATCH` | `/usuarios/{id}/rol` | admin (no sobre sí mismo) |
 | `PATCH` | `/usuarios/{id}/activo` | admin (no sobre sí mismo) |
 | `POST` / `GET` | `/incidentes` | Autenticado (el listado se filtra por rol) |

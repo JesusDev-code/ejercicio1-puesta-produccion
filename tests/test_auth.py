@@ -9,30 +9,10 @@ from tests.conftest import CONTRASENA, cabeceras, crear_usuario, login
 REGISTRO = {"email": "nuevo@test.com", "contrasena": CONTRASENA}
 
 
-async def test_registro_crea_usuario_con_rol_usuario(cliente):
+async def test_registro_publico_eliminado(cliente):
+    """Solo un admin da de alta cuentas: la ruta pública ya no existe."""
     r = await cliente.post("/auth/registro", json=REGISTRO)
-    assert r.status_code == 201
-    cuerpo = r.json()
-    assert cuerpo["rol"] == "usuario"
-    assert "hash_contrasena" not in cuerpo
-
-
-async def test_registro_ignora_rol_enviado_por_el_cliente(cliente):
-    """Mass assignment: el cliente no puede auto-asignarse admin."""
-    r = await cliente.post("/auth/registro", json={**REGISTRO, "rol": "admin"})
-    assert r.status_code == 201
-    assert r.json()["rol"] == "usuario"
-
-
-async def test_registro_email_duplicado(cliente):
-    await cliente.post("/auth/registro", json=REGISTRO)
-    r = await cliente.post("/auth/registro", json={**REGISTRO, "email": "NUEVO@test.com"})
-    assert r.status_code == 409
-
-
-async def test_registro_contrasena_corta(cliente):
-    r = await cliente.post("/auth/registro", json={**REGISTRO, "contrasena": "corta"})
-    assert r.status_code == 422
+    assert r.status_code == 404
 
 
 async def test_login_correcto_devuelve_par_de_tokens(cliente):
