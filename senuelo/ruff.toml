@@ -1,0 +1,7 @@
+# Mismas reglas que el backend (sus herramientas son las que validan el señuelo en la CI)
+extend = "../backend/pyproject.toml"
+
+[lint.per-file-ignores]
+# random para datos de demo, escucha en 0.0.0.0 dentro del contenedor, urllib contra la API interna
+"*.py" = ["S311", "S104", "S310"]
+"test_*.py" = ["S101"]

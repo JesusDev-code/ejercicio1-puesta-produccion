@@ -20,7 +20,7 @@ services:
       - no-new-privileges:true
 
   api:
-    build: .
+    build: ./backend
     restart: unless-stopped
     depends_on:
       db:
@@ -90,7 +90,7 @@ services:
   # Frontend Angular: solo estáticos. En Dokploy, dos dominios con el MISMO host:
   #   host /api -> api:8000 con "Strip Path"   ·   host / -> web:8080
   web:
-    build: ./frontend/web
+    build: ./frontend
     restart: unless-stopped
     depends_on:
       api:

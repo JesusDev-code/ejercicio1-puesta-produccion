@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { INGESTA_TOKEN, JWT_SECRETO, PUERTOS } from './datos.mjs';
 
 const WEB = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const RAIZ = resolve(WEB, '..', '..');
+const BACKEND = resolve(WEB, '..', 'backend');
 const DIST = join(WEB, 'dist', 'web', 'browser');
 const DIR_BD = join(tmpdir(), 'umbral-e2e');
 const WINDOWS = process.platform === 'win32';
@@ -170,12 +170,12 @@ if (!process.env.E2E_SIN_BUILD) {
   execSync('npx ng build', { cwd: WEB, stdio: 'inherit' });
 }
 
-execSync('uv run alembic upgrade head', { cwd: RAIZ, env: entornoApi, stdio: 'inherit' });
-execSync('uv run python -m tests.e2e_semilla', { cwd: RAIZ, env: entornoApi, stdio: 'inherit' });
+execSync('uv run alembic upgrade head', { cwd: BACKEND, env: entornoApi, stdio: 'inherit' });
+execSync('uv run python -m tests.e2e_semilla', { cwd: BACKEND, env: entornoApi, stdio: 'inherit' });
 
 // --no-server-header como en el Dockerfile: el entorno de pruebas reproduce producción
 lanzar('api', 'uv', ['run', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', String(PUERTOS.api), '--no-server-header'], {
-  cwd: RAIZ,
+  cwd: BACKEND,
   env: entornoApi,
 });
 await esperar(`http://127.0.0.1:${PUERTOS.api}/salud`, 'La API');

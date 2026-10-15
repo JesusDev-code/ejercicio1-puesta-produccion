@@ -6,6 +6,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 import pytest  # noqa: E402
+
 from clasificador import clasificar  # noqa: E402
 from enviar import ip_valida  # noqa: E402
 

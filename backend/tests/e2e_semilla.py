@@ -1,8 +1,8 @@
 """Siembra para los E2E: dos clientes, un admin, un trabajador de cada cliente y una gestora.
 
-Lo lanza frontend/web/e2e/entorno.mjs contra una BD desechable. Se niega a correr con
+Lo lanza frontend/e2e/entorno.mjs contra una BD desechable. Se niega a correr con
 ENTORNO=produccion: estas cuentas tienen una contraseña conocida y publicada en el repo.
-Las credenciales tienen que coincidir con frontend/web/e2e/datos.mjs.
+Las credenciales tienen que coincidir con frontend/e2e/datos.mjs.
 """
 
 import asyncio
