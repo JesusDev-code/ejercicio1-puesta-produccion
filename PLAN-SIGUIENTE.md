@@ -26,7 +26,10 @@ rechaza sus lotes con 422 (empresa desconocida). Variables nuevas, con valor por
 selector de cliente en Panel, Eventos, Incidencias y Usuarios, entrada según rol y vocabulario
 «incidencia». Además: landing pública en `/` y marca Kaelum Security en login y pestañas.
 
-**Siguiente: Tanda 0 (Firebase).**
+**Tanda 0: hecha y verificada en producción (2026-10-15).** Firebase Auth con
+`inMemoryPersistence` (comprobado: sin Local/Session Storage, sin IndexedDB, sin cookies; recargar
+pide login). Admin creado con `crear-admin`. Las cuentas reales anteriores se migran cuando un admin
+les restablece la contraseña. Pendiente menor: borrar `JWT_SECRETO` del Environment de Dokploy.
 
 Descartado por ahora: precios y facturación (no aportan a PPS). Opcional: un campo `plan`
 descriptivo en la empresa.
