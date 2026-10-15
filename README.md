@@ -8,8 +8,7 @@ API REST para registrar y gestionar incidentes de ciberseguridad, con tres roles
 sensibles. Alcance pequeño y acabado profesional: el peso está en la seguridad, los tests y el
 despliegue.
 
-El diseño completo (roles, permisos, ciclo de vida, modelo de datos y decisiones de seguridad)
-está en [`DISENO.md`](DISENO.md).
+Roles, permisos, ciclo de vida, multiempresa, seguridad y pruebas: [`docs/UMBRAL.md`](docs/UMBRAL.md).
 
 **Stack:** Python 3.12 · FastAPI · SQLAlchemy 2 async + Alembic · PostgreSQL 17 · uv · Docker.
 
@@ -135,7 +134,7 @@ Un recurso que no te pertenece devuelve **404**, no 403, para no confirmar que e
 
 ## Frontend
 
-Angular 21 en `frontend/web`, con el diseño de `frontend/diseno/LEEME.md`.
+Angular 21 en `frontend/web`.
 
 ```bash
 cd frontend/web

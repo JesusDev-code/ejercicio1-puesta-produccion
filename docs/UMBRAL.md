@@ -182,7 +182,7 @@ dependencias.py Quién eres (token) y qué rol necesitas
 | Fuentes empaquetadas | — | Cormorant Garamond, Manrope y JetBrains Mono, sin Google Fonts |
 
 Estilo visual «Lemarchand»: fondo oscuro, rojo sangre y oro, superficies de cristal, sin líneas
-divisorias y glifos animados de fondo. Detalle en `frontend/diseno/LEEME.md`.
+divisorias y glifos animados de fondo.
 
 ### Infraestructura
 
@@ -507,7 +507,7 @@ comprobar la versión vigente en <https://owasp.org/Top10/>.
 | **A03 Software Supply Chain Failures** | Dependencias vulnerables o comprometidas | Lockfiles (`uv.lock`, `package-lock.json`); `pip-audit --strict` y `npm audit` en CI; sensores sin dependencias; solo `@firebase/auth` (el paquete completo traía 4 vulnerabilidades altas por gRPC); imágenes base fijadas | `.github/workflows/ci.yml` |
 | **A04 Cryptographic Failures** | Secretos o datos sensibles mal protegidos | Sin contraseñas propias (las guarda Firebase); TLS en todo; ID tokens firmados por Google; token de ingesta comparado en tiempo constante; secretos fuera del repo | `app/identidad.py`, `app/routers/eventos.py` |
 | **A05 Injection** | SQL, XSS, inyección en logs | ORM con parámetros enlazados; `LIKE` escapado; Angular escapa por defecto y la CSP con Trusted Types bloquea sumideros de DOM; los caracteres de control se quitan de lo que llega de internet | `app/repositorios.py`, `app/esquemas.py` |
-| **A06 Insecure Design** | Fallos de diseño, no de código | Sin registro público; borrado lógico (evidencia); reporte congelado al pasar a análisis; máquina de estados con 409; el señuelo no es explotable por diseño | `DISENO.md`, `senuelo/` |
+| **A06 Insecure Design** | Fallos de diseño, no de código | Sin registro público; borrado lógico (evidencia); reporte congelado al pasar a análisis; máquina de estados con 409; el señuelo no es explotable por diseño | `app/servicios/`, `senuelo/` |
 | **A07 Authentication Failures** | Credenciales débiles, sesiones robadas | Firebase con protección contra fuerza bruta; mínimo 12 caracteres; `check_revoked`; revocación al cambiar o restablecer la contraseña y al desactivar; token solo en memoria; cambiar la contraseña exige la actual (5/min) | `app/servicios/usuarios.py`, `core/sesion.ts` |
 | **A08 Software or Data Integrity Failures** | Datos o código manipulados | La CI bloquea el merge si falla una comprobación; migraciones versionadas y probadas; los campos de un evento no se editan nunca, solo el triaje | `tests/test_migraciones.py` |
 | **A09 Logging & Alerting Failures** | No enterarse de un ataque | Auditoría de todas las acciones sensibles con IP real; el panel resalta alertas; el señuelo informa cada 5 minutos de entregados y perdidos; los intentos fallidos de login los registra Firebase | `app/servicios/auditoria.py` |
@@ -704,7 +704,4 @@ python -m app.cli sembrar-demo         # en el contenedor api
 | Documento | Contenido |
 |---|---|
 | `README.md` | Arranque, variables, endpoints y despliegue |
-| `DISENO.md` | Diseño inicial (2026-10-08), antes de Firebase y de la multiempresa |
-| `PLAN-SIGUIENTE.md` | Historial de las tandas de trabajo |
 | `senuelo/README.md` | Sensores en detalle |
-| `frontend/diseno/LEEME.md` | Sistema visual y pantallas |
