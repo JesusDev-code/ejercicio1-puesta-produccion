@@ -129,6 +129,9 @@
 .av-analista {
   background: linear-gradient(140deg, #d4af6e, #7a5a26);
 }
+.av-gestor {
+  background: linear-gradient(140deg, #9fe3c9, #2e7a62);
+}
 .av-admin {
   background: linear-gradient(140deg, #ff7a88, #a80d26);
 }

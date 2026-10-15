@@ -220,6 +220,11 @@ const SILENCIO_MINUTOS = 15;
   styles: `
     .codigo-invitacion { flex: 1 1 auto; display: flex; align-items: center; font-size: 20px; letter-spacing: 4px; color: var(--oro-claro); }
     .confirmacion { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; }
+    /* .panel no lleva relleno (la tabla va a sangre): la cabecera se alinea con la tarjeta de invitación */
+    .panel > .alta-cabecera { padding: 30px 30px 10px; }
+    @media (max-width: 720px) {
+      .panel > .alta-cabecera { padding: 22px 22px 8px; }
+    }
   `,
 })
 export class MiEmpresa implements OnInit {

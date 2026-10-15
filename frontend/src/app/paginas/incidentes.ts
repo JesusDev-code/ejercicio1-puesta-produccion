@@ -221,6 +221,8 @@ export class Incidentes implements OnInit {
     switch (this.sesion.usuario()?.rol) {
       case 'admin':
         return { titulo: 'Todas las incidencias', subtitulo: 'Las de todos los clientes. Filtra por cliente para ver solo las de uno.' };
+      case 'gestor':
+        return { titulo: 'Incidencias de tu empresa', subtitulo: 'Todas las que han reportado las personas de tu empresa, también las tuyas.' };
       case 'analista':
         return { titulo: 'Mis incidencias', subtitulo: 'Las que tienes asignadas y las que has reportado.' };
       default:
