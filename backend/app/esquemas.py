@@ -108,6 +108,15 @@ class UsuarioSalida(Salida):
     creado_en: datetime
 
 
+class UsuarioYo(UsuarioSalida):
+    """La propia cuenta: además, el nombre de su empresa para que sepa a cuál pertenece.
+
+    Solo el nombre: el código de invitación es cosa del gestor (/mi-empresa).
+    """
+
+    empresa_nombre: str | None = None
+
+
 class UsuarioCrear(Entrada):
     """Alta de cuentas por un admin, con el rol y la empresa que él decida."""
 

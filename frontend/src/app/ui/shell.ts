@@ -77,8 +77,11 @@ import { Marca } from './marca';
           <a routerLink="/cuenta" class="usuario" title="Ir a Mi cuenta">
             <span aria-hidden="true" class="avatar">{{ inicial() }}</span>
             <span class="datos">
-              <span class="email">{{ sesion.usuario()?.email }}</span>
+              <span class="email" [title]="sesion.usuario()?.email ?? ''">{{ sesion.usuario()?.email }}</span>
               <span class="rol">{{ rol() }}</span>
+              @if (sesion.usuario()?.empresa_nombre; as empresa) {
+                <span class="empresa" [title]="empresa">{{ empresa }}</span>
+              }
             </span>
           </a>
           <a routerLink="/cuenta" routerLinkActive="activo" ariaCurrentWhenActive="page" class="item cuenta">
@@ -133,8 +136,15 @@ import { Marca } from './marca';
       background: linear-gradient(140deg, #d4af6e, #7a5a26); color: #1a1008; font-weight: 700; font-size: 14px;
     }
     .datos { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-    .email { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; transition: color 0.2s; }
+    .email {
+      font-size: 13px; font-weight: 600; transition: color 0.2s;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
     .rol { font-family: var(--mono); font-size: 10px; letter-spacing: 2px; color: var(--oro); }
+    .empresa {
+      font-size: 12px; color: var(--apagado);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
     .salir, .cuenta { justify-content: center; background: rgba(255, 255, 255, 0.04); font-size: 13px; font-weight: 600; min-height: 44px; }
     .tarjeta-usuario .item + .item { margin-top: -6px; }
     .principal {
@@ -169,8 +179,11 @@ import { Marca } from './marca';
       .principal { padding: 28px 16px 40px; }
     }
     @media (max-width: 560px) {
-      .tarjeta-usuario { margin-left: 0; flex: 1 1 100%; justify-content: space-between; }
-      .datos .email { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      /* El email arriba a todo el ancho y los dos botones debajo: en una fila no caben a 390 px */
+      .tarjeta-usuario { margin-left: 0; flex: 1 1 100%; flex-wrap: wrap; }
+      .usuario { flex: 1 1 100%; min-width: 0; }
+      .cuenta, .salir { flex: 1 1 0; }
+      .tarjeta-usuario .item + .item { margin-top: 0; }
     }
   `,
 })

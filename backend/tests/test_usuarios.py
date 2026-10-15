@@ -317,3 +317,15 @@ async def test_restablecer_sin_ser_admin_403(cliente, actores):
         headers=actores.cab["usuario"],
     )
     assert r.status_code == 403
+
+
+async def test_yo_dice_a_que_empresa_pertenece_sin_dar_su_codigo(cliente, actores):
+    yo = (await cliente.get("/usuarios/yo", headers=actores.cab["usuario"])).json()
+    assert yo["empresa_nombre"] == actores.empresa.nombre
+    assert "codigo_invitacion" not in yo
+
+
+async def test_yo_del_personal_del_mssp_no_tiene_empresa(cliente, actores):
+    for clave in ("admin", "analista"):
+        yo = (await cliente.get("/usuarios/yo", headers=actores.cab[clave])).json()
+        assert yo["empresa_nombre"] is None

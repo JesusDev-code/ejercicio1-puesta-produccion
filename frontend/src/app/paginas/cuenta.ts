@@ -30,6 +30,7 @@ import { MINIMO_CONTRASENA, coinciden } from '../core/validadores';
               </div>
             </div>
             <dl class="datos">
+              <div><dt>Empresa</dt><dd>{{ empresa() }}</dd></div>
               <div><dt>Alta</dt><dd class="mono">{{ u.creado_en | date: 'dd/MM/yyyy' }}</dd></div>
               <div><dt>Estado</dt><dd class="activa"><span aria-hidden="true" class="punto"></span>Activa</dd></div>
             </dl>
@@ -101,6 +102,7 @@ import { MINIMO_CONTRASENA, coinciden } from '../core/validadores';
     .rol { align-self: flex-start; padding: 3px 10px; font-weight: 700; }
     .rol-usuario { color: #f1e6e0; background: rgba(241, 230, 224, 0.09); }
     .rol-analista { color: #f0c987; background: rgba(212, 175, 110, 0.16); }
+    .rol-gestor { color: #9fe3c9; background: rgba(159, 227, 201, 0.12); }
     .rol-admin { color: #ff7a88; background: rgba(224, 30, 60, 0.18); }
     .datos { margin: 0; display: flex; flex-direction: column; gap: 14px; font-size: 14px; }
     .datos div { display: flex; justify-content: space-between; gap: 12px; }
@@ -124,6 +126,12 @@ export class Cuenta implements OnInit {
   protected readonly rol = computed(() => {
     const r = this.sesion.usuario()?.rol;
     return r ? ROLES[r] : '';
+  });
+  /** El personal de Kaelum no tiene empresa cliente; una cuenta de cliente sin ella está pendiente. */
+  protected readonly empresa = computed(() => {
+    const u = this.sesion.usuario();
+    if (u?.empresa_nombre) return u.empresa_nombre;
+    return u?.rol === 'admin' || u?.rol === 'analista' ? 'Kaelum Security (personal)' : 'Pendiente de unirse';
   });
   protected readonly enviando = signal(false);
   protected readonly exito = signal(false);

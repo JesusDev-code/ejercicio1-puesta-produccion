@@ -94,6 +94,14 @@ async def registrar(sesion: AsyncSession, email: str, contrasena: str, ip: str |
     await sesion.commit()
 
 
+async def nombre_empresa(sesion: AsyncSession, usuario: Usuario) -> str | None:
+    """Nombre de la empresa de la cuenta; None para el personal del MSSP y las pendientes."""
+    if usuario.empresa_id is None:
+        return None
+    empresa = await RepositorioEmpresas(sesion).por_id(usuario.empresa_id)
+    return empresa.nombre if empresa else None
+
+
 async def unirse_a_empresa(
     sesion: AsyncSession, usuario: Usuario, codigo: str, ip: str | None
 ) -> Usuario:

@@ -147,7 +147,7 @@ Con `ENTORNO=desarrollo`, la referencia interactiva está en `/docs`.
 | `POST` | `/auth/registro` | Público, 5/min. Crea un `usuario` **sin empresa** (pendiente). Responde igual exista o no el email |
 | `POST` | `/auth/login`, `/auth/refrescar`, `/auth/logout` | Público. Para clientes que no son navegador: el refresco viaja en el cuerpo |
 | `POST` | `/auth/web/login`, `/auth/web/refrescar`, `/auth/web/logout` | Público. Para el navegador: el refresco va en cookie `HttpOnly` |
-| `GET` | `/usuarios/yo` | Autenticado |
+| `GET` | `/usuarios/yo` | Autenticado. Incluye `empresa_nombre` (solo el nombre, nunca el código de invitación) |
 | `PATCH` | `/usuarios/yo/contrasena` | Autenticado, 5/min. Pide la actual y revoca todas las sesiones |
 | `POST` | `/usuarios/yo/empresa` | Cuenta pendiente, 5/min: se une a su empresa con el código de invitación |
 | `GET`, `POST` | `/usuarios` | admin |

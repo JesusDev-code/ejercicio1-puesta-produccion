@@ -13,9 +13,10 @@ from app.esquemas import (
     UnirseEmpresaEntrada,
     UsuarioCrear,
     UsuarioSalida,
+    UsuarioYo,
 )
 from app.limitador import limitador
-from app.modelos import Rol
+from app.modelos import Rol, Usuario
 from app.repositorios import RepositorioUsuarios
 from app.servicios import usuarios as servicio
 
@@ -23,9 +24,14 @@ router = APIRouter(prefix="/usuarios", tags=["usuarios"])
 _limite = obtener_configuracion().limite_auth
 
 
-@router.get("/yo", response_model=UsuarioSalida)
-async def yo(usuario: UsuarioActual):
-    return usuario
+async def _perfil(sesion, usuario: Usuario) -> UsuarioYo:
+    nombre = await servicio.nombre_empresa(sesion, usuario)
+    return UsuarioYo.model_validate(usuario).model_copy(update={"empresa_nombre": nombre})
+
+
+@router.get("/yo", response_model=UsuarioYo)
+async def yo(usuario: UsuarioActual, sesion: Sesion):
+    return await _perfil(sesion, usuario)
 
 
 # `request` es obligatorio en la firma para que slowapi pueda aplicar el límite.
@@ -45,7 +51,7 @@ async def cambiar_contrasena(
 
 
 # Limitado como el login: es lo único que protege el código de invitación de la fuerza bruta
-@router.post("/yo/empresa", response_model=UsuarioSalida)
+@router.post("/yo/empresa", response_model=UsuarioYo)
 @limitador.limit(_limite)
 async def unirse_a_empresa(
     request: Request,
@@ -54,7 +60,8 @@ async def unirse_a_empresa(
     sesion: Sesion,
     ip: IpCliente,
 ):
-    return await servicio.unirse_a_empresa(sesion, usuario, datos.codigo, ip)
+    unido = await servicio.unirse_a_empresa(sesion, usuario, datos.codigo, ip)
+    return await _perfil(sesion, unido)
 
 
 @router.get("", response_model=Pagina[UsuarioSalida])

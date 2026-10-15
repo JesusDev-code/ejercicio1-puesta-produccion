@@ -36,6 +36,7 @@ async def test_registro_crea_una_cuenta_pendiente(cliente):
     assert yo["rol"] == "usuario"
     assert yo["empresa_id"] is None
     assert yo["pendiente"] is True
+    assert yo["empresa_nombre"] is None
 
 
 async def test_registro_no_acepta_rol_ni_empresa(cliente, actores):
@@ -124,6 +125,9 @@ async def test_unirse_con_el_codigo_da_acceso_a_su_empresa(cliente, actores):
     assert r.status_code == 200
     assert r.json()["empresa_id"] == actores.empresa.id
     assert r.json()["pendiente"] is False
+    # Sabe a qué empresa se ha unido, pero no recibe su código de invitación
+    assert r.json()["empresa_nombre"] == actores.empresa.nombre
+    assert "codigo_invitacion" not in r.json()
 
     # Mismo token: la empresa se lee de la BD en cada petición
     incidente = await crear_incidente(cliente, cab)

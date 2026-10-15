@@ -46,6 +46,8 @@ export interface Usuario {
   /** Recién registrada y aún sin empresa: solo puede unirse a una con su código. */
   pendiente: boolean;
   creado_en: string;
+  /** Solo en la propia cuenta (/usuarios/yo): el nombre de su empresa, o null si no tiene. */
+  empresa_nombre?: string | null;
 }
 
 export interface Incidente {
