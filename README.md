@@ -1,5 +1,8 @@
 # API de incidentes de ciberseguridad
 
+> **Documentación completa del proyecto** (qué hace, tecnologías, seguridad, OWASP, pruebas):
+> [`docs/UMBRAL.md`](docs/UMBRAL.md).
+
 API REST para registrar y gestionar incidentes de ciberseguridad, con tres roles (`usuario`,
 `analista`, `admin`), ciclo de vida de los incidentes y auditoría de todas las acciones
 sensibles. Alcance pequeño y acabado profesional: el peso está en la seguridad, los tests y el

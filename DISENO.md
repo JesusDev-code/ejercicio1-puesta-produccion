@@ -1,5 +1,8 @@
 # Diseño — API de gestión de incidentes de ciberseguridad
 
+> **Diseño inicial (2026-10-08).** Desde entonces la autenticación pasó a Firebase y la app es
+> multiempresa. El estado actual está en [`docs/UMBRAL.md`](docs/UMBRAL.md).
+
 > Módulo: Puesta en producción segura · Ejercicio 1 · Inicio: 2026-10-08
 > Estado: **diseño cerrado**, listo para implementar. Construido con IA bajo directrices del alumno.
 

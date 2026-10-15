@@ -17,3 +17,6 @@ postman/globals/
 # Credenciales de cuentas de servicio de Firebase/Google: nunca al repo
 *-adminsdk-*.json
 service-account*.json
+
+# Riesgos residuales: mapa para atacar la app en laboratorio, no se publica
+docs/riesgos-internos.md
