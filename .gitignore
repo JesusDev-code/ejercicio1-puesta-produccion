@@ -20,3 +20,6 @@ service-account*.json
 
 # Riesgos residuales: mapa para atacar la app en laboratorio, no se publica
 docs/riesgos-internos.md
+
+# Credenciales de las cuentas de prueba del profesor: se generan en local y NUNCA se suben
+CREDENCIALES-PROFESOR.md
