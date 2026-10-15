@@ -75,7 +75,7 @@ import { Marca } from '../ui/marca';
           </button>
           <p class="enlace-alterno">Las cuentas las da de alta un administrador.</p>
         </form>
-        <p class="pie">Cada intento queda registrado en la auditoría</p>
+        <p class="pie">Cada acceso queda registrado en la auditoría</p>
         <p class="pie"><a routerLink="/">← Volver a Kaelum Security</a></p>
       </main>
     </div>

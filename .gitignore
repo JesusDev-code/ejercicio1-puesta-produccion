@@ -13,3 +13,7 @@ htmlcov/
 .postman/
 postman/globals/
 /*.png
+
+# Credenciales de cuentas de servicio de Firebase/Google: nunca al repo
+*-adminsdk-*.json
+service-account*.json

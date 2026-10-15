@@ -94,7 +94,9 @@ class Usuario(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     email: Mapped[str] = mapped_column(String(254), unique=True, index=True)
-    hash_contrasena: Mapped[str] = mapped_column(String(255))
+    # uid de Firebase. None = cuenta anterior a la migración (o de demo): no puede entrar hasta
+    # que un admin le restablezca la contraseña, que es lo que la crea en Firebase
+    firebase_uid: Mapped[str | None] = mapped_column(String(128), unique=True, index=True)
     rol: Mapped[Rol] = mapped_column(_enum(Rol), default=Rol.usuario)
     # None = personal del MSSP (admin, analista); con valor = trabajador de un cliente
     empresa_id: Mapped[int | None] = mapped_column(ForeignKey("empresas.id"), index=True)
@@ -121,17 +123,6 @@ class Incidente(Base):
         DateTime(timezone=True), default=ahora, onupdate=ahora
     )
     borrado_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-
-
-class TokenRefresco(Base):
-    __tablename__ = "tokens_refresco"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)
-    hash_token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
-    familia_id: Mapped[str] = mapped_column(String(64), index=True)
-    expira_en: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    revocado_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class RegistroAuditoria(Base):

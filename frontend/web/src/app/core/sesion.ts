@@ -1,63 +1,92 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { Observable, finalize, firstValueFrom, map, shareReplay } from 'rxjs';
+import { initializeApp } from '@firebase/app';
+import {
+  Auth,
+  inMemoryPersistence,
+  initializeAuth,
+  signInWithEmailAndPassword,
+  signOut,
+} from '@firebase/auth';
+import { firstValueFrom } from 'rxjs';
 
-import { TokenAcceso, Usuario } from './modelos';
+import { ConfigCliente, Usuario } from './modelos';
+
+/** Errores de Firebase traducidos a códigos HTTP: el resto de la app ya sabe pintarlos. */
+const CODIGOS_FIREBASE: Record<string, number> = {
+  'auth/invalid-credential': 401,
+  'auth/invalid-login-credentials': 401,
+  'auth/wrong-password': 401,
+  'auth/user-not-found': 401,
+  'auth/user-disabled': 401, // igual que una contraseña mala: no se revela que la cuenta existe
+  'auth/invalid-email': 401,
+  'auth/too-many-requests': 429,
+  'auth/network-request-failed': 0,
+};
+
+function comoHttp(error: unknown): HttpErrorResponse {
+  const codigo = (error as { code?: string })?.code ?? '';
+  return new HttpErrorResponse({ status: CODIGOS_FIREBASE[codigo] ?? 400, error: { detail: codigo } });
+}
 
 /**
- * Estado de la sesión.
+ * Estado de la sesión, con Firebase Authentication.
  *
- * - El token de acceso vive SOLO en memoria (una señal): ni localStorage ni sessionStorage,
- *   para que un XSS no tenga dónde leerlo de forma persistente.
- * - El token de refresco vive en una cookie HttpOnly que pone la API (/auth/web/*). Este
- *   código nunca lo ve: por eso al recargar la página la sesión se recupera con un refresco.
+ * - Firebase comprueba la contraseña y emite el ID token; la API lo verifica en cada petición
+ *   y decide el rol y la empresa con su propia base de datos.
+ * - Persistencia EN MEMORIA: el token no se guarda ni en localStorage, ni en sessionStorage,
+ *   ni en IndexedDB (lo que Firebase hace por defecto). Un XSS no encuentra nada persistente
+ *   que robar. Coste: recargar la página pide entrar otra vez.
+ * - El SDK renueva solo el ID token (dura una hora) mientras la pestaña sigue abierta.
  */
 @Injectable({ providedIn: 'root' })
 export class Sesion {
   private readonly http = inject(HttpClient);
-  private readonly token = signal<string | null>(null);
-  private refrescoEnCurso: Observable<string> | null = null;
+  private auth: Auth | null = null;
 
   readonly usuario = signal<Usuario | null>(null);
   readonly autenticado = computed(() => this.usuario() !== null);
   readonly esAdmin = computed(() => this.usuario()?.rol === 'admin');
 
-  tokenAcceso(): string | null {
-    return this.token();
+  /** Al arrancar la app: la config de Firebase llega de la API (no se compila en la imagen). */
+  async restaurar(): Promise<void> {
+    try {
+      const config = await firstValueFrom(this.http.get<ConfigCliente>('/api/config/cliente'));
+      const app = initializeApp(config.firebase);
+      this.auth = initializeAuth(app, { persistence: inMemoryPersistence });
+    } catch {
+      // Sin API no hay login posible: la pantalla de acceso ya avisa de que no responde
+      this.auth = null;
+    }
+  }
+
+  /** ID token vigente; `forzar` pide uno nuevo a Firebase (p. ej. tras un 401). */
+  async token(forzar = false): Promise<string | null> {
+    const actual = this.auth?.currentUser;
+    if (!actual) return null;
+    try {
+      return await actual.getIdToken(forzar);
+    } catch {
+      return null;
+    }
   }
 
   async entrar(email: string, contrasena: string): Promise<void> {
-    const r = await firstValueFrom(
-      this.http.post<TokenAcceso>('/api/auth/web/login', { email, contrasena }),
-    );
-    this.token.set(r.token_acceso);
-    await this.cargarUsuario();
-  }
-
-  /**
-   * Un único refresco a la vez: si varias peticiones reciben 401 a la vez, todas esperan al
-   * mismo. Dos refrescos en paralelo usarían la misma cookie dos veces, y la API lo trataría
-   * como reutilización de un token robado y revocaría la familia entera.
-   */
-  refrescar(): Observable<string> {
-    this.refrescoEnCurso ??= this.http.post<TokenAcceso>('/api/auth/web/refrescar', null).pipe(
-      map((r) => {
-        this.token.set(r.token_acceso);
-        return r.token_acceso;
-      }),
-      finalize(() => (this.refrescoEnCurso = null)),
-      shareReplay(1),
-    );
-    return this.refrescoEnCurso;
-  }
-
-  /** Al arrancar la app: si hay cookie de refresco válida, se recupera la sesión. */
-  async restaurar(): Promise<void> {
+    if (!this.auth) throw new HttpErrorResponse({ status: 0 });
     try {
-      await firstValueFrom(this.refrescar());
+      await signInWithEmailAndPassword(this.auth, email, contrasena);
+    } catch (e) {
+      throw comoHttp(e);
+    }
+    try {
+      // Firebase sabe quién es; la API decide si puede entrar (cuenta activa, empresa de alta)
+      // y deja la entrada en la auditoría
+      await firstValueFrom(this.http.post('/api/auth/sesion', null));
       await this.cargarUsuario();
-    } catch {
-      this.limpiar();
+    } catch (e) {
+      await signOut(this.auth);
+      this.usuario.set(null);
+      throw e;
     }
   }
 
@@ -69,16 +98,16 @@ export class Sesion {
 
   async salir(): Promise<void> {
     try {
-      await firstValueFrom(this.http.post('/api/auth/web/logout', null));
+      await firstValueFrom(this.http.post('/api/auth/salida', null));
     } catch {
-      // Sin red la cookie no se revoca, pero la sesión local se borra igual
+      // Sin red no queda en la auditoría, pero la sesión local se cierra igual
     } finally {
       this.limpiar();
     }
   }
 
   limpiar(): void {
-    this.token.set(null);
     this.usuario.set(null);
+    if (this.auth) void signOut(this.auth);
   }
 }

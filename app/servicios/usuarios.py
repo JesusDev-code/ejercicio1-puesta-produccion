@@ -1,9 +1,12 @@
+"""Gestión de cuentas. Las contraseñas viven en Firebase; aquí se decide quién puede tocarlas
+y queda la auditoría. El rol, la empresa y `activo` son nuestros y se leen en cada petición."""
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errores import Conflicto, Invalido, NoEncontrado
-from app.modelos import Rol, Usuario, ahora
-from app.repositorios import RepositorioTokens, RepositorioUsuarios
-from app.seguridad import hashear_contrasena, verificar_contrasena
+from app.identidad import EmailYaRegistrado, identidad
+from app.modelos import Rol, Usuario
+from app.repositorios import RepositorioUsuarios
 from app.servicios.auditoria import auditar
 from app.servicios.empresas import empresa_asignable
 
@@ -27,7 +30,13 @@ async def crear(
     usuarios = RepositorioUsuarios(sesion)
     if await usuarios.por_email(email):
         raise Conflicto("El email ya está registrado")
-    usuario = await usuarios.crear(email, hashear_contrasena(contrasena), rol, empresa_id)
+    try:
+        uid = await identidad().crear(email, contrasena)
+    except EmailYaRegistrado as e:
+        # Existe en Firebase pero no aquí (creada a mano en la consola): no se adopta en silencio
+        raise Conflicto("El email ya existe en el proveedor de identidad") from e
+    # Si el insert fallara, la cuenta de Firebase queda huérfana: sin fila aquí no entra a nada
+    usuario = await usuarios.crear(email, uid, rol, empresa_id)
     await auditar(
         sesion,
         accion="crear_usuario",
@@ -51,9 +60,16 @@ async def restablecer_contrasena(
         # La propia se cambia en /usuarios/yo/contrasena, que exige la actual
         raise Conflicto("Tu contraseña se cambia desde Mi cuenta")
 
-    usuario.hash_contrasena = hashear_contrasena(nueva)
-    # Quien tuviera una sesión abierta con la contraseña vieja la pierde
-    await RepositorioTokens(sesion).revocar_de_usuario(usuario.id, ahora())
+    if usuario.firebase_uid is None:
+        # Cuenta anterior a Firebase: restablecerla es lo que la migra
+        try:
+            usuario.firebase_uid = await identidad().crear(usuario.email, nueva)
+        except EmailYaRegistrado as e:
+            raise Conflicto("El email ya existe en el proveedor de identidad") from e
+    else:
+        await identidad().cambiar_contrasena(usuario.firebase_uid, nueva)
+        # Quien tuviera una sesión abierta con la contraseña vieja la pierde
+        await identidad().revocar(usuario.firebase_uid)
     await auditar(
         sesion,
         accion="restablecer_contrasena",
@@ -80,8 +96,7 @@ async def cambiar_rol(
 
     anterior = usuario.rol
     usuario.rol = rol
-    # Cambiar privilegios invalida las sesiones abiertas: se obliga a volver a entrar
-    await RepositorioTokens(sesion).revocar_de_usuario(usuario.id, ahora())
+    # El rol se lee de la BD en cada petición: el cambio es inmediato sin revocar nada
     await auditar(
         sesion,
         accion="cambio_rol",
@@ -108,10 +123,12 @@ async def cambiar_activo(
         return usuario
 
     usuario.activo = activo
-    if not activo:
-        # El access token ya deja de valer (usuario_actual comprueba `activo` en cada
-        # petición); revocar los refresh evita que se pueda renovar la sesión
-        await RepositorioTokens(sesion).revocar_de_usuario(usuario.id, ahora())
+    if usuario.firebase_uid:
+        # Nuestra BD ya corta el acceso en la siguiente petición; deshabilitarla en Firebase
+        # impide además que pueda iniciar sesión y obtener tokens nuevos
+        await identidad().activar(usuario.firebase_uid, activo)
+        if not activo:
+            await identidad().revocar(usuario.firebase_uid)
     await auditar(
         sesion,
         accion="reactivar_usuario" if activo else "desactivar_usuario",
@@ -127,8 +144,12 @@ async def cambiar_activo(
 async def cambiar_contrasena(
     sesion: AsyncSession, usuario: Usuario, actual: str, nueva: str, ip: str | None
 ) -> None:
-    # Se exige la contraseña actual: un access token robado no basta para secuestrar la cuenta
-    if not verificar_contrasena(usuario.hash_contrasena, actual):
+    if usuario.firebase_uid is None:
+        raise Conflicto(
+            "Tu cuenta aún no está migrada: pide a un admin que restablezca la contraseña"
+        )
+    # Se exige la contraseña actual: un ID token robado no basta para secuestrar la cuenta
+    if not await identidad().comprobar_contrasena(usuario.email, actual):
         await auditar(
             sesion,
             accion="cambio_contrasena_fallido",
@@ -142,9 +163,9 @@ async def cambiar_contrasena(
     if actual == nueva:
         raise Invalido("La nueva contraseña debe ser distinta de la actual")
 
-    usuario.hash_contrasena = hashear_contrasena(nueva)
-    # Cierra la sesión en todos los dispositivos: si alguien tenía un refresh, lo pierde
-    await RepositorioTokens(sesion).revocar_de_usuario(usuario.id, ahora())
+    await identidad().cambiar_contrasena(usuario.firebase_uid, nueva)
+    # Cierra la sesión en todos los dispositivos; el front vuelve a entrar con la nueva
+    await identidad().revocar(usuario.firebase_uid)
     await auditar(
         sesion,
         accion="cambio_contrasena",

@@ -3,7 +3,8 @@
 
 
 La contraseña se pide por consola y no queda en el historial ni en ningún fichero.
-Si el email ya existe, el usuario se asciende a admin y se le pone la contraseña nueva."""
+La cuenta se crea (o se actualiza) en Firebase y aquí; si el email ya existe, se asciende a
+admin y se le pone la contraseña nueva. Un admin es personal de Kaelum: se le quita la empresa."""
 
 import argparse
 import asyncio
@@ -15,21 +16,30 @@ from sqlalchemy import select
 
 from app.db import FabricaSesion
 from app.demo import sembrar_demo
+from app.identidad import identidad
 from app.modelos import Empresa, Rol
 from app.repositorios import RepositorioUsuarios
-from app.seguridad import hashear_contrasena
 from app.servicios.auditoria import auditar
 
 
 async def crear_admin(email: str, contrasena: str) -> None:
     async with FabricaSesion() as sesion:
         usuarios = RepositorioUsuarios(sesion)
+        uid = await identidad().buscar(email)
+        if uid:
+            await identidad().cambiar_contrasena(uid, contrasena)
+            await identidad().activar(uid, True)
+            await identidad().revocar(uid)
+        else:
+            uid = await identidad().crear(email, contrasena)
         usuario = await usuarios.por_email(email)
         if usuario:
             usuario.rol = Rol.admin
-            usuario.hash_contrasena = hashear_contrasena(contrasena)
+            usuario.empresa_id = None
+            usuario.activo = True
+            usuario.firebase_uid = uid
         else:
-            usuario = await usuarios.crear(email, hashear_contrasena(contrasena), Rol.admin)
+            usuario = await usuarios.crear(email, uid, Rol.admin)
         await auditar(
             sesion,
             accion="crear_admin_cli",

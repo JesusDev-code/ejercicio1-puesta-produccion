@@ -11,10 +11,9 @@ export type Categoria =
   | 'denegacion_servicio'
   | 'otro';
 
-export interface TokenAcceso {
-  token_acceso: string;
-  tipo_token: string;
-  expira_en_segundos: number;
+/** GET /api/config/cliente: config web de Firebase (pública, no lleva secretos). */
+export interface ConfigCliente {
+  firebase: { apiKey: string; authDomain: string; projectId: string };
 }
 
 export interface Empresa {
@@ -213,7 +212,6 @@ export const ACCIONES_AUDITORIA = [
   'registro',
   'crear_usuario',
   'restablecer_contrasena',
-  'reutilizacion_token',
   'cambio_contrasena',
   'cambio_contrasena_fallido',
   'cambio_rol',

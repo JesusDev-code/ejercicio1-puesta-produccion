@@ -1,5 +1,5 @@
 # Producción (Dokploy). En local, docker compose fusiona además docker-compose.override.yml.
-# Sin secretos no arranca nada: Postgres rechaza la contraseña vacía y la API un JWT_SECRETO corto.
+# Sin secretos no arranca nada: Postgres rechaza la contraseña vacía y la API exige Firebase en producción.
 services:
   db:
     image: postgres:17-alpine
@@ -28,10 +28,13 @@ services:
     environment:
       ENTORNO: ${ENTORNO:-produccion}
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-incidentes}:${POSTGRES_PASSWORD:-}@db:5432/${POSTGRES_DB:-incidentes}
-      JWT_SECRETO: ${JWT_SECRETO:-}
+      # Firebase: la credencial (base64 del JSON de la cuenta de servicio) es SECRETA y solo
+      # la recibe la api. Las otras tres son la config web pública que la api da al front.
+      FIREBASE_CREDENCIALES: ${FIREBASE_CREDENCIALES:-}
+      FIREBASE_API_KEY: ${FIREBASE_API_KEY:-}
+      FIREBASE_AUTH_DOMAIN: ${FIREBASE_AUTH_DOMAIN:-}
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-}
       CORS_ORIGENES: ${CORS_ORIGENES:-}
-      # Traefik publica la API bajo /api del mismo dominio que el front (strip path)
-      COOKIE_REFRESCO_RUTA: ${COOKIE_REFRESCO_RUTA:-/api/auth/web}
       INGESTA_TOKEN: ${INGESTA_TOKEN:-}
       API_PREFIJO: ${API_PREFIJO:-/api}
       # La api no publica puerto: solo le llega tráfico de Traefik, así que se fía de su X-Forwarded-For

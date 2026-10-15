@@ -54,7 +54,7 @@ uv run uvicorn app.main:app --reload
 ```
 
 Hace falta un PostgreSQL accesible y un `.env` con `DATABASE_URL` (driver `postgresql+asyncpg`)
-y `JWT_SECRETO`.
+y las variables `FIREBASE_*` de un proyecto de Firebase con Email/Password activado.
 
 ### Tests y calidad
 
@@ -83,7 +83,8 @@ uv run alembic revision --autogenerate -m "descripcion del cambio"
 
 | Variable | Obligatoria | Por defecto | Descripción |
 |---|---|---|---|
-| `JWT_SECRETO` | En producción | De desarrollo, solo en local | Clave de firma de los JWT. Mínimo 32 caracteres |
+| `FIREBASE_CREDENCIALES` | En producción | vacío | **Secreta.** JSON de la cuenta de servicio de Firebase (Admin SDK), en base64. Solo la recibe la API |
+| `FIREBASE_API_KEY` / `FIREBASE_AUTH_DOMAIN` / `FIREBASE_PROJECT_ID` | En producción (salvo `AUTH_DOMAIN`) | vacío | Config web de Firebase. **No** son secretas: la API se las da al front en `GET /config/cliente` |
 | `DATABASE_URL` | Sin Docker | URL local de desarrollo | `postgresql+asyncpg://…`. Con Docker la construye el compose |
 | `POSTGRES_USER` / `POSTGRES_DB` | No | `incidentes` | Usuario y base de datos (compose) |
 | `POSTGRES_PASSWORD` | En producción | De desarrollo, solo en local | Contraseña de Postgres (compose) |
@@ -94,9 +95,6 @@ uv run alembic revision --autogenerate -m "descripcion del cambio"
 | `CORS_ORIGENES` | No | vacío | Orígenes permitidos, separados por comas. Nunca `*`. El frontend propio va en el mismo origen y no lo necesita |
 | `API_PREFIJO` | No | vacío (`/api` en el compose) | Prefijo con el que el proxy publica la API. La API lo quita ella misma: no depende del «strip path» del proxy |
 | `INGESTA_TOKEN` | Para el panel | vacío (ingesta desactivada) | Token de servicio que comparten la API, el señuelo y el generador. Mínimo 32 caracteres. **No** es un JWT de usuario |
-| `COOKIE_REFRESCO_RUTA` | No | `/auth/web` (`/api/auth/web` en el compose) | `Path` de la cookie de refresco tal como la ve el navegador |
-| `ACCESO_MINUTOS` | No | `15` | Vida del token de acceso. El compose no la pasa al contenedor |
-| `REFRESCO_DIAS` | No | `7` | Vida del token de refresco. El compose no la pasa al contenedor |
 | `FORWARDED_ALLOW_IPS` | No | `*` en el compose | IPs de las que uvicorn acepta `X-Forwarded-For`. Ver «Despliegue» |
 
 ---
@@ -105,8 +103,8 @@ uv run alembic revision --autogenerate -m "descripcion del cambio"
 
 | Método | Ruta | Quién |
 |---|---|---|
-| `POST` | `/auth/login`, `/auth/refrescar`, `/auth/logout` | Público. **No hay registro público**: las cuentas las crea un admin |
-| `POST` | `/auth/web/login`, `/auth/web/refrescar`, `/auth/web/logout` | Público. Para el navegador: el refresco va en cookie `HttpOnly`, nunca en el cuerpo |
+| `GET` | `/config/cliente` | Público. Config web de Firebase para el front (sin secretos) |
+| `POST` | `/auth/sesion`, `/auth/salida` | Autenticado. El login lo hace el navegador contra Firebase; estas rutas solo lo registran en la auditoría. **No hay registro público**: las cuentas las crea un admin |
 | `GET` | `/usuarios/yo` | Autenticado |
 | `PATCH` | `/usuarios/yo/contrasena` | Autenticado (pide la actual; revoca todas las sesiones) |
 | `GET` | `/usuarios` | admin (filtros `rol` y `email`) |
@@ -147,11 +145,14 @@ npm start            # http://localhost:4200, con la API en 127.0.0.1:8000
 Decisiones de seguridad:
 
 - **Mismo origen.** El front y la API se sirven bajo el mismo dominio (`/` y `/api`). Sin CORS.
-- **Token de acceso solo en memoria**, nunca en `localStorage`. El de refresco va en una cookie
-  `HttpOnly; Secure; SameSite=Strict` con `Path` acotado a `/api/auth/web`: el JavaScript no
-  puede leerla y otra web no puede hacer que el navegador la envíe.
-- **401 → refresco silencioso → reintento.** Un único refresco a la vez: dos en paralelo usarían
-  la misma cookie y la API lo trataría como reutilización (revoca la familia).
+- **Firebase Authentication con persistencia en memoria** (`inMemoryPersistence`): el ID token
+  no se guarda en `localStorage`, `sessionStorage` ni IndexedDB (lo que Firebase hace por
+  defecto). Un XSS no encuentra nada persistente. Coste asumido: recargar pide entrar otra vez.
+- **La API verifica el ID token** con el Admin SDK (`check_revoked=True`) y decide rol, empresa y
+  si la cuenta está activa con su propia base de datos. Un `uid` que no está en la BD no entra,
+  aunque alguien se registre por su cuenta en Firebase con la API key pública.
+- **401 → token nuevo de Firebase → reintento** una vez; si vuelve a fallar, al login.
+- **Contrapartida:** los intentos fallidos los ve y frena Firebase, no nuestra auditoría.
 - **CSP estricta** sin `'unsafe-inline'`: nonce por respuesta para los estilos de Angular y
   Trusted Types. Fuentes servidas desde el propio dominio, sin Google Fonts.
 - La interfaz solo **oculta** acciones según el rol; quien autoriza es la API.
@@ -214,8 +215,8 @@ En producción:
   auditoría.
 - Las variables de entorno se configuran en la plataforma de despliegue, nunca en el repositorio.
   Se despliega solo `docker-compose.yml` (por ejemplo, `docker compose -f docker-compose.yml up`).
-  Sin secretos no arranca nada: Postgres rechaza una contraseña vacía y la API un `JWT_SECRETO`
-  de menos de 32 caracteres.
+  Sin secretos no arranca nada: Postgres rechaza una contraseña vacía y la API, en producción,
+  se niega a arrancar sin las credenciales de Firebase.
 - El contenedor de la API corre sin root, con el sistema de ficheros en solo lectura, sin
   capabilities y con `no-new-privileges`.
 - Un único worker de uvicorn: el rate limit vive en memoria. Para escalar a varias réplicas hay
@@ -264,7 +265,7 @@ app/
 ├── repositorios.py Acceso a datos
 ├── modelos.py      Modelos SQLAlchemy
 ├── esquemas.py     Esquemas Pydantic de entrada y salida
-├── seguridad.py    argon2 y JWT
+├── identidad.py    Firebase Authentication (verificar tokens, altas, contraseñas)
 └── cli.py          crear-admin
 alembic/            Migraciones
 tests/              pytest

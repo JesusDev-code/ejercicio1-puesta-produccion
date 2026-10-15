@@ -18,6 +18,8 @@
     "@angular/forms": "^21.2.0",
     "@angular/platform-browser": "^21.2.0",
     "@angular/router": "^21.2.0",
+    "@firebase/app": "^0.16.2",
+    "@firebase/auth": "^1.13.6",
     "@fontsource/cormorant-garamond": "^5.3.0",
     "@fontsource/jetbrains-mono": "^5.3.0",
     "@fontsource/manrope": "^5.3.0",

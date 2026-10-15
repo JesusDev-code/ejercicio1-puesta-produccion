@@ -1,8 +1,8 @@
 """Datos ficticios para enseñar la aplicación: `python -m app.cli sembrar-demo`.
 
 - Idempotente: si ya hay datos de demo, no hace nada.
-- Las cuentas de demo tienen contraseñas aleatorias que nadie conoce: no se puede entrar con
-  ellas. Solo sirven para que haya reportantes, analistas e historial.
+- Las cuentas de demo no existen en Firebase (no tienen uid): no se puede entrar con ellas.
+  Solo sirven para que haya reportantes, analistas e historial.
 - Dominio ficticio: ningún correo se envía nunca a estas direcciones.
 - Los clientes del MSSP se crean aparte y también son idempotentes: en una BD sembrada antes de
   que existieran las empresas, se crean y se reparten los usuarios de demo que no tengan."""
@@ -24,7 +24,6 @@ from app.modelos import (
     Usuario,
     ahora,
 )
-from app.seguridad import hashear_contrasena
 
 DOMINIO = "demo-incidentes.es"
 
@@ -266,12 +265,10 @@ async def sembrar_demo(sesion: AsyncSession) -> bool:
             )
         )
 
-    # Contraseña aleatoria por cuenta, no se guarda en ningún sitio: nadie puede entrar con ellas
     usuarios: dict[str, Usuario] = {}
     for nombre, rol, activo, dias, empresa in USUARIOS:
         u = Usuario(
             email=_email(nombre),
-            hash_contrasena=hashear_contrasena(secrets.token_urlsafe(32)),
             rol=rol,
             empresa_id=empresas[empresa] if empresa else None,
             activo=activo,

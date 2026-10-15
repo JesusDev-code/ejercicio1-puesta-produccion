@@ -2,21 +2,89 @@ import os
 
 # La configuración se lee al importar la app: el entorno se fija antes de cualquier import
 os.environ["ENTORNO"] = "test"
-os.environ["JWT_SECRETO"] = "secreto-de-test-con-mas-de-32-caracteres"
 os.environ["DATABASE_URL"] = os.environ.get("TEST_DATABASE_URL", "sqlite+aiosqlite://")
 os.environ["CORS_ORIGENES"] = "https://app.ejemplo.com"
 
 import pytest  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402
 
+from app import identidad  # noqa: E402
 from app.db import Base, FabricaSesion, motor  # noqa: E402
 from app.limitador import limitador  # noqa: E402
 from app.main import app  # noqa: E402
 from app.modelos import Rol  # noqa: E402
 from app.repositorios import RepositorioUsuarios  # noqa: E402
-from app.seguridad import hashear_contrasena  # noqa: E402
 
 CONTRASENA = "contrasena-segura-123"
+
+
+class IdentidadFalsa:
+    """Firebase de mentira, en memoria. Emite tokens `falso:<uid>:<generación>`; revocar sube la
+    generación, así los tokens anteriores dejan de valer igual que con `check_revoked`."""
+
+    def __init__(self):
+        self.cuentas: dict[str, dict] = {}
+
+    def _uid(self, email: str) -> str | None:
+        return next((u for u, c in self.cuentas.items() if c["email"] == email.lower()), None)
+
+    async def verificar(self, token: str) -> str | None:
+        partes = token.split(":")
+        if len(partes) != 3 or partes[0] != "falso" or partes[1] not in self.cuentas:
+            return None
+        cuenta = self.cuentas[partes[1]]
+        if not cuenta["activo"] or partes[2] != str(cuenta["generacion"]):
+            return None
+        return partes[1]
+
+    async def crear(self, email: str, contrasena: str) -> str:
+        if self._uid(email):
+            raise identidad.EmailYaRegistrado(email)
+        uid = f"uid-{len(self.cuentas) + 1}"
+        self.cuentas[uid] = {
+            "email": email.lower(),
+            "contrasena": contrasena,
+            "activo": True,
+            "generacion": 0,
+        }
+        return uid
+
+    async def buscar(self, email: str) -> str | None:
+        return self._uid(email)
+
+    async def comprobar_contrasena(self, email: str, contrasena: str) -> bool:
+        uid = self._uid(email)
+        return bool(uid) and self.cuentas[uid]["contrasena"] == contrasena
+
+    async def cambiar_contrasena(self, uid: str, nueva: str) -> None:
+        self.cuentas[uid]["contrasena"] = nueva
+
+    async def activar(self, uid: str, activo: bool) -> None:
+        self.cuentas[uid]["activo"] = activo
+
+    async def revocar(self, uid: str) -> None:
+        self.cuentas[uid]["generacion"] += 1
+
+    def iniciar_sesion(self, email: str, contrasena: str) -> str | None:
+        """Lo que hace el navegador con signInWithEmailAndPassword."""
+        uid = self._uid(email)
+        if not uid or not self.cuentas[uid]["activo"]:
+            return None
+        if self.cuentas[uid]["contrasena"] != contrasena:
+            return None
+        return f"falso:{uid}:{self.cuentas[uid]['generacion']}"
+
+
+@pytest.fixture(autouse=True)
+def falsa() -> IdentidadFalsa:
+    proveedor = IdentidadFalsa()
+    identidad.establecer(proveedor)
+    yield proveedor
+    identidad.establecer(None)
+
+
+def proveedor() -> IdentidadFalsa:
+    return identidad.identidad()  # type: ignore[return-value]
 
 
 @pytest.fixture(autouse=True)
@@ -38,23 +106,21 @@ async def cliente():
 
 
 async def crear_usuario(email: str, rol: Rol = Rol.usuario) -> int:
+    uid = await proveedor().crear(email, CONTRASENA)
     async with FabricaSesion() as sesion:
-        usuario = await RepositorioUsuarios(sesion).crear(
-            email, hashear_contrasena(CONTRASENA), rol
-        )
+        usuario = await RepositorioUsuarios(sesion).crear(email, uid, rol)
         await sesion.commit()
         return usuario.id
 
 
-async def login(cliente: AsyncClient, email: str) -> dict:
-    r = await cliente.post("/auth/login", json={"email": email, "contrasena": CONTRASENA})
-    assert r.status_code == 200, r.text
-    return r.json()
-
-
-async def cabeceras(cliente: AsyncClient, email: str) -> dict:
-    tokens = await login(cliente, email)
-    return {"Authorization": f"Bearer {tokens['token_acceso']}"}
+async def cabeceras(cliente: AsyncClient, email: str, contrasena: str = CONTRASENA) -> dict:
+    """Login como el front: credenciales contra «Firebase» y aviso a la API (auditoría)."""
+    token = proveedor().iniciar_sesion(email, contrasena)
+    assert token, f"Firebase rechazaría el login de {email}"
+    cab = {"Authorization": f"Bearer {token}"}
+    r = await cliente.post("/auth/sesion", headers=cab)
+    assert r.status_code == 204, r.text
+    return cab
 
 
 class Actores:
