@@ -1,4 +1,4 @@
-"""Siembra para los E2E: dos clientes, un admin y un trabajador de cada cliente.
+"""Siembra para los E2E: dos clientes, un admin, un trabajador de cada cliente y una gestora.
 
 Lo lanza frontend/web/e2e/entorno.mjs contra una BD desechable. Se niega a correr con
 ENTORNO=produccion: estas cuentas tienen una contraseña conocida y publicada en el repo.
@@ -24,6 +24,7 @@ EMPRESAS = [
 CUENTAS = [
     ("admin@kaelum.example.com", Rol.admin, None),
     ("ana@ibarra.example.com", Rol.usuario, "transportes-ibarra"),
+    ("marta@ibarra.example.com", Rol.gestor, "transportes-ibarra"),
     ("luis@solana.example.com", Rol.usuario, "clinica-solana"),
 ]
 

@@ -1,6 +1,6 @@
 // Espejo de app/esquemas.py y app/modelos.py de la API.
 
-export type Rol = 'usuario' | 'analista' | 'admin';
+export type Rol = 'usuario' | 'gestor' | 'analista' | 'admin';
 export type Estado = 'abierto' | 'en_analisis' | 'resuelto' | 'cerrado';
 export type Severidad = 'baja' | 'media' | 'alta' | 'critica';
 export type Categoria =
@@ -23,6 +23,8 @@ export interface Empresa {
   nombre: string;
   sector: string | null;
   activa: boolean;
+  /** Lo reparte el gestor para que sus trabajadores se unan tras registrarse. */
+  codigo_invitacion: string;
   creada_en: string;
 }
 
@@ -38,9 +40,11 @@ export interface Usuario {
   id: number;
   email: string;
   rol: Rol;
-  /** null = personal de Kaelum (admin, analista). */
+  /** Admin y analista: siempre null (personal de Kaelum). Usuario y gestor: su empresa. */
   empresa_id: number | null;
   activo: boolean;
+  /** Recién registrada y aún sin empresa: solo puede unirse a una con su código. */
+  pendiente: boolean;
   creado_en: string;
 }
 
@@ -94,6 +98,7 @@ export interface Pagina<T> {
 
 export const ROLES: Record<Rol, string> = {
   usuario: 'Usuario',
+  gestor: 'Gestor',
   analista: 'Analista',
   admin: 'Admin',
 };
@@ -211,6 +216,10 @@ export const ACCIONES_AUDITORIA = [
   'login_fallido',
   'logout',
   'registro',
+  'registro_duplicado',
+  'unirse_empresa',
+  'union_empresa_fallida',
+  'regenerar_codigo_invitacion',
   'crear_usuario',
   'restablecer_contrasena',
   'reutilizacion_token',
@@ -231,7 +240,13 @@ export const ACCIONES_AUDITORIA = [
   'editar_empresa',
 ] as const;
 
-export const AUDITORIA_ALERTA = new Set(['login_fallido', 'reutilizacion_token', 'cambio_contrasena_fallido']);
+export const AUDITORIA_ALERTA = new Set([
+  'login_fallido',
+  'reutilizacion_token',
+  'cambio_contrasena_fallido',
+  'registro_duplicado',
+  'union_empresa_fallida',
+]);
 export const AUDITORIA_PRIVILEGIO = new Set([
   'crear_usuario',
   'restablecer_contrasena',
@@ -243,6 +258,7 @@ export const AUDITORIA_PRIVILEGIO = new Set([
   'crear_admin_cli',
   'crear_empresa',
   'editar_empresa',
+  'regenerar_codigo_invitacion',
 ]);
 
 /** Opciones de un desplegable a partir de un diccionario valor → etiqueta. */

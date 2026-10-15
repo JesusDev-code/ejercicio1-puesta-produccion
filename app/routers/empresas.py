@@ -32,6 +32,11 @@ async def obtener(empresa_id: int, _: Admin, sesion: Sesion):
     return await servicio.obtener(sesion, empresa_id)
 
 
+@router.post("/{empresa_id}/codigo", response_model=EmpresaSalida)
+async def regenerar_codigo(empresa_id: int, admin: Admin, sesion: Sesion, ip: IpCliente):
+    return await servicio.regenerar_codigo(sesion, admin, empresa_id, ip)
+
+
 @router.patch("/{empresa_id}", response_model=EmpresaSalida)
 async def editar(
     empresa_id: int, datos: EmpresaEditar, admin: Admin, sesion: Sesion, ip: IpCliente

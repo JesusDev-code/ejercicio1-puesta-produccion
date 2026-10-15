@@ -44,6 +44,17 @@ export class Api {
     return firstValueFrom(this.http.get('/api/salud'));
   }
 
+  /** Responde igual exista o no el email: no confirma qué cuentas hay. */
+  registro(email: string, contrasena: string): Promise<{ mensaje: string }> {
+    return firstValueFrom(
+      this.http.post<{ mensaje: string }>('/api/auth/registro', { email, contrasena }),
+    );
+  }
+
+  unirseAEmpresa(codigo: string): Promise<Usuario> {
+    return firstValueFrom(this.http.post<Usuario>('/api/usuarios/yo/empresa', { codigo }));
+  }
+
   crearUsuario(datos: {
     email: string;
     contrasena: string;
@@ -146,6 +157,46 @@ export class Api {
 
   editarEmpresa(id: number, cambios: EmpresaEdicion): Promise<Empresa> {
     return firstValueFrom(this.http.patch<Empresa>(`/api/empresas/${id}`, cambios));
+  }
+
+  regenerarCodigoEmpresa(id: number): Promise<Empresa> {
+    return firstValueFrom(this.http.post<Empresa>(`/api/empresas/${id}/codigo`, null));
+  }
+
+  // --- Mi empresa (gestor). La empresa la pone la API: nunca viaja en la petición ---
+
+  miEmpresa(): Promise<Empresa> {
+    return firstValueFrom(this.http.get<Empresa>('/api/mi-empresa'));
+  }
+
+  regenerarMiCodigo(): Promise<Empresa> {
+    return firstValueFrom(this.http.post<Empresa>('/api/mi-empresa/codigo', null));
+  }
+
+  trabajadores(filtros: {
+    email?: string;
+    limite?: number;
+    desplazamiento?: number;
+  }): Promise<Pagina<Usuario>> {
+    return firstValueFrom(
+      this.http.get<Pagina<Usuario>>('/api/mi-empresa/usuarios', { params: parametros(filtros) }),
+    );
+  }
+
+  cambiarActivoTrabajador(id: number, activo: boolean): Promise<Usuario> {
+    return firstValueFrom(
+      this.http.patch<Usuario>(`/api/mi-empresa/usuarios/${id}/activo`, { activo }),
+    );
+  }
+
+  restablecerContrasenaTrabajador(id: number, contrasena_nueva: string): Promise<unknown> {
+    return firstValueFrom(
+      this.http.patch(`/api/mi-empresa/usuarios/${id}/contrasena`, { contrasena_nueva }),
+    );
+  }
+
+  sensoresMiEmpresa(): Promise<Sensor[]> {
+    return firstValueFrom(this.http.get<Sensor[]>('/api/mi-empresa/sensores'));
   }
 
   auditoria(filtros: {

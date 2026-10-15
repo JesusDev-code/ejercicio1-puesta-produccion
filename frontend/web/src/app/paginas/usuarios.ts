@@ -74,7 +74,7 @@ export class Usuarios implements OnInit {
   protected readonly alta = this.fb.group({
     email: ['', [Validators.required, Validators.email, Validators.maxLength(254)]],
     rol: ['usuario' as Rol, Validators.required],
-    // Solo para el rol usuario: admin y analista son personal de Kaelum
+    // Solo para usuario y gestor: admin y analista son personal de Kaelum
     empresa_id: null as number | null,
     contrasena: ['', [Validators.required, Validators.minLength(MINIMO_CONTRASENA), Validators.maxLength(128)]],
   });
@@ -159,7 +159,7 @@ export class Usuarios implements OnInit {
       const v = this.alta.getRawValue();
       const nuevo = await this.api.crearUsuario({
         ...v,
-        empresa_id: v.rol === 'usuario' ? v.empresa_id : null,
+        empresa_id: v.rol === 'usuario' || v.rol === 'gestor' ? v.empresa_id : null,
       });
       this.creando.set(false);
       this.aviso.set({
@@ -188,7 +188,7 @@ export class Usuarios implements OnInit {
     await this.ejecutar(
       u,
       () => this.api.cambiarRol(u.id, rol),
-      `${u.email} ahora es ${ROLES[rol].toLowerCase()}. Sus sesiones abiertas se han cerrado.`,
+      `${u.email} ahora es ${ROLES[rol].toLowerCase()}. El cambio es inmediato, sin cerrar su sesión.`,
     );
   }
 

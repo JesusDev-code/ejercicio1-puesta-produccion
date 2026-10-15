@@ -1,4 +1,5 @@
 import enum
+import secrets
 from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text
@@ -17,9 +18,33 @@ def a_utc(fecha: datetime) -> datetime:
 
 
 class Rol(enum.StrEnum):
-    usuario = "usuario"
-    analista = "analista"
-    admin = "admin"
+    usuario = "usuario"  # trabajador de una empresa cliente: ve lo que él reporta
+    gestor = "gestor"  # responsable de una empresa cliente: ve y gestiona su empresa
+    analista = "analista"  # personal de Kaelum: analiza lo que le asignan
+    admin = "admin"  # personal de Kaelum: todo
+
+
+# Personal del MSSP: cruza clientes, así que NUNCA pertenece a una empresa. Que alguien sea
+# personal lo decide su rol, jamás la ausencia de empresa (una cuenta recién registrada
+# tampoco tiene empresa y no por eso puede ver a todos los clientes).
+ROLES_PERSONAL = frozenset({Rol.admin, Rol.analista})
+# Trabajan para una empresa cliente: sin ella, la cuenta está pendiente de unirse a una
+ROLES_CLIENTE = frozenset({Rol.usuario, Rol.gestor})
+
+# Sin 0/O ni 1/I/L: el código se dicta o se copia a mano. 31 símbolos ^ 12 ≈ 59 bits
+_ALFABETO_CODIGO = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+
+
+def generar_codigo_invitacion() -> str:
+    """XXXX-XXXX-XXXX. Con 5 intentos por minuto, adivinarlo por fuerza bruta es inviable."""
+    simbolos = "".join(secrets.choice(_ALFABETO_CODIGO) for _ in range(12))
+    return "-".join(simbolos[i : i + 4] for i in range(0, 12, 4))
+
+
+def normalizar_codigo_invitacion(codigo: str) -> str:
+    """Admite el código en minúsculas, sin guiones o con espacios, como lo teclee la gente."""
+    limpio = "".join(c for c in codigo.upper() if c in _ALFABETO_CODIGO)
+    return "-".join(limpio[i : i + 4] for i in range(0, len(limpio), 4))
 
 
 class Estado(enum.StrEnum):
@@ -86,6 +111,11 @@ class Empresa(Base):
     nombre: Mapped[str] = mapped_column(String(120), unique=True)
     sector: Mapped[str | None] = mapped_column(String(80))
     activa: Mapped[bool] = mapped_column(default=True)
+    # Lo reparte el gestor a sus trabajadores para que se unan tras registrarse. Se guarda en
+    # claro porque el gestor tiene que poder verlo; si se filtra, se regenera y el viejo muere
+    codigo_invitacion: Mapped[str] = mapped_column(
+        String(14), unique=True, index=True, default=generar_codigo_invitacion
+    )
     creada_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
 
 
@@ -96,13 +126,23 @@ class Usuario(Base):
     email: Mapped[str] = mapped_column(String(254), unique=True, index=True)
     hash_contrasena: Mapped[str] = mapped_column(String(255))
     rol: Mapped[Rol] = mapped_column(_enum(Rol), default=Rol.usuario)
-    # None = personal del MSSP (admin, analista); con valor = trabajador de un cliente
+    # Personal del MSSP: siempre None. Usuario o gestor: su empresa, o None mientras está
+    # pendiente (recién registrado, aún sin unirse con un código de invitación)
     empresa_id: Mapped[int | None] = mapped_column(ForeignKey("empresas.id"), index=True)
     activo: Mapped[bool] = mapped_column(default=True)
     # Va en cada access token (claim "ver"). Subirla invalida al momento todos los tokens ya
     # emitidos, sin esperar a que caduquen: cambio de contraseña, restablecimiento, rol, baja
     version_sesion: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
+
+    @property
+    def es_personal(self) -> bool:
+        return self.rol in ROLES_PERSONAL
+
+    @property
+    def pendiente(self) -> bool:
+        """Cuenta de cliente sin empresa: solo puede ver su cuenta y unirse a una empresa."""
+        return self.rol in ROLES_CLIENTE and self.empresa_id is None
 
 
 class Incidente(Base):

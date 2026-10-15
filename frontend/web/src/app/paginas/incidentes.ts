@@ -101,6 +101,7 @@ total 0<span class="cursor">_</span></pre>
                   <th scope="col">ID</th>
                   <th scope="col">INCIDENCIA</th>
                   @if (esAdmin()) { <th scope="col">CLIENTE</th> }
+                  @if (esGestor()) { <th scope="col">REPORTADA POR</th> }
                   <th scope="col">SEVERIDAD</th>
                   <th scope="col">ESTADO</th>
                   <th scope="col">ANALISTA</th>
@@ -118,6 +119,7 @@ total 0<span class="cursor">_</span></pre>
                       </a>
                     </td>
                     @if (esAdmin()) { <td class="analista">{{ clientes.nombre(f.empresa_id) }}</td> }
+                    @if (esGestor()) { <td class="analista">{{ f.reportante_email }}</td> }
                     <td><app-severidad [valor]="f.severidad" /></td>
                     <td><app-estado [valor]="f.estado" /></td>
                     <td class="analista">{{ f.analista_email ?? 'Sin asignar' }}</td>
@@ -177,6 +179,8 @@ export class Incidentes implements OnInit {
   private readonly sesion = inject(Sesion);
   protected readonly clientes = inject(Clientes);
   protected readonly esAdmin = this.sesion.esAdmin;
+  /** El gestor ve las incidencias de toda su empresa: le importa quién reportó cada una. */
+  protected readonly esGestor = this.sesion.esGestor;
 
   protected readonly opcionesEstado: Opcion<Estado | ''>[] = [
     { valor: '', etiqueta: 'Todos' },

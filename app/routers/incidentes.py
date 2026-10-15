@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query, status
 
-from app.dependencias import Admin, IpCliente, Sesion, UsuarioActual
+from app.dependencias import Admin, IpCliente, Sesion, UsuarioOperativo
 from app.esquemas import (
     AsignacionEntrada,
     CambioEstadoEntrada,
@@ -40,13 +40,13 @@ async def responder(sesion: Sesion, usuario: Usuario, incidente: Incidente) -> R
 
 
 @router.post("", response_model=Respuesta, status_code=status.HTTP_201_CREATED)
-async def crear(datos: IncidenteCrear, usuario: UsuarioActual, sesion: Sesion, ip: IpCliente):
+async def crear(datos: IncidenteCrear, usuario: UsuarioOperativo, sesion: Sesion, ip: IpCliente):
     return await responder(sesion, usuario, await servicio.crear(sesion, usuario, datos, ip))
 
 
 @router.get("", response_model=Pagina[Respuesta])
 async def listar(
-    usuario: UsuarioActual,
+    usuario: UsuarioOperativo,
     sesion: Sesion,
     estado: Estado | None = None,
     severidad: Severidad | None = None,
@@ -75,7 +75,7 @@ async def listar(
 
 
 @router.get("/{incidente_id}", response_model=Respuesta)
-async def obtener(incidente_id: int, usuario: UsuarioActual, sesion: Sesion):
+async def obtener(incidente_id: int, usuario: UsuarioOperativo, sesion: Sesion):
     return await responder(sesion, usuario, await servicio.obtener(sesion, usuario, incidente_id))
 
 
@@ -83,7 +83,7 @@ async def obtener(incidente_id: int, usuario: UsuarioActual, sesion: Sesion):
 async def editar(
     incidente_id: int,
     datos: IncidenteEditar,
-    usuario: UsuarioActual,
+    usuario: UsuarioOperativo,
     sesion: Sesion,
     ip: IpCliente,
 ):
@@ -95,7 +95,7 @@ async def editar(
 async def cambiar_estado(
     incidente_id: int,
     datos: CambioEstadoEntrada,
-    usuario: UsuarioActual,
+    usuario: UsuarioOperativo,
     sesion: Sesion,
     ip: IpCliente,
 ):
@@ -115,7 +115,7 @@ async def asignar(
 async def actualizar_notas(
     incidente_id: int,
     datos: NotasEntrada,
-    usuario: UsuarioActual,
+    usuario: UsuarioOperativo,
     sesion: Sesion,
     ip: IpCliente,
 ):

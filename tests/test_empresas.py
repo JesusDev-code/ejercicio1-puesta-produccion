@@ -65,7 +65,8 @@ async def clientes(cliente, actores) -> Clientes:
 async def test_crear_y_listar_empresas(cliente, actores, clientes):
     r = await cliente.get("/empresas", headers=actores.cab["admin"])
     assert r.status_code == 200
-    assert [e["codigo"] for e in r.json()["elementos"]] == ["clinica-solana", "transportes-ibarra"]
+    codigos = [e["codigo"] for e in r.json()["elementos"]]
+    assert codigos == ["clinica-solana", "empresa-pruebas", "transportes-ibarra"]
 
 
 async def test_empresa_duplicada_409(cliente, actores, clientes):

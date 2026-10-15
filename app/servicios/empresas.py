@@ -1,10 +1,11 @@
-"""Clientes del MSSP. Solo los gestiona un admin; nunca se borran, se desactivan."""
+"""Clientes del MSSP. Los da de alta un admin; nunca se borran, se desactivan. El gestor de
+cada uno ve su empresa y regenera su código de invitación."""
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errores import Conflicto, Invalido, NoEncontrado
 from app.esquemas import EmpresaCrear, EmpresaEditar
-from app.modelos import Empresa, Usuario, ahora
+from app.modelos import Empresa, Usuario, ahora, generar_codigo_invitacion
 from app.repositorios import RepositorioEmpresas, RepositorioTokens
 from app.servicios.auditoria import auditar
 
@@ -50,6 +51,26 @@ async def crear(
         detalle=datos.codigo,
     )
     await sesion.commit()
+    return empresa
+
+
+async def regenerar_codigo(
+    sesion: AsyncSession, actor: Usuario, empresa_id: int, ip: str | None
+) -> Empresa:
+    """El código viejo deja de valer al momento. Para cuando se ha filtrado o se ha repartido
+    a quien no debía. Quien ya se unió con él sigue dentro: eso se gestiona dando de baja."""
+    empresa = await obtener(sesion, empresa_id)
+    empresa.codigo_invitacion = generar_codigo_invitacion()
+    await auditar(
+        sesion,
+        accion="regenerar_codigo_invitacion",
+        recurso="empresa",
+        usuario_id=actor.id,
+        recurso_id=empresa.id,
+        ip=ip,
+    )
+    await sesion.commit()
+    await sesion.refresh(empresa)
     return empresa
 
 

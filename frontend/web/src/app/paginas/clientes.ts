@@ -116,6 +116,7 @@ export function aCodigo(nombre: string): string {
                 <tr>
                   <th scope="col">CLIENTE</th>
                   <th scope="col">SECTOR</th>
+                  <th scope="col">INVITACIÓN</th>
                   <th scope="col">ESTADO</th>
                   <th scope="col">ALTA</th>
                   <th scope="col"><span class="solo-lector">Acciones</span></th>
@@ -134,6 +135,13 @@ export function aCodigo(nombre: string): string {
                       </div>
                     </td>
                     <td>{{ e.sector ?? '—' }}</td>
+                    <td>
+                      <div class="datos">
+                        <span class="mono">{{ e.codigo_invitacion }}</span>
+                        <button type="button" class="btn compacto btn-suave" [disabled]="ocupado() === e.id"
+                          [attr.aria-label]="'Nueva invitación para ' + e.nombre" (click)="regenerarCodigo(e)">Regenerar</button>
+                      </div>
+                    </td>
                     <td>
                       <span class="estado" [class.activo]="e.activa"><span aria-hidden="true" class="punto"></span>{{ e.activa ? 'Activo' : 'De baja' }}</span>
                     </td>
@@ -286,6 +294,19 @@ export class ClientesPagina implements OnInit {
       this.cerrarEdicion();
     } catch (err) {
       this.errorEdicion.set(codigo(err) === 409 ? 'Ya hay un cliente con ese nombre.' : mensajeGeneral(err));
+    } finally {
+      this.ocupado.set(null);
+    }
+  }
+
+  async regenerarCodigo(e: Empresa): Promise<void> {
+    this.ocupado.set(e.id);
+    this.aviso.set(null);
+    try {
+      this.clientes.actualizar(await this.api.regenerarCodigoEmpresa(e.id));
+      this.aviso.set({ ok: true, texto: `Nuevo código para ${e.nombre}: el anterior ya no sirve para unirse.` });
+    } catch (err) {
+      this.aviso.set({ ok: false, texto: mensajeGeneral(err) });
     } finally {
       this.ocupado.set(null);
     }

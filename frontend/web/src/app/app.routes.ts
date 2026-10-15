@@ -1,7 +1,15 @@
 import { inject } from '@angular/core';
 import { Routes } from '@angular/router';
 
-import { requiereSesion, sinSesion, soloAdmin, soloInvitados } from './core/guardas';
+import {
+  conEmpresa,
+  requiereSesion,
+  sinSesion,
+  soloAdmin,
+  soloGestor,
+  soloInvitados,
+  soloPendientes,
+} from './core/guardas';
 import { Sesion } from './core/sesion';
 import { Shell } from './ui/shell';
 
@@ -21,9 +29,22 @@ export const routes: Routes = [
     loadComponent: () => import('./paginas/login').then((m) => m.Login),
   },
   {
+    path: 'registro',
+    title: 'Crear cuenta · Kaelum Security',
+    canActivate: [soloInvitados],
+    loadComponent: () => import('./paginas/registro').then((m) => m.Registro),
+  },
+  {
+    // Fuera de la consola: una cuenta pendiente no tiene menú que ver
+    path: 'unirse',
+    title: 'Unirme a mi empresa · Kaelum Security',
+    canActivate: [requiereSesion, soloPendientes],
+    loadComponent: () => import('./paginas/unirse').then((m) => m.Unirse),
+  },
+  {
     path: '',
     component: Shell,
-    canActivate: [requiereSesion],
+    canActivate: [requiereSesion, conEmpresa],
     children: [
       // El admin aterriza en el Panel; el resto, en sus incidencias
       {
@@ -45,6 +66,12 @@ export const routes: Routes = [
         path: 'incidentes/:id',
         title: 'Incidencia · Kaelum Security',
         loadComponent: () => import('./paginas/detalle').then((m) => m.Detalle),
+      },
+      {
+        path: 'mi-empresa',
+        title: 'Mi empresa · Kaelum Security',
+        canActivate: [soloGestor],
+        loadComponent: () => import('./paginas/mi-empresa').then((m) => m.MiEmpresa),
       },
       {
         path: 'usuarios',

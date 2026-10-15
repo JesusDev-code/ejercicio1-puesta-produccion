@@ -12,7 +12,7 @@ from httpx import ASGITransport, AsyncClient  # noqa: E402
 from app.db import Base, FabricaSesion, motor  # noqa: E402
 from app.limitador import limitador  # noqa: E402
 from app.main import app  # noqa: E402
-from app.modelos import Rol  # noqa: E402
+from app.modelos import Empresa, Rol  # noqa: E402
 from app.repositorios import RepositorioUsuarios  # noqa: E402
 from app.seguridad import hashear_contrasena  # noqa: E402
 
@@ -37,13 +37,21 @@ async def cliente():
         yield c
 
 
-async def crear_usuario(email: str, rol: Rol = Rol.usuario) -> int:
+async def crear_usuario(email: str, rol: Rol = Rol.usuario, empresa_id: int | None = None) -> int:
     async with FabricaSesion() as sesion:
         usuario = await RepositorioUsuarios(sesion).crear(
-            email, hashear_contrasena(CONTRASENA), rol
+            email, hashear_contrasena(CONTRASENA), rol, empresa_id
         )
         await sesion.commit()
         return usuario.id
+
+
+async def crear_empresa(codigo: str, nombre: str) -> Empresa:
+    async with FabricaSesion() as sesion:
+        empresa = Empresa(codigo=codigo, nombre=nombre)
+        sesion.add(empresa)
+        await sesion.commit()
+        return empresa
 
 
 async def login(cliente: AsyncClient, email: str) -> dict:
@@ -58,28 +66,31 @@ async def cabeceras(cliente: AsyncClient, email: str) -> dict:
 
 
 class Actores:
-    """Un usuario de cada rol, más un segundo usuario y un segundo analista."""
+    """Un usuario de cada rol, más un segundo usuario y un segundo analista. Los dos usuarios
+    son trabajadores de la misma empresa cliente (`empresa`); el personal del MSSP, de ninguna."""
 
-    def __init__(self, ids: dict, cab: dict):
+    def __init__(self, ids: dict, cab: dict, empresa: Empresa):
         self.ids = ids
         self.cab = cab
+        self.empresa = empresa
 
 
 @pytest.fixture
 async def actores(cliente) -> Actores:
+    empresa = await crear_empresa("empresa-pruebas", "Empresa de pruebas")
     emails = {
-        "usuario": ("usuario@test.com", Rol.usuario),
-        "otro": ("otro@test.com", Rol.usuario),
-        "analista": ("analista@test.com", Rol.analista),
-        "analista2": ("analista2@test.com", Rol.analista),
-        "admin": ("admin@test.com", Rol.admin),
+        "usuario": ("usuario@test.com", Rol.usuario, empresa.id),
+        "otro": ("otro@test.com", Rol.usuario, empresa.id),
+        "analista": ("analista@test.com", Rol.analista, None),
+        "analista2": ("analista2@test.com", Rol.analista, None),
+        "admin": ("admin@test.com", Rol.admin, None),
     }
     ids, cab = {}, {}
-    for clave, (email, rol) in emails.items():
-        ids[clave] = await crear_usuario(email, rol)
+    for clave, (email, rol, empresa_id) in emails.items():
+        ids[clave] = await crear_usuario(email, rol, empresa_id)
         cab[clave] = await cabeceras(cliente, email)
     limitador.reset()
-    return Actores(ids, cab)
+    return Actores(ids, cab, empresa)
 
 
 INCIDENTE = {

@@ -7,6 +7,12 @@ Política de respuestas:
 
 Aislamiento entre clientes: un usuario de una empresa nunca ve nada de otra, aunque una
 regla de rol lo permitiera. Se comprueba primero y por separado (defensa en profundidad).
+
+Quién ve qué:
+- admin: todo.
+- analista: lo que reportó y lo que tiene asignado.
+- gestor: todo lo de SU empresa (es el responsable del cliente).
+- usuario: solo lo que él reportó.
 """
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -39,15 +45,18 @@ def es_analista_asignado(usuario: Usuario, incidente: Incidente) -> bool:
 
 
 def misma_empresa(usuario: Usuario, incidente: Incidente) -> bool:
-    """El personal del MSSP (sin empresa) cruza clientes; un usuario de cliente, no."""
-    return usuario.empresa_id is None or usuario.empresa_id == incidente.empresa_id
+    """El personal del MSSP cruza clientes; nadie más. Se decide por el ROL: una cuenta de
+    cliente sin empresa (pendiente) no es personal y no ve nada de nadie."""
+    if usuario.es_personal:
+        return True
+    return usuario.empresa_id is not None and usuario.empresa_id == incidente.empresa_id
 
 
 def puede_ver(usuario: Usuario, incidente: Incidente) -> bool:
     if not misma_empresa(usuario, incidente):
         return False
     return (
-        usuario.rol == Rol.admin
+        usuario.rol in (Rol.admin, Rol.gestor)
         or incidente.reportante_id == usuario.id
         or es_analista_asignado(usuario, incidente)
     )
@@ -98,11 +107,15 @@ async def listar(
     limite: int,
     desplazamiento: int,
 ) -> tuple[int, list[Incidente]]:
-    # Un usuario de cliente no elige empresa: se le fija la suya, mande lo que mande
-    if usuario.empresa_id is not None:
+    # Quien no es personal del MSSP no elige empresa: se le fija la suya, mande lo que mande
+    if not usuario.es_personal:
+        if usuario.empresa_id is None:
+            # Cuenta de cliente sin empresa: sin filtro de empresa, un gestor vería TODO.
+            # La dependencia ya lo impide; esto es la segunda barrera, por si un día falla
+            return 0, []
         empresa_id = usuario.empresa_id
     return await RepositorioIncidentes(sesion).listar(
-        visible_para=None if usuario.rol == Rol.admin else usuario.id,
+        visible_para=None if usuario.rol in (Rol.admin, Rol.gestor) else usuario.id,
         incluir_asignados=usuario.rol == Rol.analista,
         empresa_id=empresa_id,
         estado=estado,

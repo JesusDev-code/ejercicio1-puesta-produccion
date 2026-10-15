@@ -21,6 +21,9 @@ export class Sesion {
   readonly usuario = signal<Usuario | null>(null);
   readonly autenticado = computed(() => this.usuario() !== null);
   readonly esAdmin = computed(() => this.usuario()?.rol === 'admin');
+  readonly esGestor = computed(() => this.usuario()?.rol === 'gestor');
+  /** Recién registrada y sin empresa: la consola entera le está cerrada. */
+  readonly pendiente = computed(() => this.usuario()?.pendiente === true);
 
   tokenAcceso(): string | null {
     return this.token();

@@ -215,9 +215,10 @@ async def resumen(
     )
 
 
-async def sensores(sesion: AsyncSession) -> list[Sensor]:
+async def sensores(sesion: AsyncSession, empresa_id: int | None = None) -> list[Sensor]:
     """Estado de cada sensor según sus eventos: cuántos y cuándo llegó el último. Un sensor
-    que deja de enviar se ve aquí antes que en ningún otro sitio."""
+    que deja de enviar se ve aquí antes que en ningún otro sitio. Con `empresa_id`, solo los
+    de esa empresa (lo que ve su gestor)."""
     desde = ahora() - timedelta(hours=24)
     consulta = (
         select(
@@ -230,6 +231,8 @@ async def sensores(sesion: AsyncSession) -> list[Sensor]:
         .group_by(EventoSeguridad.servicio, EventoSeguridad.empresa_id)
         .order_by(EventoSeguridad.servicio, EventoSeguridad.empresa_id)
     )
+    if empresa_id is not None:
+        consulta = consulta.where(EventoSeguridad.empresa_id == empresa_id)
     return [
         Sensor(
             servicio=servicio,

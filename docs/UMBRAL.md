@@ -77,8 +77,17 @@ La página de venta de Kaelum Security. Solo la ve quien no ha iniciado sesión.
 
 ### Acceso (`/login`)
 
-Email y contraseña. No hay registro público: las cuentas las crea un administrador. Tras entrar,
-el admin aterriza en el **Panel** y el resto en sus **Incidencias**.
+Email y contraseña. Tras entrar, el admin aterriza en el **Panel**, el resto en sus
+**Incidencias**, y una cuenta **pendiente** (registrada, aún sin empresa) en **Unirme a mi
+empresa**, la única pantalla que puede ver.
+
+### Registro (`/registro`) y unión a una empresa (`/unirse`)
+
+1. Cualquiera crea una cuenta con email y contraseña. Nace como `usuario` **sin empresa**.
+2. Al entrar, solo ve «Unirme a mi empresa». Introduce el **código de invitación** que le da el
+   gestor de su empresa (`XXXX-XXXX-XXXX`, da igual mayúsculas o guiones).
+3. Desde ese momento es un trabajador de esa empresa, con el mismo token: la empresa se lee de la
+   base de datos en cada petición.
 
 ### Consola
 
@@ -161,7 +170,7 @@ dependencias.py Quién eres (token) y qué rol necesitas
 | Python | 3.12 | Lenguaje |
 | FastAPI | ≥ 0.142 | API REST asíncrona |
 | SQLAlchemy (async) + asyncpg | ≥ 2.1 | ORM y driver de PostgreSQL |
-| Alembic | ≥ 1.20 | Migraciones (`0001` a `0006`) |
+| Alembic | ≥ 1.20 | Migraciones (`0001` a `0007`) |
 | Pydantic + pydantic-settings | ≥ 2.13 | Validación y configuración por entorno |
 | PyJWT | ≥ 2.15 | Emitir y verificar los tokens de acceso (HS256) |
 | argon2-cffi | ≥ 25.1 | Hash de contraseñas (Argon2id) |
@@ -297,16 +306,26 @@ el primer admin se recupera con `crear-admin`.
 
 ## 6. Roles y permisos
 
-| Acción | usuario | analista | admin |
-|---|---|---|---|
-| Reportar incidencia | ✅ | ✅ | ✅ |
-| Ver incidencias | las suyas | las asignadas y las suyas | todas |
-| Editar título, descripción y categoría | las suyas, solo en `abierto` | ❌ | ✅ |
-| Notas internas (ver y escribir) | ❌ | las asignadas | ✅ |
-| Cambiar estado | ❌ | las asignadas | ✅ |
-| Asignar analista, reabrir y borrar | ❌ | ❌ | ✅ |
-| Panel, eventos, sensores y triaje | ❌ | ❌ | ✅ |
-| Clientes, usuarios y auditoría | ❌ | ❌ | ✅ |
+| Acción | usuario | gestor | analista | admin |
+|---|---|---|---|---|
+| Reportar incidencia | ✅ | ✅ | ✅ | ✅ |
+| Ver incidencias | las suyas | **todas las de su empresa** | las asignadas y las suyas | todas |
+| Editar título, descripción y categoría | las suyas, solo en `abierto` | las suyas, solo en `abierto` | ❌ | ✅ |
+| Notas internas (ver y escribir) | ❌ | ❌ | las asignadas | ✅ |
+| Cambiar estado | ❌ | ❌ | las asignadas | ✅ |
+| Asignar analista, reabrir y borrar | ❌ | ❌ | ❌ | ✅ |
+| Código de invitación de su empresa (ver y regenerar) | ❌ | ✅ | ❌ | ✅ (de todas) |
+| Desactivar y restablecer la contraseña de… | ❌ | los `usuario` de su empresa | ❌ | cualquiera |
+| Sensores | ❌ | los de su empresa | ❌ | todos |
+| Panel, eventos y triaje | ❌ | ❌ | ❌ | ✅ |
+| Clientes, usuarios y auditoría | ❌ | ❌ | ❌ | ✅ |
+
+Una cuenta **pendiente** (registrada, sin empresa) solo puede ver su cuenta, cambiar su
+contraseña y unirse a una empresa. Todo lo demás le devuelve 403, en la API, no solo en la web.
+
+El gestor **no** toca a otro gestor (sería hacerse con la empresa), ni a nadie de fuera de su
+empresa, ni al personal de Kaelum: para todos ellos, 404. Solo un admin crea gestores, dándolos de
+alta con su empresa o ascendiendo a un trabajador.
 
 Política de respuestas:
 
@@ -325,7 +344,13 @@ La interfaz solo **oculta** lo que no te corresponde. Quien autoriza es siempre 
 - Tabla `empresas`: `codigo` (identificador estable, p. ej. `transportes-ibarra`, no editable),
   `nombre`, `sector`, `activa`.
 - `empresa_id` en `usuarios`, `incidentes` y `eventos_seguridad`.
-- `empresa_id = NULL` en un usuario significa **personal de Kaelum**.
+- `codigo_invitacion` en `empresas`: 12 símbolos de un alfabeto sin caracteres ambiguos (~59
+  bits), único y regenerable.
+- Quién es **personal de Kaelum** lo decide el **rol** (`admin` o `analista`, siempre sin
+  empresa), **nunca** la ausencia de empresa. Un `usuario` o `gestor` sin empresa es una cuenta
+  **pendiente**, que no ve nada de nadie. Si «sin empresa» significara «personal», cualquiera que
+  se registrara vería a todos los clientes; `test_gestor.py` lo comprueba también saltándose la
+  dependencia que lo bloquea, para que la segunda barrera no dependa de la primera.
 
 ### Reglas
 
@@ -469,7 +494,9 @@ Cada acción sensible deja un registro con usuario, acción, recurso, IP y fecha
 | Incidencias | `crear_incidente`, `editar_incidente`, `cambio_estado`, `asignar_incidente`, `editar_notas`, `borrar_incidente` |
 | Eventos | `triaje_evento` |
 
-De la época del registro público (sigue en el historial): `registro`.
+Registro e invitaciones: `registro`, `registro_duplicado` (alerta: alguien prueba emails),
+`unirse_empresa`, `union_empresa_fallida` (alerta: posible fuerza bruta del código) y
+`regenerar_codigo_invitacion`.
 
 La IP real llega por `X-Forwarded-For` de Traefik. Uvicorn solo se fía de esa cabecera porque la
 API no publica ningún puerto: no hay otro camino que el proxy.
@@ -483,7 +510,10 @@ API no publica ningún puerto: no hay otro camino que el proxy.
 - JWT propio de 15 minutos, refresh tokens rotados con detección de reutilización y
   revocación inmediata por versión de sesión.
 - Rol, empresa y estado de la cuenta leídos de la BD, nunca del token.
-- Sin registro público; las altas, solo por un admin.
+- Registro público con 5 intentos/min, mismo mensaje exista o no el email y hash calculado
+  siempre (mismo tiempo de respuesta). La cuenta nace sin empresa y sin ver nada.
+- Código de invitación con ~59 bits, 5 intentos/min y regenerable; un gestor nunca se une por
+  código (si pudiera, un código filtrado le daría una empresa ajena).
 - Contraseñas de 12 caracteres como mínimo. El generador del alta usa `crypto.getRandomValues`.
 - Contraseñas con Argon2id. Login y cambio de contraseña limitados a **5 intentos por minuto**;
   cambiar la propia exige la actual.
@@ -542,7 +572,7 @@ comprobar la versión vigente en <https://owasp.org/Top10/>.
 | **A03 Software Supply Chain Failures** | Dependencias vulnerables o comprometidas | Lockfiles (`uv.lock`, `package-lock.json`); `pip-audit --strict` y `npm audit` en CI; sensores sin dependencias; ningún SDK de terceros para la identidad; imágenes base fijadas | `.github/workflows/ci.yml` |
 | **A04 Cryptographic Failures** | Secretos o datos sensibles mal protegidos | Contraseñas con Argon2id; refresh tokens guardados solo como SHA-256; JWT con algoritmo fijado (no acepta `alg=none`); TLS en todo; token de ingesta comparado en tiempo constante; secretos fuera del repo | `app/seguridad.py`, `app/routers/eventos.py` |
 | **A05 Injection** | SQL, XSS, inyección en logs | ORM con parámetros enlazados; `LIKE` escapado; Angular escapa por defecto y la CSP con Trusted Types bloquea sumideros de DOM; los caracteres de control se quitan de lo que llega de internet | `app/repositorios.py`, `app/esquemas.py` |
-| **A06 Insecure Design** | Fallos de diseño, no de código | Sin registro público; borrado lógico (evidencia); reporte congelado al pasar a análisis; máquina de estados con 409; el señuelo no es explotable por diseño | `app/servicios/`, `senuelo/` |
+| **A06 Insecure Design** | Fallos de diseño, no de código | Registro que nace sin privilegios (cuenta pendiente); personal del MSSP decidido por rol, no por la ausencia de empresa; borrado lógico (evidencia); reporte congelado al pasar a análisis; máquina de estados con 409; el señuelo no es explotable por diseño | `app/servicios/`, `senuelo/` |
 | **A07 Authentication Failures** | Credenciales débiles, sesiones robadas | Login con 5 intentos/min y tiempo constante; mínimo 12 caracteres; refresh rotado con detección de reutilización; revocación **inmediata** por versión de sesión al cambiar o restablecer la contraseña y al desactivar; access token solo en memoria y refresh en cookie `HttpOnly`; cambiar la contraseña exige la actual (5/min) | `app/servicios/auth.py`, `app/servicios/usuarios.py`, `core/sesion.ts` |
 | **A08 Software or Data Integrity Failures** | Datos o código manipulados | La CI bloquea el merge si falla una comprobación; migraciones versionadas y probadas; los campos de un evento no se editan nunca, solo el triaje | `tests/test_migraciones.py` |
 | **A09 Logging & Alerting Failures** | No enterarse de un ataque | Auditoría de todas las acciones sensibles con IP real; el panel resalta alertas; el señuelo informa cada 5 minutos de entregados y perdidos; logins fallidos y reutilización de tokens auditados | `app/servicios/auditoria.py` |
@@ -598,10 +628,10 @@ que configurar un *Volume Backup* hacia S3 en Dokploy.
 | Tipo | Herramienta | Qué prueba | Cantidad |
 |---|---|---|---|
 | **Unitarias del backend** | pytest | Clasificador del señuelo | 12 |
-| **Integración de la API** | pytest + httpx + BD real | Cada endpoint por HTTP, con permisos y efectos en la BD | 144 |
-| **Unitarias del front** | Vitest (`ng test`) | Sesión, interceptor, guardas, servicio de clientes, errores, utilidades | 50 |
-| **E2E** | Playwright | Flujos completos en un navegador real contra la pila entera | 16 |
-| **Colección de API** | Postman / Newman | Roles, IDOR, tokens manipulados, refresh tokens, revocación, aislamiento, rate limit | 110 peticiones, 165 comprobaciones |
+| **Integración de la API** | pytest + httpx + BD real | Cada endpoint por HTTP, con permisos y efectos en la BD | 183 |
+| **Unitarias del front** | Vitest (`ng test`) | Sesión, interceptor, guardas, servicio de clientes, errores, utilidades | 53 |
+| **E2E** | Playwright | Flujos completos en un navegador real contra la pila entera | 22 |
+| **Colección de API** | Postman / Newman | Roles, registro e invitaciones, IDOR, tokens manipulados, refresh tokens, revocación, aislamiento, rate limit | 126 peticiones, 191 comprobaciones |
 | **Seguridad estática** | ruff (reglas `S`), bandit | Código de la API | — |
 | **Dependencias** | pip-audit, npm audit | Backend y front | — |
 

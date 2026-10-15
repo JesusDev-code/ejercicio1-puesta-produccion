@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "35f3d216-62b6-52b9-989f-0b87b902d59b",
     "name": "API de incidentes",
-    "description": "API de Umbral (Kaelum Security), con autenticación propia: login con email y contraseña, access token JWT (15 min) y refresh token rotado en cada uso. Recorre los tres roles, IDOR, mass assignment, tokens manipulados, rotación y reutilización de refresh tokens, revocación inmediata de sesiones, aislamiento entre clientes y rate limit.\n\n1. Crea el admin: `python -m app.cli crear-admin <email>`.\n2. Selecciona un entorno y rellena `admin_email` y `admin_contrasena` en **valor actual** (no se exporta).\n3. Ejecuta la colección entera con el Runner, en orden.\n\nEl login admite 5 intentos por minuto: la colección lleva la cuenta y, cuando haría falta un sexto, espera a que se renueve la ventana. Por eso tarda algo más de un minuto.",
+    "description": "API de Umbral (Kaelum Security), con autenticación propia: login con email y contraseña, access token JWT (15 min) y refresh token rotado en cada uso. Recorre los cuatro roles (admin, analista, gestor y usuario), el registro con código de invitación, IDOR, mass assignment, tokens manipulados, rotación y reutilización de refresh tokens, revocación inmediata de sesiones, aislamiento entre clientes y rate limit.\n\n1. Crea el admin: `python -m app.cli crear-admin <email>`.\n2. Selecciona un entorno y rellena `admin_email` y `admin_contrasena` en **valor actual** (no se exporta).\n3. Ejecuta la colección entera con el Runner, en orden.\n\nEl login admite 5 intentos por minuto: la colección lleva la cuenta y, cuando haría falta un sexto, espera a que se renueve la ventana. Por eso tarda algo más de un minuto.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -176,6 +176,62 @@
           ]
         },
         {
+          "name": "Admin crea la empresa de pruebas",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{url_base}}/empresas",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "empresas"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_admin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codigo\": \"pruebas-{{sufijo}}\",\n  \"nombre\": \"Empresa de pruebas {{sufijo}}\",\n  \"sector\": \"Pruebas\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Usuarios y gestores pertenecen siempre a una empresa cliente."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "const e = pm.response.json();",
+                  "pm.test(\"Nace con código de invitación\", () => pm.expect(e.codigo_invitacion).to.match(/^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/));",
+                  "pm.collectionVariables.set(\"id_empresa_pruebas\", e.id);",
+                  "pm.collectionVariables.set(\"codigo_invitacion_pruebas\", e.codigo_invitacion);"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Admin da de alta un usuario",
           "request": {
             "method": "POST",
@@ -207,7 +263,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"usuario_{{sufijo}}@example.com\",\n  \"contrasena\": \"{{contrasena_pruebas}}\"\n}",
+              "raw": "{\n  \"email\": \"usuario_{{sufijo}}@example.com\",\n  \"contrasena\": \"{{contrasena_pruebas}}\",\n  \"empresa_id\": {{id_empresa_pruebas}}\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -262,7 +318,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"otro_{{sufijo}}@example.com\",\n  \"contrasena\": \"{{contrasena_pruebas}}\"\n}",
+              "raw": "{\n  \"email\": \"otro_{{sufijo}}@example.com\",\n  \"contrasena\": \"{{contrasena_pruebas}}\",\n  \"empresa_id\": {{id_empresa_pruebas}}\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -284,7 +340,7 @@
           ]
         },
         {
-          "name": "Admin da de alta al futuro analista",
+          "name": "Admin da de alta un analista",
           "request": {
             "method": "POST",
             "header": [
@@ -314,7 +370,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"analista_{{sufijo}}@example.com\",\n  \"contrasena\": \"{{contrasena_pruebas}}\"\n}",
+              "raw": "{\n  \"email\": \"analista_{{sufijo}}@example.com\",\n  \"contrasena\": \"{{contrasena_pruebas}}\",\n  \"rol\": \"analista\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -329,6 +385,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Personal de Kaelum: sin empresa\", () => pm.expect(pm.response.json().empresa_id).to.be.null);",
                   "pm.collectionVariables.set(\"id_analista\", pm.response.json().id);"
                 ]
               }
@@ -366,7 +423,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"usuario_{{sufijo}}@example.com\",\n  \"contrasena\": \"{{contrasena_pruebas}}\"\n}",
+              "raw": "{\n  \"email\": \"usuario_{{sufijo}}@example.com\",\n  \"contrasena\": \"{{contrasena_pruebas}}\",\n  \"empresa_id\": {{id_empresa_pruebas}}\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -438,49 +495,9 @@
           ]
         },
         {
-          "name": "Registro público eliminado",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"HTTP 404: no hay alta pública\", () => pm.response.to.have.status(404));"
-                ]
-              }
-            }
-          ],
+          "name": "Alta: un usuario sin empresa",
           "request": {
             "method": "POST",
-            "auth": {
-              "type": "noauth"
-            },
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"intruso_{{sufijo}}@example.com\",\n  \"contrasena\": \"{{contrasena_pruebas}}\"\n}"
-            },
-            "url": {
-              "raw": "{{url_base}}/auth/registro",
-              "host": [
-                "{{url_base}}"
-              ],
-              "path": [
-                "auth",
-                "registro"
-              ]
-            }
-          }
-        },
-        {
-          "name": "Admin promueve al analista",
-          "request": {
-            "method": "PATCH",
             "header": [
               {
                 "key": "Content-Type",
@@ -488,14 +505,12 @@
               }
             ],
             "url": {
-              "raw": "{{url_base}}/usuarios/{{id_analista}}/rol",
+              "raw": "{{url_base}}/usuarios",
               "host": [
                 "{{url_base}}"
               ],
               "path": [
-                "usuarios",
-                "{{id_analista}}",
-                "rol"
+                "usuarios"
               ]
             },
             "auth": {
@@ -510,7 +525,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"rol\": \"analista\"\n}",
+              "raw": "{\n  \"email\": \"sinempresa_{{sufijo}}@example.com\",\n  \"contrasena\": \"{{contrasena_pruebas}}\",\n  \"rol\": \"usuario\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -524,8 +539,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
-                  "pm.test(\"Ahora es analista\", () => pm.expect(pm.response.json().rol).to.eql(\"analista\"));"
+                  "pm.test(\"HTTP 422\", () => pm.response.to.have.status(422));",
+                  "// Una cuenta sin empresa solo nace del registro público, y queda pendiente"
                 ]
               }
             }
@@ -5180,6 +5195,745 @@
       ]
     },
     {
+      "name": "12 · Registro, invitaciones y gestor",
+      "description": "Registro público, cuenta pendiente, unión con el código de invitación y el rol gestor.",
+      "item": [
+        {
+          "name": "Registro de una cuenta nueva",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{url_base}}/auth/registro",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "auth",
+                "registro"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"registro_{{sufijo}}@example.com\",\n  \"contrasena\": \"{{contrasena_pruebas}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"mensaje_registro\", pm.response.json().mensaje);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Registro con un email que ya existe",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{url_base}}/auth/registro",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "auth",
+                "registro"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"usuario_{{sufijo}}@example.com\",\n  \"contrasena\": \"intento-de-pisarla-12\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Misma respuesta: no revela qué emails existen\", () => pm.expect(pm.response.json().mensaje).to.eql(pm.collectionVariables.get(\"mensaje_registro\")));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Registro: no se elige rol",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{url_base}}/auth/registro",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "auth",
+                "registro"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"colado_{{sufijo}}@example.com\",\n  \"contrasena\": \"{{contrasena_pruebas}}\",\n  \"rol\": \"admin\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 422\", () => pm.response.to.have.status(422));",
+                  "// extra=\"forbid\": nadie se registra como admin"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login de la cuenta registrada",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{url_base}}/auth/login",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"registro_{{sufijo}}@example.com\",\n  \"contrasena\": \"{{contrasena_pruebas}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// El login admite 5 intentos por minuto e IP. Si esta fuera la sexta petición de la ventana,",
+                  "// se espera a que caduque en vez de llevarse un 429 (el límite se prueba aparte, al final)",
+                  "const ahora = Date.now();",
+                  "let inicio = Number(pm.collectionVariables.get(\"ventana_login_inicio\") || 0);",
+                  "let usados = Number(pm.collectionVariables.get(\"ventana_login_usados\") || 0);",
+                  "if (ahora - inicio > 61000) { inicio = ahora; usados = 0; }",
+                  "if (usados >= 5) {",
+                  "  const espera = inicio + 61000 - ahora;",
+                  "  setTimeout(() => {}, espera);",
+                  "  inicio = ahora + espera;",
+                  "  usados = 0;",
+                  "}",
+                  "pm.collectionVariables.set(\"ventana_login_inicio\", inicio);",
+                  "pm.collectionVariables.set(\"ventana_login_usados\", usados + 1);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set(\"token_acceso_registro\", pm.response.json().token_acceso);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "La cuenta registrada está pendiente",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{url_base}}/usuarios/yo",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "usuarios",
+                "yo"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_registro}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "const u = pm.response.json();",
+                  "pm.test(\"Usuario sin empresa: pendiente\", () => { pm.expect(u.rol).to.eql(\"usuario\"); pm.expect(u.empresa_id).to.be.null; pm.expect(u.pendiente).to.be.true; });",
+                  "pm.collectionVariables.set(\"id_registro\", u.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pendiente: no ve incidencias",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{url_base}}/incidentes",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "incidentes"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_registro}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 403\", () => pm.response.to.have.status(403));",
+                  "// «Sin empresa» no es «personal de Kaelum»: no ve nada de nadie"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Unirse con un código inventado",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{url_base}}/usuarios/yo/empresa",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "usuarios",
+                "yo",
+                "empresa"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_registro}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codigo\": \"AAAA-BBBB-CCCC\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 422\", () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Unirse con el código de la empresa",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{url_base}}/usuarios/yo/empresa",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "usuarios",
+                "yo",
+                "empresa"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_registro}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codigo\": \"{{codigo_invitacion_pruebas}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Ya es de la empresa\", () => pm.expect(pm.response.json().empresa_id).to.eql(Number(pm.collectionVariables.get(\"id_empresa_pruebas\"))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Admin asciende a la cuenta registrada a gestora",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{url_base}}/usuarios/{{id_registro}}/rol",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "usuarios",
+                "{{id_registro}}",
+                "rol"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_admin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rol\": \"gestor\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Gestora: ve las incidencias de toda su empresa",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{url_base}}/incidentes",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "incidentes"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_registro}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "const ids = pm.response.json().elementos.map((i) => i.id);",
+                  "pm.test(\"Incluye la del usuario de su empresa\", () => pm.expect(ids).to.include(Number(pm.collectionVariables.get(\"id_incidente\"))));",
+                  "pm.test(\"Ninguna de otra empresa\", () => pm.response.json().elementos.forEach((i) => pm.expect(i.empresa_id).to.eql(Number(pm.collectionVariables.get(\"id_empresa_pruebas\")))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Gestora: no ve notas internas",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{url_base}}/incidentes/{{id_incidente}}",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "incidentes",
+                "{{id_incidente}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_registro}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Sin notas internas\", () => pm.expect(pm.response.json()).to.not.have.property(\"notas_internas\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Gestora: su empresa, con el código",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{url_base}}/mi-empresa",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "mi-empresa"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_registro}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Es su empresa\", () => pm.expect(pm.response.json().codigo_invitacion).to.eql(pm.collectionVariables.get(\"codigo_invitacion_pruebas\")));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Gestora: regenera el código",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{url_base}}/mi-empresa/codigo",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "mi-empresa",
+                "codigo"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_registro}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"El código cambia\", () => pm.expect(pm.response.json().codigo_invitacion).to.not.eql(pm.collectionVariables.get(\"codigo_invitacion_pruebas\")));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Gestora: lista su equipo",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{url_base}}/mi-empresa/usuarios",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "mi-empresa",
+                "usuarios"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_registro}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "const emails = pm.response.json().elementos.map((u) => u.email);",
+                  "pm.test(\"Sus trabajadores, y nadie de fuera\", () => { pm.expect(emails).to.include(`usuario_${pm.collectionVariables.get(\"sufijo\")}@example.com`); pm.expect(emails).to.not.include(`analista_${pm.collectionVariables.get(\"sufijo\")}@example.com`); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Gestora: no toca a nadie de otra empresa",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{url_base}}/mi-empresa/usuarios/{{id_cliente_b}}/activo",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "mi-empresa",
+                "usuarios",
+                "{{id_cliente_b}}",
+                "activo"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_registro}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"activo\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 404\", () => pm.response.to.have.status(404));",
+                  "// 404 y no 403: no confirma siquiera que esa cuenta exista"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Gestora: no usa la administración del MSSP",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{url_base}}/usuarios",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "usuarios"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_registro}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "11 · Rate limit",
       "description": "Va la última: deja el login bloqueado un minuto para esta IP.",
       "item": [
@@ -5419,6 +6173,26 @@
     },
     {
       "key": "ventana_login_usados",
+      "value": ""
+    },
+    {
+      "key": "id_empresa_pruebas",
+      "value": ""
+    },
+    {
+      "key": "codigo_invitacion_pruebas",
+      "value": ""
+    },
+    {
+      "key": "mensaje_registro",
+      "value": ""
+    },
+    {
+      "key": "token_acceso_registro",
+      "value": ""
+    },
+    {
+      "key": "id_registro",
       "value": ""
     }
   ]

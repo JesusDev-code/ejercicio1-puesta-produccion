@@ -40,6 +40,10 @@ USUARIOS = [
     ("a.ruiz", Rol.analista, True, 12, None),
     ("m.soto", Rol.analista, True, 12, None),
     ("l.vega", Rol.analista, False, 10, None),
+    # Un gestor por cliente: el responsable que reparte el código y ve toda su empresa
+    ("r.ibarra", Rol.gestor, True, 11, "transportes-ibarra"),
+    ("e.solana", Rol.gestor, True, 11, "clinica-solana"),
+    ("g.mirador", Rol.gestor, True, 11, "hotel-mirador"),
     ("p.lopez", Rol.usuario, True, 9, "transportes-ibarra"),
     ("c.navarro", Rol.usuario, True, 8, "transportes-ibarra"),
     ("j.moreno", Rol.usuario, True, 6, "clinica-solana"),

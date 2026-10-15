@@ -17,3 +17,14 @@ export const sinSesion: CanMatchFn = () => !inject(Sesion).autenticado();
 
 export const soloAdmin: CanActivateFn = () =>
   inject(Sesion).esAdmin() || inject(Router).createUrlTree(['/incidentes']);
+
+export const soloGestor: CanActivateFn = () =>
+  inject(Sesion).esGestor() || inject(Router).createUrlTree(['/incidentes']);
+
+/** La consola: una cuenta pendiente (sin empresa) va a «Unirme a mi empresa». */
+export const conEmpresa: CanActivateFn = () =>
+  !inject(Sesion).pendiente() || inject(Router).createUrlTree(['/unirse']);
+
+/** «Unirme a mi empresa»: solo para cuentas pendientes; las demás, a su consola. */
+export const soloPendientes: CanActivateFn = () =>
+  inject(Sesion).pendiente() || inject(Router).createUrlTree(['/']);

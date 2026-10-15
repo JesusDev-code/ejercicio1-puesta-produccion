@@ -3,7 +3,7 @@
     <div class="textos">
       <span class="ruta">~/usuarios</span>
       <h1 class="titulo">Usuarios</h1>
-      <p class="subtitulo">Altas, roles, acceso y contraseñas. No hay registro público: cada cuenta la crea un administrador y queda en la auditoría. Los usuarios de un cliente solo ven lo de su empresa.</p>
+      <p class="subtitulo">Altas, roles, acceso y contraseñas. Las cuentas se crean aquí o por el registro público (y luego se unen a su empresa con su código). Usuarios y gestores de un cliente solo ven lo de su empresa.</p>
     </div>
     @if (!creando()) {
       <button type="button" class="btn btn-sangre" (click)="abrirAlta()"><span aria-hidden="true" class="mas">+</span> Nuevo usuario</button>
@@ -43,7 +43,7 @@
           <app-selector idCampo="a-rol" [opciones]="opcionesRol" formControlName="rol" />
         </div>
 
-        @if (alta.controls.rol.value === 'usuario') {
+        @if (alta.controls.rol.value === 'usuario' || alta.controls.rol.value === 'gestor') {
           <div class="campo">
             <label for="a-empresa">Cliente</label>
             <app-selector idCampo="a-empresa" [opciones]="clientes.opcionesAlta()" formControlName="empresa_id" />

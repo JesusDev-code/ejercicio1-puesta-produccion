@@ -29,6 +29,16 @@ import { Marca } from './marca';
           </a>
         </div>
 
+        @if (sesion.esGestor()) {
+          <div class="grupo">
+            <span class="cabecera-mono grupo-titulo">MI EMPRESA</span>
+            <a routerLink="/mi-empresa" routerLinkActive="activo" ariaCurrentWhenActive="page" class="item">
+              <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V7l6-4v18M10 21h10V10l-10-3M14 13h2M14 17h2M6 11h1M6 15h1" /></svg>
+              Equipo e invitaciones
+            </a>
+          </div>
+        }
+
         @if (sesion.esAdmin()) {
           <div class="grupo">
             <span class="cabecera-mono grupo-titulo">CENTRO DE SEGURIDAD</span>

@@ -11,5 +11,6 @@ export const CONTRASENA = 'contrasena-e2e-segura'; // la misma que en tests/e2e_
 export const CUENTAS = {
   admin: 'admin@kaelum.example.com',
   ibarra: 'ana@ibarra.example.com',
+  gestoraIbarra: 'marta@ibarra.example.com',
   solana: 'luis@solana.example.com',
 };

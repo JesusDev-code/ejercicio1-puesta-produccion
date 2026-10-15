@@ -25,6 +25,19 @@ class LoginEntrada(Entrada):
     contrasena: str = Field(min_length=1, max_length=128)
 
 
+class RegistroEntrada(Entrada):
+    """Registro público: solo email y contraseña. Ni rol ni empresa: la cuenta nace como
+    usuario pendiente y la empresa se elige después con un código de invitación."""
+
+    email: EmailStr
+    contrasena: str = Field(min_length=12, max_length=128)
+
+
+class RegistroSalida(BaseModel):
+    # Mismo mensaje exista o no el email: el registro no revela qué cuentas hay
+    mensaje: str = "Si el email es válido, la cuenta queda creada. Ya puedes iniciar sesión."
+
+
 class RefrescoEntrada(Entrada):
     token_refresco: str = Field(min_length=1, max_length=256)
 
@@ -65,12 +78,20 @@ class EmpresaEditar(Entrada):
 
 
 class EmpresaSalida(Salida):
+    """Solo la ven el admin y el gestor de la empresa: por eso puede llevar el código."""
+
     id: int
     codigo: str
     nombre: str
     sector: str | None
     activa: bool
+    codigo_invitacion: str
     creada_en: datetime
+
+
+class UnirseEmpresaEntrada(Entrada):
+    # Holgado a propósito: se admite con espacios, guiones o en minúsculas y se normaliza
+    codigo: str = Field(min_length=12, max_length=30)
 
 
 # --- Usuarios ---
@@ -82,16 +103,18 @@ class UsuarioSalida(Salida):
     rol: Rol
     empresa_id: int | None
     activo: bool
+    # Cuenta de cliente aún sin empresa: el front la manda a «Unirme a mi empresa»
+    pendiente: bool
     creado_en: datetime
 
 
 class UsuarioCrear(Entrada):
-    """Alta de cuentas: solo la hace un admin. No hay registro público."""
+    """Alta de cuentas por un admin, con el rol y la empresa que él decida."""
 
     email: EmailStr
     contrasena: str = Field(min_length=12, max_length=128)
     rol: Rol = Rol.usuario
-    # Sin empresa = personal del MSSP. Admin y analista no pueden tener empresa
+    # Admin y analista: sin empresa (personal del MSSP). Usuario y gestor: con la suya
     empresa_id: int | None = Field(default=None, gt=0)
 
 

@@ -41,6 +41,12 @@ import { Marca } from '../ui/marca';
             <h2 id="titulo-login">Iniciar sesión</h2>
           </div>
 
+          @if (registrado() && !error()) {
+            <div role="status" class="aviso aviso-oro">
+              <span class="codigo">OK</span>
+              <span>Si el email era válido, tu cuenta está creada. Inicia sesión para unirte a tu empresa.</span>
+            </div>
+          }
           @if (caducada() && !error()) {
             <div role="alert" class="aviso aviso-oro">
               <span class="codigo">401</span>
@@ -73,7 +79,7 @@ import { Marca } from '../ui/marca';
           <button type="submit" class="btn btn-sangre btn-bloque" [disabled]="enviando() || form.invalid">
             {{ enviando() ? 'Entrando…' : 'Entrar' }} <span aria-hidden="true">→</span>
           </button>
-          <p class="enlace-alterno">Las cuentas las da de alta un administrador.</p>
+          <p class="enlace-alterno">¿Aún no tienes cuenta? <a routerLink="/registro">Crear cuenta</a></p>
         </form>
         <p class="pie">Cada intento queda registrado en la auditoría</p>
         <p class="pie"><a routerLink="/">← Volver a Kaelum Security</a></p>
@@ -86,7 +92,9 @@ export class Login implements OnInit {
   private readonly api = inject(Api);
   private readonly router = inject(Router);
 
-  protected readonly caducada = signal(inject(ActivatedRoute).snapshot.queryParamMap.has('caducada'));
+  private readonly parametros = inject(ActivatedRoute).snapshot.queryParamMap;
+  protected readonly caducada = signal(this.parametros.has('caducada'));
+  protected readonly registrado = signal(this.parametros.has('registrado'));
   protected readonly apiEnLinea = signal<boolean | null>(null);
   protected readonly enviando = signal(false);
   protected readonly error = signal<number | null>(null);
@@ -111,7 +119,8 @@ export class Login implements OnInit {
     try {
       const { email, contrasena } = this.form.getRawValue();
       await this.sesion.entrar(email, contrasena);
-      await this.router.navigate(['/']); // la raíz decide: Panel (admin) o Incidencias
+      // La raíz decide: Panel (admin), Incidencias, o «Unirme a mi empresa» si está pendiente
+      await this.router.navigate(['/']);
     } catch (e) {
       this.error.set(codigo(e));
       this.mensaje.set(mensajeGeneral(e));

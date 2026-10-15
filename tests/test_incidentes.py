@@ -248,15 +248,26 @@ async def test_borrado_logico_solo_admin(cliente, actores):
 
 
 async def test_cambio_de_rol_es_inmediato(cliente, actores):
-    """El rol se lee de la BD en cada petición: el token antiguo ya no da privilegios."""
+    """El rol se lee de la BD en cada petición: con el MISMO token, los privilegios cambian."""
+    assert (await cliente.get("/auditoria", headers=actores.cab["analista"])).status_code == 403
     r = await cliente.patch(
         f"/usuarios/{actores.ids['analista']}/rol",
-        json={"rol": "usuario"},
+        json={"rol": "admin"},
         headers=actores.cab["admin"],
     )
     assert r.status_code == 200
-    r = await cliente.get("/usuarios/yo", headers=actores.cab["analista"])
-    assert r.json()["rol"] == "usuario"
+    assert (await cliente.get("/auditoria", headers=actores.cab["analista"])).status_code == 200
+
+
+async def test_personal_del_mssp_no_pasa_a_rol_de_cliente_409(cliente, actores):
+    # Un analista no tiene empresa: como usuario o gestor quedaría colgado, sin cliente
+    for rol in ("usuario", "gestor"):
+        r = await cliente.patch(
+            f"/usuarios/{actores.ids['analista']}/rol",
+            json={"rol": rol},
+            headers=actores.cab["admin"],
+        )
+        assert r.status_code == 409, rol
 
 
 async def test_admin_no_cambia_su_propio_rol(cliente, actores):

@@ -10,6 +10,7 @@ const empresa = (id: number, nombre: string, activa = true): Empresa => ({
   nombre,
   sector: null,
   activa,
+  codigo_invitacion: `ABCD-EFGH-JK${id}${id}`,
   creada_en: '2026-10-14T00:00:00Z',
 });
 

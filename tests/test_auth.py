@@ -7,15 +7,7 @@ from app.config import obtener_configuracion
 from app.db import FabricaSesion
 from app.modelos import Rol, ahora
 from app.repositorios import RepositorioTokens, RepositorioUsuarios
-from tests.conftest import CONTRASENA, cabeceras, crear_usuario, login
-
-REGISTRO = {"email": "nuevo@test.com", "contrasena": CONTRASENA}
-
-
-async def test_registro_publico_eliminado(cliente):
-    """Solo un admin da de alta cuentas: la ruta pública ya no existe."""
-    r = await cliente.post("/auth/registro", json=REGISTRO)
-    assert r.status_code == 404
+from tests.conftest import cabeceras, crear_usuario, login
 
 
 async def test_login_correcto_devuelve_par_de_tokens(cliente):

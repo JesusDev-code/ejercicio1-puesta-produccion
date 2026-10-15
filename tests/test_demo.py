@@ -23,8 +23,9 @@ async def test_demo_visible_para_admin_y_no_para_un_usuario_nuevo(cliente):
 
     r = await cliente.get("/incidentes", headers=await cabeceras(cliente, "admin@test.com"))
     assert r.json()["total"] == len(INCIDENTES)
+    # Cuenta sin empresa (como una recién registrada): no ve nada de la demo, ni la lista
     r = await cliente.get("/incidentes", headers=await cabeceras(cliente, "nuevo@test.com"))
-    assert r.json()["total"] == 0
+    assert r.status_code == 403
 
     r = await cliente.get("/auditoria", headers=await cabeceras(cliente, "admin@test.com"))
     assert r.status_code == 200 and r.json()["total"] > len(INCIDENTES)

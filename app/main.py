@@ -9,7 +9,16 @@ from slowapi.errors import RateLimitExceeded
 from app.config import obtener_configuracion
 from app.errores import ErrorDominio, NoAutenticado
 from app.limitador import limitador
-from app.routers import auditoria, auth, empresas, eventos, incidentes, salud, usuarios
+from app.routers import (
+    auditoria,
+    auth,
+    empresas,
+    eventos,
+    incidentes,
+    mi_empresa,
+    salud,
+    usuarios,
+)
 
 log = logging.getLogger("app")
 config = obtener_configuracion()
@@ -67,7 +76,7 @@ async def manejar_error_inesperado(_: Request, error: Exception):
     return JSONResponse({"detail": "Error interno"}, status_code=500)
 
 
-for modulo in (auth, usuarios, empresas, incidentes, auditoria, eventos, salud):
+for modulo in (auth, usuarios, mi_empresa, empresas, incidentes, auditoria, eventos, salud):
     app.include_router(modulo.router)
 
 

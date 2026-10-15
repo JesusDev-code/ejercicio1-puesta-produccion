@@ -10,6 +10,7 @@ from app.esquemas import (
     CambioRolEntrada,
     Pagina,
     RestablecerContrasenaEntrada,
+    UnirseEmpresaEntrada,
     UsuarioCrear,
     UsuarioSalida,
 )
@@ -41,6 +42,19 @@ async def cambiar_contrasena(
     await servicio.cambiar_contrasena(
         sesion, usuario, datos.contrasena_actual, datos.contrasena_nueva, ip
     )
+
+
+# Limitado como el login: es lo único que protege el código de invitación de la fuerza bruta
+@router.post("/yo/empresa", response_model=UsuarioSalida)
+@limitador.limit(_limite)
+async def unirse_a_empresa(
+    request: Request,
+    datos: UnirseEmpresaEntrada,
+    usuario: UsuarioActual,
+    sesion: Sesion,
+    ip: IpCliente,
+):
+    return await servicio.unirse_a_empresa(sesion, usuario, datos.codigo, ip)
 
 
 @router.get("", response_model=Pagina[UsuarioSalida])

@@ -227,8 +227,26 @@ async def test_admin_crea_usuario_con_rol(cliente, actores):
 
 
 async def test_alta_por_defecto_es_usuario(cliente, actores):
-    r = await cliente.post("/usuarios", json=ALTA, headers=actores.cab["admin"])
+    r = await cliente.post(
+        "/usuarios", json={**ALTA, "empresa_id": actores.empresa.id}, headers=actores.cab["admin"]
+    )
     assert r.json()["rol"] == "usuario"
+
+
+async def test_alta_de_usuario_o_gestor_sin_empresa_422(cliente, actores):
+    # Sin empresa sería una cuenta pendiente: esas solo nacen del registro público
+    for rol in ("usuario", "gestor"):
+        r = await cliente.post("/usuarios", json={**ALTA, "rol": rol}, headers=actores.cab["admin"])
+        assert r.status_code == 422, rol
+
+
+async def test_alta_de_personal_con_empresa_422(cliente, actores):
+    r = await cliente.post(
+        "/usuarios",
+        json={**ALTA, "rol": "analista", "empresa_id": actores.empresa.id},
+        headers=actores.cab["admin"],
+    )
+    assert r.status_code == 422
 
 
 async def test_alta_sin_ser_admin_403(cliente, actores):
@@ -238,7 +256,9 @@ async def test_alta_sin_ser_admin_403(cliente, actores):
 
 async def test_alta_email_duplicado_409(cliente, actores):
     r = await cliente.post(
-        "/usuarios", json={**ALTA, "email": "USUARIO@test.com"}, headers=actores.cab["admin"]
+        "/usuarios",
+        json={**ALTA, "email": "USUARIO@test.com", "empresa_id": actores.empresa.id},
+        headers=actores.cab["admin"],
     )
     assert r.status_code == 409
 
@@ -251,7 +271,9 @@ async def test_alta_contrasena_corta_422(cliente, actores):
 
 
 async def test_alta_queda_auditada(cliente, actores):
-    await cliente.post("/usuarios", json=ALTA, headers=actores.cab["admin"])
+    await cliente.post(
+        "/usuarios", json={**ALTA, "empresa_id": actores.empresa.id}, headers=actores.cab["admin"]
+    )
     r = await cliente.get("/auditoria?accion=crear_usuario", headers=actores.cab["admin"])
     assert r.json()["total"] == 1
 

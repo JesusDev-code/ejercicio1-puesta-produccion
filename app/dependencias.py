@@ -48,8 +48,19 @@ async def usuario_actual(
 UsuarioActual = Annotated[Usuario, Depends(usuario_actual)]
 
 
+async def usuario_operativo(usuario: UsuarioActual) -> Usuario:
+    """Cualquier cuenta salvo una pendiente: recién registrada y sin empresa todavía, solo
+    puede ver su cuenta y unirse a una empresa (eso va con `UsuarioActual`)."""
+    if usuario.pendiente:
+        raise Prohibido("Únete primero a tu empresa con su código de invitación")
+    return usuario
+
+
+UsuarioOperativo = Annotated[Usuario, Depends(usuario_operativo)]
+
+
 def requiere_rol(*roles: Rol) -> Callable:
-    async def comprobar(usuario: UsuarioActual) -> Usuario:
+    async def comprobar(usuario: UsuarioOperativo) -> Usuario:
         if usuario.rol not in roles:
             raise Prohibido("Permisos insuficientes")
         return usuario
@@ -58,3 +69,5 @@ def requiere_rol(*roles: Rol) -> Callable:
 
 
 Admin = Annotated[Usuario, Depends(requiere_rol(Rol.admin))]
+# Pasa por UsuarioOperativo: un gestor siempre tiene empresa cuando llega aquí
+Gestor = Annotated[Usuario, Depends(requiere_rol(Rol.gestor))]

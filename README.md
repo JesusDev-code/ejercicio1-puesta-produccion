@@ -3,8 +3,8 @@
 > **Documentación completa del proyecto** (qué hace, tecnologías, seguridad, OWASP, pruebas):
 > [`docs/UMBRAL.md`](docs/UMBRAL.md).
 
-API REST para registrar y gestionar incidentes de ciberseguridad, con tres roles (`usuario`,
-`analista`, `admin`), ciclo de vida de los incidentes y auditoría de todas las acciones
+API REST para registrar y gestionar incidentes de ciberseguridad, con cuatro roles (`usuario`,
+`gestor`, `analista`, `admin`), registro público con código de invitación por empresa, ciclo de vida de los incidentes y auditoría de todas las acciones
 sensibles. Alcance pequeño y acabado profesional: el peso está en la seguridad, los tests y el
 despliegue.
 
@@ -38,8 +38,9 @@ dentro de `DATABASE_URL`, y caracteres como `@`, `:` o `/` la romperían.
 
 ### Crear el primer admin
 
-No hay registro público. El primer admin se crea por consola, con la contraseña pedida sin eco;
-el resto de cuentas las da de alta ese admin desde la web (Usuarios → Nuevo usuario):
+El primer admin se crea por consola, con la contraseña pedida sin eco. El resto de cuentas, o
+las da de alta un admin desde la web (Usuarios → Nuevo usuario), o se registran solas en
+`/registro` y se unen a su empresa con el código de invitación que les da su gestor:
 
 ```bash
 docker compose exec api python -m app.cli crear-admin admin@example.com
@@ -107,7 +108,8 @@ uv run alembic revision --autogenerate -m "descripcion del cambio"
 
 | Método | Ruta | Quién |
 |---|---|---|
-| `POST` | `/auth/login`, `/auth/refrescar`, `/auth/logout` | Público. Para clientes que no son navegador (Postman, scripts). **No hay registro público**: las cuentas las crea un admin |
+| `POST` | `/auth/registro` | Público, 5/min. Crea un `usuario` **sin empresa** (pendiente). Responde igual exista o no el email |
+| `POST` | `/auth/login`, `/auth/refrescar`, `/auth/logout` | Público. Para clientes que no son navegador (Postman, scripts) |
 | `POST` | `/auth/web/login`, `/auth/web/refrescar`, `/auth/web/logout` | Público. Para el navegador: el refresco va en cookie `HttpOnly`, nunca en el cuerpo |
 | `GET` | `/usuarios/yo` | Autenticado |
 | `PATCH` | `/usuarios/yo/contrasena` | Autenticado (pide la actual; revoca todas las sesiones) |
@@ -116,6 +118,11 @@ uv run alembic revision --autogenerate -m "descripcion del cambio"
 | `PATCH` | `/usuarios/{id}/contrasena` | admin: restablece la contraseña y cierra sus sesiones (no sobre sí mismo) |
 | `PATCH` | `/usuarios/{id}/rol` | admin (no sobre sí mismo) |
 | `PATCH` | `/usuarios/{id}/activo` | admin (no sobre sí mismo) |
+| `POST` | `/usuarios/yo/empresa` | Cuenta pendiente, 5/min: se une a su empresa con el código de invitación |
+| `GET` | `/mi-empresa`, `/mi-empresa/usuarios`, `/mi-empresa/sensores` | gestor: su empresa (con el código), su equipo y sus sensores |
+| `POST` | `/mi-empresa/codigo` | gestor: regenera el código (el anterior deja de valer) |
+| `PATCH` | `/mi-empresa/usuarios/{id}/activo`, `/contrasena` | gestor: solo a los `usuario` de su empresa; el resto, 404 |
+| `POST` | `/empresas/{id}/codigo` | admin: regenera el código de cualquier cliente |
 | `POST` / `GET` | `/incidentes` | Autenticado (el listado se filtra por rol) |
 | `GET` / `PATCH` | `/incidentes/{id}` | Según rol y propiedad |
 | `PATCH` | `/incidentes/{id}/estado` | analista asignado o admin |
@@ -173,11 +180,13 @@ En Dokploy, dos dominios con el **mismo host**:
 
 ## Postman
 
-En `postman/` están la colección (110 peticiones, 165 comprobaciones) y los entornos `local` y
+En `postman/` están la colección (126 peticiones, 191 comprobaciones) y los entornos `local` y
 `produccion`. Usa las rutas `/auth/*` (el refresco viaja en el cuerpo) y el token de acceso como
 Bearer. Recorre:
 
-- los tres roles con casos positivos y negativos, mass assignment e IDOR;
+- los cuatro roles con casos positivos y negativos, mass assignment e IDOR;
+- registro (mismo mensaje con un email existente), cuenta pendiente que no ve nada, unión con
+  código (inventado → 422) y lo que el gestor puede y no puede tocar;
 - tokens manipulados (firma alterada, `alg=none`, inventados);
 - refresh tokens: rotación en cada uso, reutilización de uno ya rotado (revoca la familia y tumba
   al momento el access obtenido con la copia), logout;

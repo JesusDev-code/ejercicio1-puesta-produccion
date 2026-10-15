@@ -25,6 +25,9 @@ class RepositorioEmpresas:
     async def por_id(self, empresa_id: int) -> Empresa | None:
         return await self.sesion.get(Empresa, empresa_id)
 
+    async def por_codigo_invitacion(self, codigo: str) -> Empresa | None:
+        return await self.sesion.scalar(select(Empresa).where(Empresa.codigo_invitacion == codigo))
+
     async def ids_por_codigo(self, codigos: set[str]) -> dict[str, int]:
         if not codigos:
             return {}
