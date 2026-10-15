@@ -568,6 +568,7 @@ que configurar un *Volume Backup* hacia S3 en Dokploy.
 | **Integración de la API** | pytest + httpx + BD real | Cada endpoint por HTTP, con permisos y efectos en la BD | 130 |
 | **Unitarias del front** | Vitest (`ng test`) | Interceptor, guardas, servicio de clientes, errores, utilidades | 52 |
 | **E2E** | Playwright + emulador de Firebase Auth | Flujos completos en un navegador real contra la pila entera | 16 |
+| **Colección de API** | Postman / Newman + emulador | Roles, IDOR, tokens manipulados, revocación, aislamiento, rate limit | 107 peticiones, 159 comprobaciones |
 | **Seguridad estática** | ruff (reglas `S`), bandit | Código de la API | — |
 | **Dependencias** | pip-audit, npm audit | Backend y front | — |
 

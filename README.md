@@ -173,29 +173,31 @@ En Dokploy, dos dominios con el **mismo host**:
 
 ## Postman
 
-> **Pendiente de adaptar a Firebase.** La colección es anterior a la migración: sus carpetas de
-> autenticación usan `/auth/login`, los refresh tokens y el rate limit del login, que ya no existen.
-> Para adaptarla, el login pasa a la API REST de Firebase (`accounts:signInWithPassword`, o el
-> emulador en local) y el `idToken` se usa como Bearer. Las pruebas automáticas equivalentes
-> (IDOR, aislamiento, token inválido, XSS) están en los tests de la API y en los E2E.
+En `postman/` están la colección (107 peticiones, 159 comprobaciones) y los entornos `local` y
+`produccion`. El login va contra **Firebase** (`accounts:signInWithPassword`) y el ID token se usa
+como Bearer, igual que hace el navegador. Recorre:
 
-En `postman/` están la colección y los entornos `local` y `produccion`. Recorre los tres roles con
-casos positivos y negativos, incluidos ataques al token (`alg=none`, firma manipulada), IDOR,
-mass assignment, reutilización de refresh tokens y rate limit.
+- los tres roles con casos positivos y negativos, mass assignment e IDOR;
+- tokens manipulados (firma alterada, `alg=none`, inventados) y rutas de login antiguas retiradas;
+- revocación real: tras un cambio o restablecimiento de contraseña el token anterior deja de valer;
+- clientes y aislamiento: un trabajador de un cliente no ve ni edita lo de otro, ni forzando el
+  filtro, y al dar de baja su cliente queda fuera;
+- rate limit del cambio de contraseña (la carpeta va la última para no bloquear el resto).
 
-1. Crea el admin (ver arriba).
-2. En el entorno, rellena `admin_email` y `admin_contrasena` como **valor actual**: así no se
-   exportan.
-3. Ejecuta la colección completa con el Runner, en orden.
-
-Entre dos ejecuciones espera un minuto: la última carpeta agota el rate limit del login a
-propósito. Para lanzarla desde la terminal:
+**En local, contra el emulador** (recomendado: no crea cuentas reales en Firebase). Levanta la pila
+del E2E y lanza la colección con el admin que siembra:
 
 ```bash
-npx newman run postman/api-incidentes.postman_collection.json \
-  -e postman/local.postman_environment.json \
-  --env-var admin_email=admin@example.com --env-var admin_contrasena=...
+cd frontend/web && E2E_SIN_BUILD=1 node e2e/entorno.mjs      # en otra terminal
+npx newman run postman/api-incidentes.postman_collection.json   -e postman/local.postman_environment.json   --env-var url_base=http://127.0.0.1:8765 --env-var firebase_api_key=clave-e2e   --env-var admin_email=admin@kaelum.example.com --env-var admin_contrasena=contrasena-e2e-segura
 ```
+
+Contra el emulador, la prueba de `alg=none` se marca como omitida: el emulador acepta tokens sin
+firma (por eso la API se niega a arrancar con él en producción). Contra Firebase real sí se ejecuta.
+
+**Contra producción**: rellena `admin_email` y `admin_contrasena` como **valor actual** (así no se
+exportan) y ejecuta en orden con el Runner. Cada ejecución crea usuarios, clientes e incidencias de
+prueba reales, también en Firebase. Entre dos ejecuciones espera un minuto por el rate limit.
 
 Usa dominios como `example.com`: el validador de email rechaza los de uso especial, como `.test`.
 

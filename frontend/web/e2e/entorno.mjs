@@ -188,7 +188,8 @@ await esperar(`http://${EMULADOR}/`, 'El emulador de Auth');
 execSync('uv run alembic upgrade head', { cwd: RAIZ, env: entornoApi, stdio: 'inherit' });
 execSync('uv run python -m tests.e2e_semilla', { cwd: RAIZ, env: entornoApi, stdio: 'inherit' });
 
-lanzar('api', 'uv', ['run', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', String(PUERTOS.api)], {
+// --no-server-header como en el Dockerfile: el entorno de pruebas reproduce producción
+lanzar('api', 'uv', ['run', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', String(PUERTOS.api), '--no-server-header'], {
   cwd: RAIZ,
   env: entornoApi,
 });

@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "35f3d216-62b6-52b9-989f-0b87b902d59b",
     "name": "API de incidentes",
-    "description": "Recorrido completo por roles, con casos positivos y negativos.\n\n1. Crea el admin: `python -m app.cli crear-admin <email>`.\n2. Selecciona un entorno y rellena `admin_email` y `admin_contrasena` en **valor actual** (no se exporta).\n3. Ejecuta la colección entera con el Runner, en orden. Los usuarios de prueba se crean con un email y una contraseña nuevos en cada ejecución.\n\nEntre dos ejecuciones espera **un minuto**: la carpeta 9 agota el rate limit del login.",
+    "description": "API de Umbral (Kaelum Security). El login se hace contra Firebase Authentication (accounts:signInWithPassword, o el emulador en local) y el ID token se usa como Bearer. Recorre los tres roles, IDOR, mass assignment, tokens manipulados, revocación de sesiones, aislamiento entre clientes y rate limit. Ejecútala completa y en orden con el Runner.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -55,7 +55,7 @@
       "description": "Registro, login y ataques al token. El admin se crea antes con `python -m app.cli crear-admin`.",
       "item": [
         {
-          "name": "Login admin",
+          "name": "Login admin (Firebase)",
           "request": {
             "method": "POST",
             "header": [
@@ -64,27 +64,13 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{url_base}}/auth/login",
-              "host": [
-                "{{url_base}}"
-              ],
-              "path": [
-                "auth",
-                "login"
-              ]
-            },
             "auth": {
               "type": "noauth"
             },
+            "url": "{{firebase_login_url}}?key={{firebase_api_key}}",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"contrasena\": \"{{admin_contrasena}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+              "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"password\": \"{{admin_contrasena}}\",\n  \"returnSecureToken\": true\n}"
             }
           },
           "event": [
@@ -94,8 +80,8 @@
                 "type": "text/javascript",
                 "exec": [
                   "// Cada ejecución usa emails y contraseña nuevos: no hay credenciales en la colección",
-                  "if (!pm.environment.get(\"admin_email\") || !pm.environment.get(\"admin_contrasena\")) {",
-                  "  throw new Error(\"Rellena admin_email y admin_contrasena en el entorno (valor actual)\");",
+                  "for (const v of [\"admin_email\", \"admin_contrasena\", \"firebase_login_url\", \"firebase_api_key\"]) {",
+                  "  if (!pm.environment.get(v)) throw new Error(`Rellena ${v} en el entorno (valor actual)`);",
                   "}",
                   "pm.collectionVariables.set(\"sufijo\", Date.now().toString());",
                   "const aleatorio = pm.variables.replaceIn(\"{{$randomUUID}}{{$randomUUID}}\").replace(/-/g, \"\");",
@@ -110,12 +96,37 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const t = pm.response.json();",
-                  "pm.test(\"Devuelve el par de tokens\", () => {",
-                  "  pm.expect(t.token_acceso).to.be.a(\"string\");",
-                  "  pm.expect(t.token_refresco).to.be.a(\"string\");",
-                  "});",
-                  "pm.collectionVariables.set(\"token_acceso_admin\", t.token_acceso);",
-                  "pm.collectionVariables.set(\"token_refresco_admin\", t.token_refresco);"
+                  "pm.test(\"Firebase devuelve un ID token\", () => pm.expect(t.idToken).to.be.a(\"string\"));",
+                  "pm.collectionVariables.set(\"token_acceso_admin\", t.idToken);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Registrar la entrada (auditoría)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_admin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{url_base}}/auth/sesion"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 204\", () => pm.response.to.have.status(204));"
                 ]
               }
             }
@@ -210,7 +221,7 @@
                   "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
                   "const u = pm.response.json();",
                   "pm.test(\"Se crea como usuario por defecto\", () => pm.expect(u.rol).to.eql(\"usuario\"));",
-                  "pm.test(\"No expone el hash\", () => pm.expect(u).to.not.have.property(\"hash_contrasena\"));",
+                  "pm.test(\"No expone el uid de Firebase\", () => pm.expect(u).to.not.have.property(\"firebase_uid\"));",
                   "pm.collectionVariables.set(\"id_usuario\", u.id);"
                 ]
               }
@@ -518,7 +529,7 @@
           ]
         },
         {
-          "name": "Login usuario",
+          "name": "Login usuario (Firebase)",
           "request": {
             "method": "POST",
             "header": [
@@ -527,27 +538,13 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{url_base}}/auth/login",
-              "host": [
-                "{{url_base}}"
-              ],
-              "path": [
-                "auth",
-                "login"
-              ]
-            },
             "auth": {
               "type": "noauth"
             },
+            "url": "{{firebase_login_url}}?key={{firebase_api_key}}",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"usuario_{{sufijo}}@example.com\",\n  \"contrasena\": \"{{contrasena_pruebas}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+              "raw": "{\n  \"email\": \"usuario_{{sufijo}}@example.com\",\n  \"password\": \"{{contrasena_pruebas}}\",\n  \"returnSecureToken\": true\n}"
             }
           },
           "event": [
@@ -558,19 +555,15 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const t = pm.response.json();",
-                  "pm.test(\"Devuelve el par de tokens\", () => {",
-                  "  pm.expect(t.token_acceso).to.be.a(\"string\");",
-                  "  pm.expect(t.token_refresco).to.be.a(\"string\");",
-                  "});",
-                  "pm.collectionVariables.set(\"token_acceso_usuario\", t.token_acceso);",
-                  "pm.collectionVariables.set(\"token_refresco_usuario\", t.token_refresco);"
+                  "pm.test(\"Firebase devuelve un ID token\", () => pm.expect(t.idToken).to.be.a(\"string\"));",
+                  "pm.collectionVariables.set(\"token_acceso_usuario\", t.idToken);"
                 ]
               }
             }
           ]
         },
         {
-          "name": "Login otro usuario",
+          "name": "Login otro usuario (Firebase)",
           "request": {
             "method": "POST",
             "header": [
@@ -579,27 +572,13 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{url_base}}/auth/login",
-              "host": [
-                "{{url_base}}"
-              ],
-              "path": [
-                "auth",
-                "login"
-              ]
-            },
             "auth": {
               "type": "noauth"
             },
+            "url": "{{firebase_login_url}}?key={{firebase_api_key}}",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"otro_{{sufijo}}@example.com\",\n  \"contrasena\": \"{{contrasena_pruebas}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+              "raw": "{\n  \"email\": \"otro_{{sufijo}}@example.com\",\n  \"password\": \"{{contrasena_pruebas}}\",\n  \"returnSecureToken\": true\n}"
             }
           },
           "event": [
@@ -610,19 +589,15 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const t = pm.response.json();",
-                  "pm.test(\"Devuelve el par de tokens\", () => {",
-                  "  pm.expect(t.token_acceso).to.be.a(\"string\");",
-                  "  pm.expect(t.token_refresco).to.be.a(\"string\");",
-                  "});",
-                  "pm.collectionVariables.set(\"token_acceso_otro\", t.token_acceso);",
-                  "pm.collectionVariables.set(\"token_refresco_otro\", t.token_refresco);"
+                  "pm.test(\"Firebase devuelve un ID token\", () => pm.expect(t.idToken).to.be.a(\"string\"));",
+                  "pm.collectionVariables.set(\"token_acceso_otro\", t.idToken);"
                 ]
               }
             }
           ]
         },
         {
-          "name": "Login analista",
+          "name": "Login analista (Firebase)",
           "request": {
             "method": "POST",
             "header": [
@@ -631,27 +606,13 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{url_base}}/auth/login",
-              "host": [
-                "{{url_base}}"
-              ],
-              "path": [
-                "auth",
-                "login"
-              ]
-            },
             "auth": {
               "type": "noauth"
             },
+            "url": "{{firebase_login_url}}?key={{firebase_api_key}}",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"analista_{{sufijo}}@example.com\",\n  \"contrasena\": \"{{contrasena_pruebas}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+              "raw": "{\n  \"email\": \"analista_{{sufijo}}@example.com\",\n  \"password\": \"{{contrasena_pruebas}}\",\n  \"returnSecureToken\": true\n}"
             }
           },
           "event": [
@@ -662,19 +623,15 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const t = pm.response.json();",
-                  "pm.test(\"Devuelve el par de tokens\", () => {",
-                  "  pm.expect(t.token_acceso).to.be.a(\"string\");",
-                  "  pm.expect(t.token_refresco).to.be.a(\"string\");",
-                  "});",
-                  "pm.collectionVariables.set(\"token_acceso_analista\", t.token_acceso);",
-                  "pm.collectionVariables.set(\"token_refresco_analista\", t.token_refresco);"
+                  "pm.test(\"Firebase devuelve un ID token\", () => pm.expect(t.idToken).to.be.a(\"string\"));",
+                  "pm.collectionVariables.set(\"token_acceso_analista\", t.idToken);"
                 ]
               }
             }
           ]
         },
         {
-          "name": "Login: contraseña incorrecta",
+          "name": "Login: contraseña incorrecta (Firebase)",
           "request": {
             "method": "POST",
             "header": [
@@ -683,27 +640,13 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{url_base}}/auth/login",
-              "host": [
-                "{{url_base}}"
-              ],
-              "path": [
-                "auth",
-                "login"
-              ]
-            },
             "auth": {
               "type": "noauth"
             },
+            "url": "{{firebase_login_url}}?key={{firebase_api_key}}",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"usuario_{{sufijo}}@example.com\",\n  \"contrasena\": \"no-es-la-contrasena\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+              "raw": "{\n  \"email\": \"usuario_{{sufijo}}@example.com\",\n  \"password\": \"no-es-la-contrasena\",\n  \"returnSecureToken\": true\n}"
             }
           },
           "event": [
@@ -712,8 +655,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));",
-                  "pm.test(\"Mensaje genérico\", () => pm.expect(pm.response.text()).to.not.include(\"usuario_\"));"
+                  "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Firebase no devuelve token\", () => pm.expect(pm.response.json()).to.not.have.property(\"idToken\"));"
                 ]
               }
             }
@@ -847,7 +790,14 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));"
+                  "// El emulador de Firebase emite y ACEPTA tokens sin firma (alg=none): por eso la API se niega",
+                  "// a arrancar con FIREBASE_AUTH_EMULATOR_HOST en producción. Contra Firebase real tiene que dar 401",
+                  "const emulador = (pm.environment.get(\"firebase_login_url\") || \"\").includes(\":9099\");",
+                  "if (emulador) {",
+                  "  pm.test.skip(\"HTTP 401 (solo contra Firebase real: el emulador no verifica firmas)\", () => {});",
+                  "} else {",
+                  "  pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));",
+                  "}"
                 ]
               }
             }
@@ -2783,25 +2733,10 @@
           ]
         },
         {
-          "name": "Auditoría: logins fallidos",
+          "name": "Auditoría: entradas al sistema",
           "request": {
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{url_base}}/auditoria?accion=login_fallido",
-              "host": [
-                "{{url_base}}"
-              ],
-              "path": [
-                "auditoria"
-              ],
-              "query": [
-                {
-                  "key": "accion",
-                  "value": "login_fallido"
-                }
-              ]
-            },
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -2811,7 +2746,8 @@
                   "type": "string"
                 }
               ]
-            }
+            },
+            "url": "{{url_base}}/auditoria?accion=login"
           },
           "event": [
             {
@@ -2820,7 +2756,11 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
-                  "pm.test(\"Quedan registrados\", () => pm.expect(pm.response.json().total).to.be.at.least(1));"
+                  "const p = pm.response.json();",
+                  "pm.test(\"Registra las entradas, con el email de quien entra\", () => {",
+                  "  pm.expect(p.total).to.be.above(0);",
+                  "  pm.expect(p.elementos[0].usuario_email).to.be.a(\"string\");",
+                  "});"
                 ]
               }
             }
@@ -2829,194 +2769,25 @@
       ]
     },
     {
-      "name": "8 · Tokens de refresco",
+      "name": "8 · Sesiones con Firebase",
       "description": "Rotación, detección de reutilización y logout.",
       "item": [
         {
-          "name": "Refrescar",
+          "name": "Registrar la entrada del usuario",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{url_base}}/auth/refrescar",
-              "host": [
-                "{{url_base}}"
-              ],
-              "path": [
-                "auth",
-                "refrescar"
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_usuario}}",
+                  "type": "string"
+                }
               ]
             },
-            "auth": {
-              "type": "noauth"
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"token_refresco\": \"{{token_refresco_usuario}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.collectionVariables.set(\"token_refresco_viejo\", pm.collectionVariables.get(\"token_refresco_usuario\"));"
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
-                  "const t = pm.response.json();",
-                  "pm.test(\"Devuelve el par de tokens\", () => {",
-                  "  pm.expect(t.token_acceso).to.be.a(\"string\");",
-                  "  pm.expect(t.token_refresco).to.be.a(\"string\");",
-                  "});",
-                  "pm.collectionVariables.set(\"token_acceso_usuario\", t.token_acceso);",
-                  "pm.collectionVariables.set(\"token_refresco_usuario\", t.token_refresco);",
-                  "pm.test(\"El refresco rota\", () => pm.expect(t.token_refresco).to.not.eql(pm.collectionVariables.get(\"token_refresco_viejo\")));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Reutilizar el refresco viejo",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{url_base}}/auth/refrescar",
-              "host": [
-                "{{url_base}}"
-              ],
-              "path": [
-                "auth",
-                "refrescar"
-              ]
-            },
-            "description": "Reutilizar un refresco revocado es señal de robo: se revoca toda la familia.",
-            "auth": {
-              "type": "noauth"
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"token_refresco\": \"{{token_refresco_viejo}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "El refresco nuevo también cae",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{url_base}}/auth/refrescar",
-              "host": [
-                "{{url_base}}"
-              ],
-              "path": [
-                "auth",
-                "refrescar"
-              ]
-            },
-            "auth": {
-              "type": "noauth"
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"token_refresco\": \"{{token_refresco_usuario}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Logout",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{url_base}}/auth/logout",
-              "host": [
-                "{{url_base}}"
-              ],
-              "path": [
-                "auth",
-                "logout"
-              ]
-            },
-            "auth": {
-              "type": "noauth"
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"token_refresco\": \"{{token_refresco_otro}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
+            "url": "{{url_base}}/auth/sesion"
           },
           "event": [
             {
@@ -3031,37 +2802,43 @@
           ]
         },
         {
-          "name": "Refrescar tras logout",
+          "name": "Registrar la salida del usuario",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{url_base}}/auth/refrescar",
-              "host": [
-                "{{url_base}}"
-              ],
-              "path": [
-                "auth",
-                "refrescar"
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_usuario}}",
+                  "type": "string"
+                }
               ]
             },
+            "url": "{{url_base}}/auth/salida"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Entrada sin token",
+          "request": {
+            "method": "POST",
+            "header": [],
             "auth": {
               "type": "noauth"
             },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"token_refresco\": \"{{token_refresco_otro}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
+            "url": "{{url_base}}/auth/sesion"
           },
           "event": [
             {
@@ -3076,7 +2853,7 @@
           ]
         },
         {
-          "name": "Refresco inventado",
+          "name": "Login propio retirado",
           "request": {
             "method": "POST",
             "header": [
@@ -3085,28 +2862,75 @@
                 "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{url_base}}/auth/refrescar",
-              "host": [
-                "{{url_base}}"
-              ],
-              "path": [
-                "auth",
-                "refrescar"
-              ]
-            },
             "auth": {
               "type": "noauth"
             },
+            "url": "{{url_base}}/auth/login",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"token_refresco\": \"inventado\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
+              "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"contrasena\": \"x\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 404\", () => pm.response.to.have.status(404));",
+                  "// Las contraseñas ya no pasan por la API: las comprueba Firebase"
+                ]
               }
             }
+          ]
+        },
+        {
+          "name": "Refresco propio retirado",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": "{{url_base}}/auth/refrescar",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token_refresco\": \"x\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Token con formato JWT pero inventado",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "eyJhbGciOiJSUzI1NiJ9.e30.firma-inventada",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{url_base}}/usuarios/yo"
           },
           "event": [
             {
@@ -3119,69 +2943,30 @@
               }
             }
           ]
-        }
-      ]
-    },
-    {
-      "name": "9 · Rate limit",
-      "description": "Va la última: deja el login bloqueado un minuto para esta IP.",
-      "item": [
+        },
         {
-          "name": "Login: sexto intento en un minuto",
+          "name": "Config pública sin secretos",
           "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{url_base}}/auth/login",
-              "host": [
-                "{{url_base}}"
-              ],
-              "path": [
-                "auth",
-                "login"
-              ]
-            },
+            "method": "GET",
+            "header": [],
             "auth": {
               "type": "noauth"
             },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"nadie@example.com\",\n  \"contrasena\": \"xxxxxxxxxxxx\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
+            "url": "{{url_base}}/config/cliente"
           },
           "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "// Cinco intentos fallidos seguidos: el sexto (esta petición) tiene que dar 429",
-                  "const intento = {",
-                  "  url: pm.environment.get(\"url_base\") + \"/auth/login\",",
-                  "  method: \"POST\",",
-                  "  header: { \"Content-Type\": \"application/json\" },",
-                  "  body: { mode: \"raw\", raw: JSON.stringify({ email: \"nadie@example.com\", contrasena: \"x\".repeat(12) }) },",
-                  "};",
-                  "for (let i = 0; i < 5; i++) pm.sendRequest(intento, () => {});"
-                ]
-              }
-            },
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 429\", () => pm.response.to.have.status(429));"
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "const cfg = pm.response.json();",
+                  "pm.test(\"Da la config web de Firebase\", () => pm.expect(cfg.firebase.apiKey).to.be.a(\"string\"));",
+                  "pm.test(\"Nunca la credencial de la cuenta de servicio\", () => {",
+                  "  pm.expect(pm.response.text()).to.not.include(\"private_key\");",
+                  "  pm.expect(pm.response.text()).to.not.include(\"client_email\");",
+                  "});"
                 ]
               }
             }
@@ -3190,7 +2975,7 @@
       ]
     },
     {
-      "name": "10 · Cuenta y acceso",
+      "name": "9 · Cuenta y acceso",
       "item": [
         {
           "name": "Cambiar contraseña: actual incorrecta",
@@ -3346,6 +3131,99 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "El token anterior queda revocado",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_usuario}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{url_base}}/usuarios/yo"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));",
+                  "// La API revoca las sesiones en Firebase y verifica con check_revoked"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login con la contraseña nueva (Firebase)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": "{{firebase_login_url}}?key={{firebase_api_key}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"usuario_{{sufijo}}@example.com\",\n  \"password\": \"{{contrasena_pruebas}}-2\",\n  \"returnSecureToken\": true\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "const t = pm.response.json();",
+                  "pm.test(\"Firebase devuelve un ID token\", () => pm.expect(t.idToken).to.be.a(\"string\"));",
+                  "pm.collectionVariables.set(\"token_acceso_usuario\", t.idToken);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Yo con el token nuevo",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_usuario}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{url_base}}/usuarios/yo"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
                 ]
               }
             }
@@ -3744,6 +3622,40 @@
           ]
         },
         {
+          "name": "Login del otro tras reactivarlo (Firebase)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": "{{firebase_login_url}}?key={{firebase_api_key}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"otro_{{sufijo}}@example.com\",\n  \"password\": \"{{contrasena_pruebas}}\",\n  \"returnSecureToken\": true\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "const t = pm.response.json();",
+                  "pm.test(\"Firebase devuelve un ID token\", () => pm.expect(t.idToken).to.be.a(\"string\"));",
+                  "pm.collectionVariables.set(\"token_acceso_otro\", t.idToken);"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Auditoría: desactivación con email",
           "request": {
             "method": "GET",
@@ -3791,6 +3703,17 @@
           "name": "Admin restablece la contraseña del otro usuario",
           "event": [
             {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Firebase revoca con precisión de segundos (iat * 1000 < tokens_valid_after): un token emitido en el",
+                  "// mismo segundo que la revocación sobrevive. Se espera un segundo para que el login anterior quede atrás",
+                  "setTimeout(() => {}, 1100);"
+                ]
+              }
+            },
+            {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
@@ -3834,6 +3757,35 @@
               ]
             }
           }
+        },
+        {
+          "name": "La sesión del otro queda revocada",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_otro}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{url_base}}/usuarios/yo"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Restablecer la propia por la vía de admin",
@@ -3928,6 +3880,790 @@
           }
         }
       ]
+    },
+    {
+      "name": "10 · Clientes y aislamiento",
+      "item": [
+        {
+          "name": "Crear el cliente A",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_admin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{url_base}}/empresas",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codigo\": \"cliente-a-{{sufijo}}\",\n  \"nombre\": \"Cliente A {{sufijo}}\",\n  \"sector\": \"Pruebas\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"id_empresa_a\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Crear el cliente B",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_admin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{url_base}}/empresas",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codigo\": \"cliente-b-{{sufijo}}\",\n  \"nombre\": \"Cliente B {{sufijo}}\",\n  \"sector\": \"Pruebas\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"id_empresa_b\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cliente duplicado",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_admin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{url_base}}/empresas",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codigo\": \"cliente-a-{{sufijo}}\",\n  \"nombre\": \"Cliente A {{sufijo}}\",\n  \"sector\": \"Pruebas\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Código de cliente no válido",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_admin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{url_base}}/empresas",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codigo\": \"Con Mayusculas\",\n  \"nombre\": \"Cliente C {{sufijo}}\",\n  \"sector\": \"Pruebas\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 422\", () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Clientes: solo admin",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_usuario}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{url_base}}/empresas"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Alta de un analista con cliente",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_admin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{url_base}}/usuarios",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"analista_a_{{sufijo}}@example.com\",\n  \"contrasena\": \"{{contrasena_pruebas}}\",\n  \"rol\": \"analista\",\n  \"empresa_id\": {{id_empresa_a}}\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 422\", () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Alta de un trabajador del cliente A",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_admin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{url_base}}/usuarios",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"trabajador_a_{{sufijo}}@example.com\",\n  \"contrasena\": \"{{contrasena_pruebas}}\",\n  \"rol\": \"usuario\",\n  \"empresa_id\": {{id_empresa_a}}\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "const u = pm.response.json();",
+                  "pm.test(\"Pertenece a su cliente\", () => pm.expect(u.empresa_id).to.eql(Number(pm.collectionVariables.get(\"id_empresa_a\"))));",
+                  "pm.collectionVariables.set(\"id_cliente_a\", u.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Alta de un trabajador del cliente B",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_admin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{url_base}}/usuarios",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"trabajador_b_{{sufijo}}@example.com\",\n  \"contrasena\": \"{{contrasena_pruebas}}\",\n  \"rol\": \"usuario\",\n  \"empresa_id\": {{id_empresa_b}}\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "const u = pm.response.json();",
+                  "pm.test(\"Pertenece a su cliente\", () => pm.expect(u.empresa_id).to.eql(Number(pm.collectionVariables.get(\"id_empresa_b\"))));",
+                  "pm.collectionVariables.set(\"id_cliente_b\", u.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login del trabajador A (Firebase)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": "{{firebase_login_url}}?key={{firebase_api_key}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"trabajador_a_{{sufijo}}@example.com\",\n  \"password\": \"{{contrasena_pruebas}}\",\n  \"returnSecureToken\": true\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "const t = pm.response.json();",
+                  "pm.test(\"Firebase devuelve un ID token\", () => pm.expect(t.idToken).to.be.a(\"string\"));",
+                  "pm.collectionVariables.set(\"token_cliente_a\", t.idToken);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login del trabajador B (Firebase)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": "{{firebase_login_url}}?key={{firebase_api_key}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"trabajador_b_{{sufijo}}@example.com\",\n  \"password\": \"{{contrasena_pruebas}}\",\n  \"returnSecureToken\": true\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "const t = pm.response.json();",
+                  "pm.test(\"Firebase devuelve un ID token\", () => pm.expect(t.idToken).to.be.a(\"string\"));",
+                  "pm.collectionVariables.set(\"token_cliente_b\", t.idToken);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A reporta una incidencia",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_cliente_a}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{url_base}}/incidentes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"titulo\": \"Correo sospechoso en el cliente A\",\n  \"descripcion\": \"Pide las credenciales del ERP\",\n  \"severidad\": \"alta\",\n  \"categoria\": \"phishing\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "const inc = pm.response.json();",
+                  "pm.test(\"La incidencia es de su cliente\", () => pm.expect(inc.empresa_id).to.eql(Number(pm.collectionVariables.get(\"id_empresa_a\"))));",
+                  "pm.collectionVariables.set(\"id_incidente_a\", inc.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "B no ve la incidencia de A (IDOR)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_cliente_b}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{url_base}}/incidentes/{{id_incidente_a}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "B no puede editarla",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_cliente_b}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{url_base}}/incidentes/{{id_incidente_a}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"titulo\": \"Ahora es mía\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "B no la ve aunque fuerce el filtro de A",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_cliente_b}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{url_base}}/incidentes?empresa_id={{id_empresa_a}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "const p = pm.response.json();",
+                  "pm.test(\"A un usuario de cliente se le fija su empresa\", () => {",
+                  "  const b = Number(pm.collectionVariables.get(\"id_empresa_b\"));",
+                  "  p.elementos.forEach((i) => pm.expect(i.empresa_id).to.eql(b));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ascender a un trabajador de cliente a analista",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_admin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{url_base}}/usuarios/{{id_cliente_a}}/rol",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rol\": \"analista\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 409\", () => pm.response.to.have.status(409));",
+                  "// Un analista ve a todos los clientes: un trabajador de uno no puede serlo"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "El admin filtra incidencias por cliente",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_admin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{url_base}}/incidentes?empresa_id={{id_empresa_a}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "const p = pm.response.json();",
+                  "const a = Number(pm.collectionVariables.get(\"id_empresa_a\"));",
+                  "pm.test(\"Solo las del cliente A, incluida la nueva\", () => {",
+                  "  p.elementos.forEach((i) => pm.expect(i.empresa_id).to.eql(a));",
+                  "  pm.expect(p.elementos.map((i) => i.id)).to.include(Number(pm.collectionVariables.get(\"id_incidente_a\")));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sensores: solo admin",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_cliente_b}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{url_base}}/eventos/sensores"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sensores (admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_admin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{url_base}}/eventos/sensores"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Lista de sensores\", () => pm.expect(pm.response.json()).to.be.an(\"array\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Dar de baja el cliente A",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_admin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{url_base}}/empresas/{{id_empresa_a}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"activa\": false\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Queda de baja\", () => pm.expect(pm.response.json().activa).to.eql(false));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "El trabajador de un cliente de baja queda fuera",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_cliente_a}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{url_base}}/usuarios/yo"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));",
+                  "// Su token de Firebase sigue siendo válido: es la API la que le cierra la puerta"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "11 · Rate limit",
+      "description": "Va la última: deja el login bloqueado un minuto para esta IP.",
+      "item": [
+        {
+          "name": "Cambiar contraseña: sexto intento en un minuto",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_admin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": "{{url_base}}/usuarios/yo/contrasena",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contrasena_actual\": \"no-es-la-actual-1234\",\n  \"contrasena_nueva\": \"otra-contrasena-larga\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Es la única ruta que comprueba una contraseña en la API (oráculo de fuerza bruta): 5 por minuto.",
+                  "// Va la última para no bloquear el resto de la colección",
+                  "const intento = {",
+                  "  url: pm.environment.get(\"url_base\") + \"/usuarios/yo/contrasena\",",
+                  "  method: \"PATCH\",",
+                  "  header: {",
+                  "    \"Content-Type\": \"application/json\",",
+                  "    Authorization: \"Bearer \" + pm.collectionVariables.get(\"token_acceso_admin\"),",
+                  "  },",
+                  "  body: { mode: \"raw\", raw: JSON.stringify({ contrasena_actual: \"no-es-la-actual-1234\", contrasena_nueva: \"otra-contrasena-larga\" }) },",
+                  "};",
+                  "for (let i = 0; i < 5; i++) pm.sendRequest(intento, () => {});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 429\", () => pm.response.to.have.status(429));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
     }
   ],
   "variable": [
@@ -3968,15 +4704,7 @@
       "value": ""
     },
     {
-      "key": "token_refresco_admin",
-      "value": ""
-    },
-    {
       "key": "token_acceso_usuario",
-      "value": ""
-    },
-    {
-      "key": "token_refresco_usuario",
       "value": ""
     },
     {
@@ -3984,19 +4712,7 @@
       "value": ""
     },
     {
-      "key": "token_refresco_otro",
-      "value": ""
-    },
-    {
       "key": "token_acceso_analista",
-      "value": ""
-    },
-    {
-      "key": "token_refresco_analista",
-      "value": ""
-    },
-    {
-      "key": "token_refresco_viejo",
       "value": ""
     },
     {
@@ -4005,6 +4721,34 @@
     },
     {
       "key": "token_alg_none",
+      "value": ""
+    },
+    {
+      "key": "id_empresa_a",
+      "value": ""
+    },
+    {
+      "key": "id_empresa_b",
+      "value": ""
+    },
+    {
+      "key": "id_cliente_a",
+      "value": ""
+    },
+    {
+      "key": "id_cliente_b",
+      "value": ""
+    },
+    {
+      "key": "token_cliente_a",
+      "value": ""
+    },
+    {
+      "key": "token_cliente_b",
+      "value": ""
+    },
+    {
+      "key": "id_incidente_a",
       "value": ""
     }
   ]
