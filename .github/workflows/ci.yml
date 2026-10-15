@@ -175,3 +175,28 @@ jobs:
             frontend/web/playwright-report/
             frontend/web/test-results/
           retention-days: 7
+
+  # Despliegue continuo: solo llega a producción lo que ha pasado todos los controles.
+  # El auto-deploy de Dokploy está desactivado; el único disparador es este job.
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [calidad-y-tests, imagen, frontend, senuelo, e2e]
+    environment: production
+    # Un despliegue a medias no se cancela porque llegue otro push.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - name: Desplegar el compose en Dokploy
+        env:
+          DOKPLOY_URL: ${{ secrets.DOKPLOY_URL }}
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+          DOKPLOY_COMPOSE_ID: ${{ secrets.DOKPLOY_COMPOSE_ID }}
+        run: |
+          curl --fail-with-body --silent --show-error --max-time 60 \
+            -X POST "$DOKPLOY_URL/api/compose.deploy" \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: $DOKPLOY_API_KEY" \
+            -d "{\"composeId\": \"$DOKPLOY_COMPOSE_ID\", \"title\": \"CI ${GITHUB_SHA::7}\"}"
