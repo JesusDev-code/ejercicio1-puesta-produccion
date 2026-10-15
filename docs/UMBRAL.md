@@ -147,7 +147,11 @@ ADMINISTRACIÓN         (admin)   Clientes · Usuarios · Auditoría
 la aplicación propia. La API quita el prefijo `/api` ella misma (middleware `QuitarPrefijo`),
 porque Dokploy no genera el *strip path* para dominios con ruta.
 
-**Capas del backend** (`app/`):
+**Código**: un directorio por servicio. `backend/` (API), `frontend/` (Angular y su nginx),
+`senuelo/` (sensores), más `postman/`, `scripts/` y `docs/`. Mapa completo en el
+[`README`](../README.md#estructura-del-repositorio).
+
+**Capas del backend** (`backend/app/`):
 
 ```
 routers/        HTTP y validación de entrada. Sin lógica
@@ -543,12 +547,12 @@ API no publica ningún puerto: no hay otro camino que el proxy.
 
 | Medida | Dónde |
 |---|---|
-| Imágenes slim multi-stage, sin herramientas de build | `Dockerfile` |
-| Usuario sin privilegios (uid 10001) | `Dockerfile` |
+| Imágenes slim multi-stage, sin herramientas de build | `backend/Dockerfile`, `frontend/Dockerfile` |
+| Usuario sin privilegios (uid 10001 en la API, nginx-unprivileged en el front) | `backend/Dockerfile`, `frontend/Dockerfile` |
 | Sistema de ficheros de solo lectura, `/tmp` en memoria | `docker-compose.yml` |
 | `cap_drop: ALL` y `no-new-privileges` | `docker-compose.yml` |
 | PostgreSQL sin puerto publicado | `docker-compose.yml` |
-| Sin cabecera `Server` (`--no-server-header`) | `Dockerfile` |
+| Sin cabecera `Server` (`--no-server-header`) | `backend/Dockerfile` |
 | `JWT_SECRETO` solo llega al servicio `api` | `docker-compose.yml` |
 
 ### Secretos
@@ -567,16 +571,16 @@ comprobar la versión vigente en <https://owasp.org/Top10/>.
 
 | Categoría | Riesgo | Cómo se mitiga en Umbral | Dónde mirar |
 |---|---|---|---|
-| **A01 Broken Access Control** | Ver o tocar lo que no es tuyo (IDOR, escalada) | Permisos centralizados en los servicios; 404 para lo ajeno; aislamiento por empresa **antes** del rol; filtro de empresa forzado para clientes; rol leído de la BD en cada petición; esquemas de entrada sin `rol`, `estado` ni `reportante_id` | `app/servicios/incidentes.py`, `tests/test_empresas.py` |
-| **A02 Security Misconfiguration** | Valores por defecto inseguros, información de más | `/docs` desactivado en producción; errores sin trazas; CSP, HSTS, `nosniff` y `DENY`; CORS con lista blanca; sin cabecera `Server`; contenedores de solo lectura y sin capabilities; la API no arranca con un `JWT_SECRETO` corto | `app/main.py`, `nginx/cabeceras-seguridad.conf`, `docker-compose.yml` |
+| **A01 Broken Access Control** | Ver o tocar lo que no es tuyo (IDOR, escalada) | Permisos centralizados en los servicios; 404 para lo ajeno; aislamiento por empresa **antes** del rol; filtro de empresa forzado para clientes; rol leído de la BD en cada petición; esquemas de entrada sin `rol`, `estado` ni `reportante_id` | `backend/app/servicios/incidentes.py`, `backend/tests/test_empresas.py` |
+| **A02 Security Misconfiguration** | Valores por defecto inseguros, información de más | `/docs` desactivado en producción; errores sin trazas; CSP, HSTS, `nosniff` y `DENY`; CORS con lista blanca; sin cabecera `Server`; contenedores de solo lectura y sin capabilities; la API no arranca con un `JWT_SECRETO` corto | `backend/app/main.py`, `frontend/nginx/cabeceras-seguridad.conf`, `docker-compose.yml` |
 | **A03 Software Supply Chain Failures** | Dependencias vulnerables o comprometidas | Lockfiles (`uv.lock`, `package-lock.json`); `pip-audit --strict` y `npm audit` en CI; sensores sin dependencias; ningún SDK de terceros para la identidad; imágenes base fijadas | `.github/workflows/ci.yml` |
-| **A04 Cryptographic Failures** | Secretos o datos sensibles mal protegidos | Contraseñas con Argon2id; refresh tokens guardados solo como SHA-256; JWT con algoritmo fijado (no acepta `alg=none`); TLS en todo; token de ingesta comparado en tiempo constante; secretos fuera del repo | `app/seguridad.py`, `app/routers/eventos.py` |
-| **A05 Injection** | SQL, XSS, inyección en logs | ORM con parámetros enlazados; `LIKE` escapado; Angular escapa por defecto y la CSP con Trusted Types bloquea sumideros de DOM; los caracteres de control se quitan de lo que llega de internet | `app/repositorios.py`, `app/esquemas.py` |
-| **A06 Insecure Design** | Fallos de diseño, no de código | Registro que nace sin privilegios (cuenta pendiente); personal del MSSP decidido por rol, no por la ausencia de empresa; borrado lógico (evidencia); reporte congelado al pasar a análisis; máquina de estados con 409; el señuelo no es explotable por diseño | `app/servicios/`, `senuelo/` |
-| **A07 Authentication Failures** | Credenciales débiles, sesiones robadas | Login con 5 intentos/min y tiempo constante; mínimo 12 caracteres; refresh rotado con detección de reutilización; revocación **inmediata** por versión de sesión al cambiar o restablecer la contraseña y al desactivar; access token solo en memoria y refresh en cookie `HttpOnly`; cambiar la contraseña exige la actual (5/min) | `app/servicios/auth.py`, `app/servicios/usuarios.py`, `core/sesion.ts` |
-| **A08 Software or Data Integrity Failures** | Datos o código manipulados | La CI bloquea el merge si falla una comprobación; migraciones versionadas y probadas; los campos de un evento no se editan nunca, solo el triaje | `tests/test_migraciones.py` |
-| **A09 Logging & Alerting Failures** | No enterarse de un ataque | Auditoría de todas las acciones sensibles con IP real; el panel resalta alertas; el señuelo informa cada 5 minutos de entregados y perdidos; logins fallidos y reutilización de tokens auditados | `app/servicios/auditoria.py` |
-| **A10 Mishandling of Exceptional Conditions** | Errores que dejan el sistema en un estado inseguro | Manejador global que responde 500 genérico y registra la traza; fallos de verificación del token resueltos como 401 (se deniega, no se concede); los lotes de ingesta inválidos se rechazan enteros; un volcado de backup fallido no deja ficheros a medias | `app/main.py`, `app/seguridad.py` |
+| **A04 Cryptographic Failures** | Secretos o datos sensibles mal protegidos | Contraseñas con Argon2id; refresh tokens guardados solo como SHA-256; JWT con algoritmo fijado (no acepta `alg=none`); TLS en todo; token de ingesta comparado en tiempo constante; secretos fuera del repo | `backend/app/seguridad.py`, `backend/app/routers/eventos.py` |
+| **A05 Injection** | SQL, XSS, inyección en logs | ORM con parámetros enlazados; `LIKE` escapado; Angular escapa por defecto y la CSP con Trusted Types bloquea sumideros de DOM; los caracteres de control se quitan de lo que llega de internet | `backend/app/repositorios.py`, `backend/app/esquemas.py` |
+| **A06 Insecure Design** | Fallos de diseño, no de código | Registro que nace sin privilegios (cuenta pendiente); personal del MSSP decidido por rol, no por la ausencia de empresa; borrado lógico (evidencia); reporte congelado al pasar a análisis; máquina de estados con 409; el señuelo no es explotable por diseño | `backend/app/servicios/`, `senuelo/` |
+| **A07 Authentication Failures** | Credenciales débiles, sesiones robadas | Login con 5 intentos/min y tiempo constante; mínimo 12 caracteres; refresh rotado con detección de reutilización; revocación **inmediata** por versión de sesión al cambiar o restablecer la contraseña y al desactivar; access token solo en memoria y refresh en cookie `HttpOnly`; cambiar la contraseña exige la actual (5/min) | `backend/app/servicios/auth.py`, `backend/app/servicios/usuarios.py`, `frontend/src/app/core/sesion.ts` |
+| **A08 Software or Data Integrity Failures** | Datos o código manipulados | La CI bloquea el merge si falla una comprobación; migraciones versionadas y probadas; los campos de un evento no se editan nunca, solo el triaje | `backend/tests/test_migraciones.py` |
+| **A09 Logging & Alerting Failures** | No enterarse de un ataque | Auditoría de todas las acciones sensibles con IP real; el panel resalta alertas; el señuelo informa cada 5 minutos de entregados y perdidos; logins fallidos y reutilización de tokens auditados | `backend/app/servicios/auditoria.py` |
+| **A10 Mishandling of Exceptional Conditions** | Errores que dejan el sistema en un estado inseguro | Manejador global que responde 500 genérico y registra la traza; fallos de verificación del token resueltos como 401 (se deniega, no se concede); los lotes de ingesta inválidos se rechazan enteros; un volcado de backup fallido no deja ficheros a medias | `backend/app/main.py`, `backend/app/seguridad.py` |
 
 ---
 
@@ -627,7 +631,7 @@ que configurar un *Volume Backup* hacia S3 en Dokploy.
 
 | Tipo | Herramienta | Qué prueba | Cantidad |
 |---|---|---|---|
-| **Unitarias del backend** | pytest | Clasificador del señuelo | 12 |
+| **Unitarias de los sensores** | pytest | Clasificador del señuelo | 12 |
 | **Integración de la API** | pytest + httpx + BD real | Cada endpoint por HTTP, con permisos y efectos en la BD | 183 |
 | **Unitarias del front** | Vitest (`ng test`) | Sesión, interceptor, guardas, servicio de clientes, errores, utilidades | 53 |
 | **E2E** | Playwright | Flujos completos en un navegador real contra la pila entera | 22 |
@@ -636,9 +640,10 @@ que configurar un *Volume Backup* hacia S3 en Dokploy.
 | **Dependencias** | pip-audit, npm audit | Backend y front | — |
 
 ```bash
-uv run pytest                     # integración de la API
-uv run pytest senuelo/            # unitarias del clasificador
-cd frontend/web
+cd backend
+uv run pytest --cov               # integración de la API (cobertura mínima 80 %)
+uv run pytest ../senuelo          # unitarias del clasificador
+cd ../frontend
 npx ng test --watch=false         # unitarias del front
 npx playwright test               # E2E (levanta todo solo)
 ```
@@ -649,10 +654,14 @@ Cada test levanta la aplicación real en memoria y le habla por HTTP con `httpx`
 de datos es SQLite y en la CI un **PostgreSQL 17 real**. Se prueba el comportamiento que vería un
 cliente (códigos, cuerpos y efectos en la BD), no funciones sueltas.
 
+Ficheros en `backend/tests/`:
+
 | Fichero | Qué cubre |
 |---|---|
 | `test_auth.py` | Login, mismo error exista o no el email, rate limit, sin token, firma manipulada, caducado, `alg=none`, token sin versión de sesión, rotación del refresh, reutilización (familia revocada y access del atacante tumbado al momento, otros dispositivos intactos), logout, rol desde la BD |
 | `test_auth_web.py` | Cookie de refresco endurecida y nunca en el cuerpo, rotación de la cookie, reutilización, logout que la borra, `Path` configurable tras un proxy |
+| `test_registro.py` | Registro público (sin rol ni empresa, mínimo 12 caracteres, email existente sin revelar nada, rate limit), cuenta pendiente que no ve nada, unión con código (formato flexible, inventado → 422 auditado, regenerado, empresa de baja, gestor nunca por código, rate limit) |
+| `test_gestor.py` | Alcance del gestor: incidencias de su empresa y no de otra, sin notas internas, código de invitación, gestión solo de los `usuario` de su empresa, sensores propios; segunda barrera de aislamiento sin la dependencia |
 | `test_empresas.py` | CRUD de clientes, reglas de miembros, **aislamiento** (leer, editar, cambiar estado, notas, listar y filtro forzado), defensa en profundidad con un reportante falseado, baja de un cliente, ingesta, resumen, sensores e incidencia desde evento por cliente |
 | `test_incidentes.py` | Permisos por rol, IDOR, transiciones y 409, notas internas ocultas al reportante, borrado lógico, auditoría |
 | `test_usuarios.py` | Filtros (incluido `LIKE` con comodines), altas, emails duplicados, cambio de contraseña y restablecimiento con revocación **inmediata** del access token, límite de 5/min, activar y desactivar (reactivar no resucita tokens viejos) |
@@ -666,12 +675,12 @@ la API real, con usuarios creados directamente en la BD de pruebas.
 
 ### Tests unitarios
 
-**Backend:** `senuelo/test_clasificador.py` prueba cada regla del WAF con ejemplos reales
+**Sensores:** `senuelo/test_clasificador.py` prueba cada regla del WAF con ejemplos reales
 (recorrido de rutas, inyección, ficheros sensibles, escáneres) y casos que no deben coincidir. El
 resto de la lógica (máquina de estados, permisos, aislamiento) se prueba a través de la API, que
 es donde importa: un permiso bien escrito pero mal enganchado al router no protege nada.
 
-**Front** (`frontend/web/src/**/*.spec.ts`, Vitest con jsdom):
+**Front** (`frontend/src/**/*.spec.ts`, Vitest con jsdom):
 
 | Fichero | Qué cubre |
 |---|---|
@@ -685,12 +694,13 @@ es donde importa: un permiso bien escrito pero mal enganchado al router no prote
 ### E2E (Playwright)
 
 `npx playwright test` levanta solo, sin Docker y sin tocar nada real
-(`frontend/web/e2e/entorno.mjs`):
+(`frontend/e2e/entorno.mjs`):
 
 1. Compila el front **para producción**.
 2. Crea una base de datos nueva, aplica las migraciones y siembra dos clientes, un admin y un
-   trabajador de cada cliente (`tests/e2e_semilla.py`, que se niega a correr en producción).
-3. Arranca la **API real** con su autenticación propia. El rate limit va desactivado solo aquí:
+   trabajador de cada cliente y una gestora (`backend/tests/e2e_semilla.py`, que se niega a correr en
+   producción).
+3. Arranca la **API real** desde `backend/` con su autenticación propia. El rate limit va desactivado solo aquí:
    todas las pruebas entran desde `127.0.0.1` y lo cubre `test_auth.py`.
 4. Sirve el build con **exactamente las mismas cabeceras que nginx**, leídas de
    `nginx/cabeceras-seguridad.conf` (CSP con nonce y Trusted Types incluidos), y reenvía `/api` a
@@ -703,11 +713,13 @@ flujos verifican de paso que la política de seguridad de producción no rompe l
 | Fichero | Escenarios |
 |---|---|
 | `acceso.spec.ts` | La web pública lleva al login; contraseña incorrecta y email inexistente dan el **mismo** mensaje; el admin aterriza en el Panel, sin nada en localStorage ni sessionStorage, y la única cookie es la de refresco con `HttpOnly`, `Secure`, `SameSite=Strict` y `Path` acotado (invisible para `document.cookie`); recargar **mantiene** la sesión; cerrar sesión la revoca; una **cookie robada y reutilizada** tumba la sesión |
+| `registro.spec.ts` | Alguien nuevo se registra, entra sin empresa y se une con el código; registrarse con un email existente no revela nada ni le quita la cuenta; una cuenta pendiente puede cerrar sesión |
+| `gestor.spec.ts` | La gestora ve las incidencias de su empresa (con quién las reportó) y no las de otra; regenera el código y el anterior deja de valer; desactiva a una trabajadora, que ya no entra, y la reactiva |
 | `incidencias.spec.ts` | Un trabajador reporta una incidencia y la ve; no ve el centro de seguridad; otro cliente no la ve en su lista y la **API se la niega (404) aunque conozca el id**, también al editarla; el admin la ve con su cliente |
 | `administracion.spec.ts` | Alta de un cliente (código sugerido) y de un usuario suyo con contraseña generada, que entra; al **dar de baja el cliente**, su contraseña sigue siendo buena pero la API le cierra la puerta; la auditoría registra las entradas |
 | `sensores.spec.ts` | Un evento de un sensor aparece **en vivo** en el Panel con su cliente (SSE a través del proxy); la ingesta rechaza un token incorrecto; una ruta con HTML malicioso se muestra **como texto** (XSS almacenado); la pantalla de Sensores marca el señuelo como «Enviando» |
 
-Si algo falla, cada servicio deja su salida en `frontend/web/test-results/<servicio>.log` y
+Si algo falla, cada servicio deja su salida en `frontend/test-results/<servicio>.log` y
 Playwright guarda la traza y una captura de la prueba fallida.
 
 ### Integración continua (GitHub Actions)
@@ -715,7 +727,7 @@ Playwright guarda la traza y una captura de la prueba fallida.
 En cada push y pull request:
 
 1. **Backend**: `ruff` (lint y formato) → `bandit` → `pip-audit --strict` → `pytest` contra un
-   PostgreSQL 17 real → tests del señuelo.
+   PostgreSQL 17 real → lint y tests del señuelo.
 2. **Imagen de la API**: build y comprobación de que no corre como root.
 3. **Frontend**: `npm audit` de las dependencias de runtime (nivel alto) → tests unitarios
    (Vitest) → build → imagen sin root.
@@ -797,19 +809,22 @@ admiten además `empresa_id`.
 ### Comandos
 
 ```bash
-uv run pytest                          # tests de la API
-uv run pytest senuelo/                 # tests del clasificador
-uv run ruff check . && uv run bandit -c pyproject.toml -r app
-cd frontend/web && npx ng test --watch=false   # unitarias del front
-cd frontend/web && npx playwright test         # E2E
-cd frontend/web && npx ng build        # compilar el front
-python -m app.cli crear-admin <email>  # en el contenedor api
-python -m app.cli sembrar-demo         # en el contenedor api
+cd backend && uv run pytest --cov                 # tests de la API
+cd backend && uv run pytest ../senuelo            # tests del clasificador
+cd backend && uv run ruff check . ../senuelo && uv run bandit -c pyproject.toml -r app
+cd frontend && npx ng test --watch=false          # unitarias del front
+cd frontend && npx playwright test                # E2E
+cd frontend && npx ng build                       # compilar el front
+docker compose exec api python -m app.cli crear-admin <email>
+docker compose exec api python -m app.cli sembrar-demo
 ```
 
 ### Documentos relacionados
 
 | Documento | Contenido |
 |---|---|
-| `README.md` | Arranque, variables, endpoints y despliegue |
-| `senuelo/README.md` | Sensores en detalle |
+| [`README.md`](../README.md) | Visión general, estructura del repositorio, arranque, testing y CI/CD |
+| [`backend/README.md`](../backend/README.md) | API: variables de entorno, endpoints, migraciones, CLI y backups |
+| [`frontend/README.md`](../frontend/README.md) | SPA: estructura, decisiones de seguridad, tests unitarios y E2E |
+| [`senuelo/README.md`](../senuelo/README.md) | Sensores en detalle |
+| [`postman/README.md`](../postman/README.md) | Colección de la API |

@@ -28,6 +28,16 @@ sola dependencia** de Python. Alimentan el panel de monitorización de la web de
 El riesgo de una caja realmente vulnerable expuesta a internet (que se la queden y pivoten
 hacia el resto del VPS) **no existe aquí**: no hay nada que explotar, solo un registrador.
 
+## Tests y lint
+
+El señuelo no tiene dependencias propias, así que se valida con las herramientas del backend
+(`ruff.toml` hereda la configuración de `backend/pyproject.toml`). Desde `backend/`:
+
+```bash
+uv run ruff check ../senuelo && uv run ruff format --check ../senuelo
+uv run pytest ../senuelo        # 12 tests del clasificador, sin red
+```
+
 ## Desarrollo local
 
 ```bash
