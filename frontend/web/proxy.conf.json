@@ -3,7 +3,6 @@
     "target": "http://127.0.0.1:8000",
     "secure": false,
     "changeOrigin": true,
-    "pathRewrite": { "^/api": "" },
-    "cookiePathRewrite": { "/auth/web": "/api/auth/web" }
+    "pathRewrite": { "^/api": "" }
   }
 }

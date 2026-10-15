@@ -17,6 +17,9 @@ class Configuracion(BaseSettings):
     firebase_api_key: str = ""
     firebase_auth_domain: str = ""
     firebase_project_id: str = ""
+    # Emulador de Firebase Auth (host:puerto) para los E2E. El Admin SDK lee esta misma variable
+    # del entorno y, con ella, ACEPTA TOKENS SIN FIRMAR: en producción está prohibida.
+    firebase_auth_emulator_host: str = ""
 
     # Lista separada por comas, p. ej. "https://app.example.com,http://localhost:4321"
     cors_origenes: str = ""
@@ -40,6 +43,8 @@ class Configuracion(BaseSettings):
             self.firebase_credenciales and self.firebase_api_key and self.firebase_project_id
         ):
             raise ValueError("En producción faltan FIREBASE_CREDENCIALES, _API_KEY o _PROJECT_ID")
+        if self.entorno == "produccion" and self.firebase_auth_emulator_host:
+            raise ValueError("FIREBASE_AUTH_EMULATOR_HOST no se puede usar en producción")
         return self
 
     @property

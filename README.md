@@ -173,6 +173,12 @@ En Dokploy, dos dominios con el **mismo host**:
 
 ## Postman
 
+> **Pendiente de adaptar a Firebase.** La colección es anterior a la migración: sus carpetas de
+> autenticación usan `/auth/login`, los refresh tokens y el rate limit del login, que ya no existen.
+> Para adaptarla, el login pasa a la API REST de Firebase (`accounts:signInWithPassword`, o el
+> emulador en local) y el `idToken` se usa como Bearer. Las pruebas automáticas equivalentes
+> (IDOR, aislamiento, token inválido, XSS) están en los tests de la API y en los E2E.
+
 En `postman/` están la colección y los entornos `local` y `produccion`. Recorre los tres roles con
 casos positivos y negativos, incluidos ataques al token (`alg=none`, firma manipulada), IDOR,
 mass assignment, reutilización de refresh tokens y rate limit.

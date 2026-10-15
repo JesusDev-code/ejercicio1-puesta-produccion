@@ -3,6 +3,7 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { initializeApp } from '@firebase/app';
 import {
   Auth,
+  connectAuthEmulator,
   inMemoryPersistence,
   initializeAuth,
   signInWithEmailAndPassword,
@@ -38,6 +39,10 @@ export class Sesion {
       const config = await firstValueFrom(this.http.get<ConfigCliente>('/api/config/cliente'));
       const app = initializeApp(config.firebase);
       this.auth = initializeAuth(app, { persistence: inMemoryPersistence });
+      // Solo en local y en los E2E: la API nunca lo anuncia en producción (se niega a arrancar)
+      if (config.firebase.emulador) {
+        connectAuthEmulator(this.auth, `http://${config.firebase.emulador}`, { disableWarnings: true });
+      }
     } catch {
       // Sin API no hay login posible: la pantalla de acceso ya avisa de que no responde
       this.auth = null;

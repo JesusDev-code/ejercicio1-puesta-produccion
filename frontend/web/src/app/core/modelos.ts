@@ -13,7 +13,7 @@ export type Categoria =
 
 /** GET /api/config/cliente: config web de Firebase (pública, no lleva secretos). */
 export interface ConfigCliente {
-  firebase: { apiKey: string; authDomain: string; projectId: string };
+  firebase: { apiKey: string; authDomain: string; projectId: string; emulador?: string | null };
 }
 
 export interface Empresa {

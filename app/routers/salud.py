@@ -28,5 +28,6 @@ async def config_cliente():
             apiKey=config.firebase_api_key,
             authDomain=config.firebase_auth_domain,
             projectId=config.firebase_project_id,
+            emulador=config.firebase_auth_emulator_host or None,
         )
     )

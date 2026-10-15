@@ -127,3 +127,51 @@ jobs:
 
       - name: La imagen no corre como root
         run: test "$(docker run --rm --entrypoint id senuelo-incidentes:ci -u)" != "0"
+
+  # Punta a punta: navegador real -> front de producción con la CSP de nginx -> API real ->
+  # emulador de Firebase Auth. No toca ningún servicio externo ni el proyecto real de Firebase.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [calidad-y-tests, frontend]
+    defaults:
+      run:
+        working-directory: frontend/web
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.21"
+          enable-cache: true
+
+      - name: Dependencias de la API
+        working-directory: .
+        run: uv sync --locked
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/web/package-lock.json
+
+      - name: Dependencias del front
+        run: npm ci --no-fund
+
+      - name: Navegador de Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E (Playwright)
+        run: npx playwright test
+
+      - name: Informe y logs si algo falla
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: informe-e2e
+          path: |
+            frontend/web/playwright-report/
+            frontend/web/test-results/
+          retention-days: 7

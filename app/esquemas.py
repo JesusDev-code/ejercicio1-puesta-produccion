@@ -26,6 +26,8 @@ class ConfigFirebase(BaseModel):
     apiKey: str  # noqa: N815 - nombres que espera el SDK de Firebase
     authDomain: str  # noqa: N815
     projectId: str  # noqa: N815
+    # Solo en local/E2E: el front se conecta al emulador en vez de a Google
+    emulador: str | None = None
 
 
 class ConfigCliente(BaseModel):

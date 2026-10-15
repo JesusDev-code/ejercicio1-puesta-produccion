@@ -560,18 +560,24 @@ que configurar un *Volume Backup* hacia S3 en Dokploy.
 
 ## 15. Pruebas: unitarias, integración, E2E y CI
 
-### Qué hay y qué no
+### Resumen
 
-| Tipo | Estado | Herramienta | Cantidad |
+| Tipo | Herramienta | Qué prueba | Cantidad |
 |---|---|---|---|
-| **Unitarias** del backend | ✅ Parcial | pytest | Clasificador del señuelo (12) y reglas puras dentro de los tests de integración |
-| **Integración** de la API | ✅ Completa | pytest + httpx (ASGI) + BD real | 129 casos |
-| **Migraciones** | ✅ | Alembic dentro de pytest | 2 |
-| **Seguridad estática** | ✅ | ruff (reglas `S`), bandit | Toda la API |
-| **Dependencias** | ✅ | pip-audit, npm audit | Backend y front |
-| **Manuales de API** | ⚠️ Desfasadas | Postman | La colección usa `/auth/login`, retirado con Firebase |
-| **Unitarias del front** | ❌ No hay | Script `ng test` sin ficheros `.spec.ts` | 0 |
-| **E2E** (navegador) | ❌ No hay | — | 0 |
+| **Unitarias del backend** | pytest | Clasificador del señuelo | 12 |
+| **Integración de la API** | pytest + httpx + BD real | Cada endpoint por HTTP, con permisos y efectos en la BD | 130 |
+| **Unitarias del front** | Vitest (`ng test`) | Interceptor, guardas, servicio de clientes, errores, utilidades | 52 |
+| **E2E** | Playwright + emulador de Firebase Auth | Flujos completos en un navegador real contra la pila entera | 16 |
+| **Seguridad estática** | ruff (reglas `S`), bandit | Código de la API | — |
+| **Dependencias** | pip-audit, npm audit | Backend y front | — |
+
+```bash
+uv run pytest                     # integración de la API
+uv run pytest senuelo/            # unitarias del clasificador
+cd frontend/web
+npx ng test --watch=false         # unitarias del front
+npx playwright test               # E2E (levanta todo solo)
+```
 
 ### Tests de integración de la API
 
@@ -597,20 +603,53 @@ hace el front: credenciales contra el falso y `POST /auth/sesion`.
 
 ### Tests unitarios
 
-- `senuelo/test_clasificador.py`: cada regla del WAF con ejemplos reales (recorrido de rutas,
-  inyección, ficheros sensibles, escáneres) y casos que no deben coincidir.
-- El resto de la lógica (máquina de estados, permisos, aislamiento) se prueba a través de la API,
-  que es donde importa: un permiso bien escrito pero mal enganchado al router no protege nada.
+**Backend:** `senuelo/test_clasificador.py` prueba cada regla del WAF con ejemplos reales
+(recorrido de rutas, inyección, ficheros sensibles, escáneres) y casos que no deben coincidir. El
+resto de la lógica (máquina de estados, permisos, aislamiento) se prueba a través de la API, que
+es donde importa: un permiso bien escrito pero mal enganchado al router no protege nada.
 
-### Lo que falta, por prioridad
+**Front** (`frontend/web/src/**/*.spec.ts`, Vitest con jsdom):
 
-1. **E2E con Playwright**, solo en el entorno de pruebas: login real contra un proyecto de Firebase
-   de pruebas, «un usuario de Ibarra no ve lo de Solana» desde el navegador, y comprobar en vivo
-   la CSP con Trusted Types y que no queda nada en el almacenamiento tras el login.
-2. **Actualizar la colección de Postman**: login con la API REST de Firebase
-   (`accounts:signInWithPassword`) y el ID token como Bearer.
-3. **Unitarias del front** para `Clientes`, el interceptor (reintento tras un 401) y la traducción
-   de errores de Firebase.
+| Fichero | Qué cubre |
+|---|---|
+| `core/interceptor.spec.ts` | Añade el Bearer; no lo envía a rutas públicas; ante un 401 pide un token nuevo y repite una vez; si vuelve a fallar, cierra la sesión y va al login; en `/api/auth/*` no reintenta |
+| `core/guardas.spec.ts` | Sesión obligatoria, solo invitados, solo admin y landing solo sin sesión |
+| `core/clientes.spec.ts` | Caché de clientes (una sola carga, reintento si falla), nombres, opciones de filtro y de alta (sin clientes de baja) |
+| `core/errores.spec.ts` | Mensajes por código, sin trazas de un 500; traducción de errores de Firebase (una cuenta deshabilitada se ve igual que una contraseña mala) |
+| `paginas/clientes.spec.ts` | El código sugerido de un cliente siempre lo acepta la API |
+
+### E2E (Playwright)
+
+`npx playwright test` levanta solo, sin Docker y sin tocar nada real
+(`frontend/web/e2e/entorno.mjs`):
+
+1. Compila el front **para producción**.
+2. Arranca el **emulador oficial de Firebase Auth**, con un proyecto `demo-` que no necesita cuenta
+   de Google.
+3. Crea una base de datos nueva, aplica las migraciones y siembra dos clientes, un admin y un
+   trabajador de cada cliente (`tests/e2e_semilla.py`, que se niega a correr sin emulador).
+4. Arranca la **API real** apuntando al emulador.
+5. Sirve el build con **las mismas cabeceras que nginx**, leídas de
+   `nginx/cabeceras-seguridad.conf` (CSP con nonce y Trusted Types incluidos), y reenvía `/api` a
+   la API como hace Traefik. La única diferencia es que `connect-src` permite el emulador local.
+
+Cada prueba **falla si el navegador registra una violación de la CSP o de Trusted Types, un error
+de JavaScript o un diálogo inesperado** (fixture `vigilancia` en `e2e/ayudas.ts`). Así, todos los
+flujos verifican de paso que la política de seguridad de producción no rompe la app.
+
+| Fichero | Escenarios |
+|---|---|
+| `acceso.spec.ts` | La web pública lleva al login; contraseña incorrecta y email inexistente dan el **mismo** mensaje; el admin aterriza en el Panel y **no queda nada** en localStorage, sessionStorage, IndexedDB ni cookies; recargar pide entrar otra vez; cerrar sesión vuelve a la web pública; una cuenta creada por libre en Firebase **no entra** |
+| `incidencias.spec.ts` | Un trabajador reporta una incidencia y la ve; no ve el centro de seguridad; otro cliente no la ve en su lista y la **API se la niega (404) aunque conozca el id**, también al editarla; el admin la ve con su cliente |
+| `administracion.spec.ts` | Alta de un cliente (código sugerido) y de un usuario suyo con contraseña generada, que entra; al **dar de baja el cliente**, Firebase le deja iniciar sesión pero Umbral le cierra la puerta; la auditoría registra las entradas |
+| `sensores.spec.ts` | Un evento de un sensor aparece **en vivo** en el Panel con su cliente (SSE a través del proxy); la ingesta rechaza un token incorrecto; una ruta con HTML malicioso se muestra **como texto** (XSS almacenado); la pantalla de Sensores marca el señuelo como «Enviando» |
+
+El modo emulador **está prohibido en producción**: con él, el Admin SDK aceptaría tokens sin firmar.
+La configuración se niega a arrancar si `ENTORNO=produccion` y `FIREBASE_AUTH_EMULATOR_HOST` está
+definida (cubierto por `test_identidad.py`).
+
+Si algo falla, cada servicio deja su salida en `frontend/web/test-results/<servicio>.log` y
+Playwright guarda la traza y una captura de la prueba fallida.
 
 ### Integración continua (GitHub Actions)
 
@@ -619,8 +658,11 @@ En cada push y pull request:
 1. **Backend**: `ruff` (lint y formato) → `bandit` → `pip-audit --strict` → `pytest` contra un
    PostgreSQL 17 real → tests del señuelo.
 2. **Imagen de la API**: build y comprobación de que no corre como root.
-3. **Frontend**: `npm audit` de las dependencias de runtime (nivel alto) → build → imagen sin root.
+3. **Frontend**: `npm audit` de las dependencias de runtime (nivel alto) → tests unitarios
+   (Vitest) → build → imagen sin root.
 4. **Imagen del señuelo**: build y comprobación de que no corre como root.
+5. **E2E**: la suite de Playwright completa contra el emulador. Si falla, sube el informe, las
+   trazas y los logs de cada servicio como artefacto.
 
 ---
 
@@ -694,6 +736,8 @@ admiten además `empresa_id`.
 uv run pytest                          # tests de la API
 uv run pytest senuelo/                 # tests del clasificador
 uv run ruff check . && uv run bandit -c pyproject.toml -r app
+cd frontend/web && npx ng test --watch=false   # unitarias del front
+cd frontend/web && npx playwright test         # E2E
 cd frontend/web && npx ng build        # compilar el front
 python -m app.cli crear-admin <email>  # en el contenedor api
 python -m app.cli sembrar-demo         # en el contenedor api

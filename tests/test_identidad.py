@@ -65,3 +65,18 @@ def test_produccion_sin_firebase_no_arranca(monkeypatch):
         monkeypatch.delenv(var, raising=False)
     with pytest.raises(ValidationError):
         Configuracion(_env_file=None)
+
+
+def test_emulador_prohibido_en_produccion(monkeypatch):
+    """Con el emulador el Admin SDK acepta tokens sin firmar: en producción sería entrar sin
+    contraseña. La configuración se niega a arrancar."""
+    import pytest
+    from pydantic import ValidationError
+
+    monkeypatch.setenv("ENTORNO", "produccion")
+    monkeypatch.setenv("FIREBASE_CREDENCIALES", "e30=")
+    monkeypatch.setenv("FIREBASE_API_KEY", "clave")
+    monkeypatch.setenv("FIREBASE_PROJECT_ID", "proyecto")
+    monkeypatch.setenv("FIREBASE_AUTH_EMULATOR_HOST", "127.0.0.1:9099")
+    with pytest.raises(ValidationError, match="emulador|EMULATOR"):
+        Configuracion(_env_file=None)

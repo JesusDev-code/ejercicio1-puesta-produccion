@@ -61,10 +61,19 @@ def _cargar_credenciales(valor: str) -> dict:
 
 
 class IdentidadFirebase:
-    def __init__(self, credenciales: str, api_key: str):
-        self._app = firebase_admin.initialize_app(
-            credentials.Certificate(_cargar_credenciales(credenciales)), name="umbral"
-        )
+    def __init__(self, credenciales: str, api_key: str, proyecto: str = "", emulador: str = ""):
+        if emulador:
+            # Emulador local (E2E). ApplicationDefault se carga en diferido y nunca llega a usarse:
+            # con el emulador, el cliente de Auth la sustituye por una credencial falsa
+            self._app = firebase_admin.initialize_app(
+                credentials.ApplicationDefault(), {"projectId": proyecto}, name="umbral"
+            )
+            self._url_login = f"http://{emulador}/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key="
+        else:
+            self._app = firebase_admin.initialize_app(
+                credentials.Certificate(_cargar_credenciales(credenciales)), name="umbral"
+            )
+            self._url_login = _URL_LOGIN
         self._api_key = api_key
 
     async def verificar(self, token: str) -> str | None:
@@ -103,9 +112,9 @@ class IdentidadFirebase:
         cuerpo = json.dumps(
             {"email": email, "password": contrasena, "returnSecureToken": False}
         ).encode()
-        # URL fija https de Google: no hay esquema ni destino controlado por el usuario
+        # URL fija (Google o el emulador local): no hay esquema ni destino controlado por el usuario
         peticion = urllib.request.Request(  # noqa: S310
-            _URL_LOGIN + self._api_key,
+            self._url_login + self._api_key,
             data=cuerpo,
             method="POST",
             headers={"Content-Type": "application/json"},
@@ -140,9 +149,15 @@ def identidad() -> Identidad:
     global _proveedor
     if _proveedor is None:
         config = obtener_configuracion()
-        if not config.firebase_credenciales:
+        emulador = config.firebase_auth_emulator_host
+        if not config.firebase_credenciales and not emulador:
             raise RuntimeError("Falta FIREBASE_CREDENCIALES: no se puede verificar a nadie")
-        _proveedor = IdentidadFirebase(config.firebase_credenciales, config.firebase_api_key)
+        _proveedor = IdentidadFirebase(
+            config.firebase_credenciales,
+            config.firebase_api_key,
+            config.firebase_project_id,
+            emulador,
+        )
     return _proveedor
 
 
