@@ -20,7 +20,7 @@ import { Cargando, FalloServidor } from '../ui/estados';
 const PATRON_CODIGO = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 /** «Clínica Solana, S.L.» → «clinica-solana-s-l». Solo una sugerencia: el admin puede cambiarlo. */
-function aCodigo(nombre: string): string {
+export function aCodigo(nombre: string): string {
   return nombre
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')

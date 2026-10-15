@@ -101,6 +101,9 @@ jobs:
       - name: npm audit (dependencias de runtime)
         run: npm audit --omit=dev --audit-level=high
 
+      - name: Tests unitarios (Vitest)
+        run: npx ng test --watch=false
+
       - name: Build
         run: npx ng build
 

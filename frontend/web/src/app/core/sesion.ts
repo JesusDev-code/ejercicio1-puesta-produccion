@@ -10,24 +10,8 @@ import {
 } from '@firebase/auth';
 import { firstValueFrom } from 'rxjs';
 
+import { deFirebase } from './errores';
 import { ConfigCliente, Usuario } from './modelos';
-
-/** Errores de Firebase traducidos a códigos HTTP: el resto de la app ya sabe pintarlos. */
-const CODIGOS_FIREBASE: Record<string, number> = {
-  'auth/invalid-credential': 401,
-  'auth/invalid-login-credentials': 401,
-  'auth/wrong-password': 401,
-  'auth/user-not-found': 401,
-  'auth/user-disabled': 401, // igual que una contraseña mala: no se revela que la cuenta existe
-  'auth/invalid-email': 401,
-  'auth/too-many-requests': 429,
-  'auth/network-request-failed': 0,
-};
-
-function comoHttp(error: unknown): HttpErrorResponse {
-  const codigo = (error as { code?: string })?.code ?? '';
-  return new HttpErrorResponse({ status: CODIGOS_FIREBASE[codigo] ?? 400, error: { detail: codigo } });
-}
 
 /**
  * Estado de la sesión, con Firebase Authentication.
@@ -76,7 +60,7 @@ export class Sesion {
     try {
       await signInWithEmailAndPassword(this.auth, email, contrasena);
     } catch (e) {
-      throw comoHttp(e);
+      throw deFirebase(e);
     }
     try {
       // Firebase sabe quién es; la API decide si puede entrar (cuenta activa, empresa de alta)
