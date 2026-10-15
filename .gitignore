@@ -12,6 +12,13 @@ htmlcov/
 .atl/
 .postman/
 postman/globals/
+# Carpetas que genera el modo Git de Postman: la fuente de verdad es el JSON exportado
+postman/collections/
+postman/environments/
+postman/documents/
+postman/flows/
+postman/mocks/
+postman/specs/
 /*.png
 
 # Credenciales de cuentas de servicio de Firebase/Google: nunca al repo
