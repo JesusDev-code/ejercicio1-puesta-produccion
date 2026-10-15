@@ -2,23 +2,30 @@ import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
-import { firstValueFrom } from 'rxjs';
+import { Subject, firstValueFrom, of, share, throwError } from 'rxjs';
 
 import { interceptorApi } from './interceptor';
 import { Sesion } from './sesion';
 
-/** Deja que las promesas pendientes (el token de Firebase es asíncrono) se resuelvan. */
-const tick = () => new Promise((r) => setTimeout(r));
-
 describe('interceptorApi', () => {
   let http: HttpClient;
   let backend: HttpTestingController;
-  let sesion: { token: ReturnType<typeof vi.fn>; limpiar: ReturnType<typeof vi.fn> };
+  let token: string | null;
+  let sesion: {
+    tokenAcceso: ReturnType<typeof vi.fn>;
+    refrescar: ReturnType<typeof vi.fn>;
+    limpiar: ReturnType<typeof vi.fn>;
+  };
   let router: { navigate: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
+    token = 'token-viejo';
     sesion = {
-      token: vi.fn(async (forzar = false) => (forzar ? 'token-nuevo' : 'token-viejo')),
+      tokenAcceso: vi.fn(() => token),
+      refrescar: vi.fn(() => {
+        token = 'token-nuevo';
+        return of('token-nuevo');
+      }),
       limpiar: vi.fn(),
     };
     router = { navigate: vi.fn() };
@@ -36,72 +43,87 @@ describe('interceptorApi', () => {
 
   afterEach(() => backend.verify());
 
-  it('añade el ID token como Bearer a las llamadas a la API', async () => {
+  it('añade el token de acceso como Bearer a las llamadas a la API', async () => {
     const respuesta = firstValueFrom(http.get('/api/incidentes'));
-    await tick();
     const req = backend.expectOne('/api/incidentes');
     expect(req.request.headers.get('Authorization')).toBe('Bearer token-viejo');
     req.flush({});
     await respuesta;
   });
 
-  it.each(['/api/salud', '/api/config/cliente', '/assets/logo.svg'])(
+  it.each(['/api/auth/web/login', '/api/auth/web/refrescar', '/assets/logo.svg'])(
     'no envía el token a %s',
     async (url) => {
-      const respuesta = firstValueFrom(http.get(url));
+      const respuesta = firstValueFrom(http.post(url, null));
       const req = backend.expectOne(url);
       expect(req.request.headers.has('Authorization')).toBe(false);
       req.flush({});
       await respuesta;
-      expect(sesion.token).not.toHaveBeenCalled();
+      expect(sesion.tokenAcceso).not.toHaveBeenCalled();
     },
   );
 
-  it('ante un 401 pide un token nuevo a Firebase y repite una vez', async () => {
+  it('ante un 401 refresca en silencio y repite una vez con el token nuevo', async () => {
     const respuesta = firstValueFrom(http.get('/api/usuarios/yo'));
-    await tick();
     backend.expectOne('/api/usuarios/yo').flush(null, { status: 401, statusText: 'No' });
-    await tick();
     const reintento = backend.expectOne('/api/usuarios/yo');
-    expect(sesion.token).toHaveBeenLastCalledWith(true);
+    expect(sesion.refrescar).toHaveBeenCalledTimes(1);
     expect(reintento.request.headers.get('Authorization')).toBe('Bearer token-nuevo');
     reintento.flush({ id: 1 });
     expect(await respuesta).toEqual({ id: 1 });
     expect(router.navigate).not.toHaveBeenCalled();
   });
 
-  it('si el reintento también da 401, cierra la sesión y vuelve al login', async () => {
+  it('si el refresco falla, cierra la sesión y vuelve al login', async () => {
+    sesion.refrescar.mockReturnValue(throwError(() => new Error('cookie caducada')));
     const respuesta = firstValueFrom(http.get('/api/usuarios/yo'));
-    await tick();
-    backend.expectOne('/api/usuarios/yo').flush(null, { status: 401, statusText: 'No' });
-    await tick();
     backend.expectOne('/api/usuarios/yo').flush(null, { status: 401, statusText: 'No' });
     await expect(respuesta).rejects.toMatchObject({ status: 401 });
     expect(sesion.limpiar).toHaveBeenCalled();
     expect(router.navigate).toHaveBeenCalledWith(['/login'], { queryParams: { caducada: 1 } });
   });
 
-  it('en /api/auth/* el 401 es la respuesta final: ni reintento ni redirección', async () => {
-    const respuesta = firstValueFrom(http.post('/api/auth/sesion', null));
-    await tick();
-    backend.expectOne('/api/auth/sesion').flush(null, { status: 401, statusText: 'No' });
+  it('varios 401 a la vez esperan al mismo refresco (la cookie no se reutiliza)', async () => {
+    // La Sesion real comparte el refresco en curso; el interceptor debe engancharse a él
+    const enCurso = new Subject<string>();
+    const compartido = enCurso.pipe(share());
+    sesion.refrescar.mockReturnValue(compartido);
+
+    const a = firstValueFrom(http.get('/api/incidentes'));
+    const b = firstValueFrom(http.get('/api/eventos'));
+    backend.expectOne('/api/incidentes').flush(null, { status: 401, statusText: 'No' });
+    backend.expectOne('/api/eventos').flush(null, { status: 401, statusText: 'No' });
+
+    token = 'token-nuevo';
+    enCurso.next('token-nuevo');
+    enCurso.complete();
+
+    for (const url of ['/api/incidentes', '/api/eventos']) {
+      const reintento = backend.expectOne(url);
+      expect(reintento.request.headers.get('Authorization')).toBe('Bearer token-nuevo');
+      reintento.flush([]);
+    }
+    await Promise.all([a, b]);
+  });
+
+  it('en /api/auth/* el 401 es la respuesta final: ni refresco ni redirección', async () => {
+    const respuesta = firstValueFrom(http.post('/api/auth/web/login', {}));
+    backend.expectOne('/api/auth/web/login').flush(null, { status: 401, statusText: 'No' });
     await expect(respuesta).rejects.toMatchObject({ status: 401 });
-    expect(sesion.token).toHaveBeenCalledTimes(1);
+    expect(sesion.refrescar).not.toHaveBeenCalled();
     expect(router.navigate).not.toHaveBeenCalled();
   });
 
-  it('otros errores pasan tal cual, sin reintento', async () => {
+  it('otros errores pasan tal cual, sin refresco', async () => {
     const respuesta = firstValueFrom(http.get('/api/incidentes/9'));
-    await tick();
     backend.expectOne('/api/incidentes/9').flush(null, { status: 404, statusText: 'No' });
     await expect(respuesta).rejects.toMatchObject({ status: 404 });
-    expect(sesion.token).toHaveBeenCalledTimes(1);
+    expect(sesion.refrescar).not.toHaveBeenCalled();
   });
 
   it('sin sesión no inventa cabecera', async () => {
-    sesion.token.mockResolvedValue(null);
+    token = null;
     const respuesta = firstValueFrom(http.get('/api/incidentes'));
-    await tick();
     const req = backend.expectOne('/api/incidentes');
     expect(req.request.headers.has('Authorization')).toBe(false);
     req.flush({});

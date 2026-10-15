@@ -3,8 +3,8 @@
 
 
 La contraseña se pide por consola y no queda en el historial ni en ningún fichero.
-La cuenta se crea (o se actualiza) en Firebase y aquí; si el email ya existe, se asciende a
-admin y se le pone la contraseña nueva. Un admin es personal de Kaelum: se le quita la empresa."""
+Si el email ya existe, se asciende a admin, se le quita la empresa, se reactiva, se le pone la
+contraseña nueva y se cierran sus sesiones abiertas."""
 
 import argparse
 import asyncio
@@ -16,30 +16,27 @@ from sqlalchemy import select
 
 from app.db import FabricaSesion
 from app.demo import sembrar_demo
-from app.identidad import identidad
 from app.modelos import Empresa, Rol
 from app.repositorios import RepositorioUsuarios
+from app.seguridad import hashear_contrasena
 from app.servicios.auditoria import auditar
+from app.servicios.auth import cerrar_sesiones
 
 
 async def crear_admin(email: str, contrasena: str) -> None:
     async with FabricaSesion() as sesion:
         usuarios = RepositorioUsuarios(sesion)
-        uid = await identidad().buscar(email)
-        if uid:
-            await identidad().cambiar_contrasena(uid, contrasena)
-            await identidad().activar(uid, True)
-            await identidad().revocar(uid)
-        else:
-            uid = await identidad().crear(email, contrasena)
         usuario = await usuarios.por_email(email)
         if usuario:
             usuario.rol = Rol.admin
+            # Un admin es personal del MSSP: nunca pertenece a un cliente. Y esta es la vía de
+            # recuperación, así que también reactiva la cuenta
             usuario.empresa_id = None
             usuario.activo = True
-            usuario.firebase_uid = uid
+            usuario.hash_contrasena = hashear_contrasena(contrasena)
+            await cerrar_sesiones(sesion, usuario)
         else:
-            usuario = await usuarios.crear(email, uid, Rol.admin)
+            usuario = await usuarios.crear(email, hashear_contrasena(contrasena), Rol.admin)
         await auditar(
             sesion,
             accion="crear_admin_cli",

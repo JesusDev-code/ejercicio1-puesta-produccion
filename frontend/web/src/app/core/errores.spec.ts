@@ -1,6 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 
-import { camposInvalidos, codigo, deFirebase, detalle, mensajeGeneral } from './errores';
+import { camposInvalidos, codigo, detalle, mensajeGeneral } from './errores';
 
 const http = (status: number, error: unknown = null) => new HttpErrorResponse({ status, error });
 
@@ -58,29 +58,6 @@ describe('errores', () => {
       expect(mensajeGeneral(http(500, { detail: 'Traceback (most recent call last)…' }))).toBe(
         'Algo ha fallado en el servidor.',
       );
-    });
-  });
-
-  describe('deFirebase', () => {
-    it.each([
-      ['auth/invalid-credential', 401],
-      ['auth/wrong-password', 401],
-      ['auth/user-not-found', 401],
-      ['auth/too-many-requests', 429],
-      ['auth/network-request-failed', 0],
-      ['auth/otra-cosa', 400],
-    ])('%s → %i', (code, status) => {
-      expect(deFirebase({ code }).status).toBe(status);
-    });
-
-    it('una cuenta deshabilitada se ve igual que una contraseña mala (sin enumeración)', () => {
-      expect(deFirebase({ code: 'auth/user-disabled' }).status).toBe(
-        deFirebase({ code: 'auth/wrong-password' }).status,
-      );
-    });
-
-    it('aguanta errores sin código', () => {
-      expect(deFirebase(null).status).toBe(400);
     });
   });
 });

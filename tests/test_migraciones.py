@@ -35,8 +35,7 @@ async def test_las_migraciones_coinciden_con_los_modelos():
         )
         tablas = await conexion.run_sync(lambda c: set(inspect(c).get_table_names()))
     assert diferencias == []
-    assert {"usuarios", "incidentes", "empresas", "auditoria"} <= tablas
-    assert "tokens_refresco" not in tablas  # los refresh los gestiona Firebase
+    assert {"usuarios", "incidentes", "tokens_refresco", "auditoria"} <= tablas
 
 
 async def test_downgrade_deja_la_bd_vacia():

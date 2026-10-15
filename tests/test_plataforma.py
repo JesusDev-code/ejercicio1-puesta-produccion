@@ -28,10 +28,8 @@ async def test_cors_rechaza_origen_desconocido(cliente):
     assert "access-control-allow-origin" not in r.headers
 
 
-async def test_error_de_validacion_422(cliente, actores):
-    r = await cliente.post(
-        "/usuarios", json={"email": "no-es-email", "contrasena": "x"}, headers=actores.cab["admin"]
-    )
+async def test_error_de_validacion_422(cliente):
+    r = await cliente.post("/auth/login", json={"email": "no-es-email", "contrasena": "x"})
     assert r.status_code == 422
 
 

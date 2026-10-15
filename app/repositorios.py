@@ -1,6 +1,8 @@
 """Acceso a datos. Sin reglas de negocio: los permisos se deciden en los servicios."""
 
-from sqlalchemy import Select, func, or_, select
+from datetime import datetime
+
+from sqlalchemy import Select, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modelos import (
@@ -11,6 +13,7 @@ from app.modelos import (
     RegistroAuditoria,
     Rol,
     Severidad,
+    TokenRefresco,
     Usuario,
 )
 
@@ -65,18 +68,15 @@ class RepositorioUsuarios:
         consulta = select(Usuario).where(func.lower(Usuario.email) == email.lower())
         return await self.sesion.scalar(consulta)
 
-    async def por_uid(self, firebase_uid: str) -> Usuario | None:
-        return await self.sesion.scalar(select(Usuario).where(Usuario.firebase_uid == firebase_uid))
-
     async def crear(
         self,
         email: str,
-        firebase_uid: str | None,
+        hash_contrasena: str,
         rol: Rol = Rol.usuario,
         empresa_id: int | None = None,
     ) -> Usuario:
         usuario = Usuario(
-            email=email.lower(), firebase_uid=firebase_uid, rol=rol, empresa_id=empresa_id
+            email=email.lower(), hash_contrasena=hash_contrasena, rol=rol, empresa_id=empresa_id
         )
         self.sesion.add(usuario)
         await self.sesion.flush()
@@ -162,6 +162,53 @@ class RepositorioIncidentes:
         total = await self.sesion.scalar(select(func.count()).select_from(consulta.subquery()))
         pagina = consulta.order_by(Incidente.id.desc()).limit(limite).offset(desplazamiento)
         return total or 0, list(await self.sesion.scalars(pagina))
+
+
+class RepositorioTokens:
+    def __init__(self, sesion: AsyncSession):
+        self.sesion = sesion
+
+    async def crear(self, token: TokenRefresco) -> None:
+        self.sesion.add(token)
+        await self.sesion.flush()
+
+    async def por_hash(self, hash_token: str) -> TokenRefresco | None:
+        return await self.sesion.scalar(
+            select(TokenRefresco).where(TokenRefresco.hash_token == hash_token)
+        )
+
+    async def consumir(self, token_id: int, momento: datetime) -> bool:
+        """Marca el token como usado si nadie lo ha hecho antes. Atómico: con dos peticiones a la
+        vez, la base de datos deja que solo una cambie la fila. False = ya estaba usado."""
+        resultado = await self.sesion.execute(
+            update(TokenRefresco)
+            .where(TokenRefresco.id == token_id, TokenRefresco.revocado_en.is_(None))
+            .values(revocado_en=momento)
+            .execution_options(synchronize_session=False)
+        )
+        return resultado.rowcount == 1
+
+    async def revocar_familia(self, familia_id: str, momento: datetime) -> None:
+        await self.sesion.execute(
+            update(TokenRefresco)
+            .where(TokenRefresco.familia_id == familia_id, TokenRefresco.revocado_en.is_(None))
+            .values(revocado_en=momento)
+        )
+
+    async def revocar_de_empresa(self, empresa_id: int, momento: datetime) -> None:
+        de_la_empresa = select(Usuario.id).where(Usuario.empresa_id == empresa_id)
+        await self.sesion.execute(
+            update(TokenRefresco)
+            .where(TokenRefresco.usuario_id.in_(de_la_empresa), TokenRefresco.revocado_en.is_(None))
+            .values(revocado_en=momento)
+        )
+
+    async def revocar_de_usuario(self, usuario_id: int, momento: datetime) -> None:
+        await self.sesion.execute(
+            update(TokenRefresco)
+            .where(TokenRefresco.usuario_id == usuario_id, TokenRefresco.revocado_en.is_(None))
+            .values(revocado_en=momento)
+        )
 
 
 class RepositorioAuditoria:

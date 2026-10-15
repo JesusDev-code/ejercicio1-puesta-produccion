@@ -14,7 +14,7 @@
 2. [Recorrido por la aplicación](#2-recorrido-por-la-aplicación)
 3. [Arquitectura](#3-arquitectura)
 4. [Tecnologías](#4-tecnologías)
-5. [Autenticación con Firebase](#5-autenticación-con-firebase)
+5. [Autenticación: JWT y refresh tokens propios](#5-autenticación-jwt-y-refresh-tokens-propios)
 6. [Roles y permisos](#6-roles-y-permisos)
 7. [Multiempresa: aislamiento entre clientes](#7-multiempresa-aislamiento-entre-clientes)
 8. [Incidencias](#8-incidencias)
@@ -117,14 +117,12 @@ ADMINISTRACIÓN         (admin)   Clientes · Usuarios · Auditoría
                          ▼   ▼    │                    ▼
                     ┌─────┐ ┌─────┴──┐           ┌──────────┐
      navegador ───► │ web │ │  api   │ ◄──────── │ señuelo  │  (eventos reales)
-         │          └─────┘ └──┬─────┘ ◄──────── │generador │  (eventos de demo)
-         │        estáticos    │                 └──────────┘
-         │                     ▼
-         │                ┌─────────┐   ┌────────┐
-         │                │Postgres │◄──│ backup │  pg_dump diario
-         │                └─────────┘   └────────┘
-         │
-         └──────► Firebase Authentication (Google): login y emisión de ID tokens
+                    └─────┘ └──┬─────┘ ◄──────── │generador │  (eventos de demo)
+                  estáticos    │                 └──────────┘
+                               ▼
+                          ┌─────────┐   ┌────────┐
+                          │Postgres │◄──│ backup │  pg_dump diario
+                          └─────────┘   └────────┘
 ```
 
 | Servicio del compose | Papel | Expuesto |
@@ -148,7 +146,7 @@ servicios/      Reglas de negocio y permisos, en un solo sitio, y auditoría
 repositorios.py Acceso a datos (SQLAlchemy). Sin reglas
 modelos.py      Tablas
 esquemas.py     Entrada y salida (Pydantic), siempre separadas
-identidad.py    Único módulo que habla con Firebase
+seguridad.py    argon2, emisión y verificación de JWT, refresh tokens
 dependencias.py Quién eres (token) y qué rol necesitas
 ```
 
@@ -163,9 +161,10 @@ dependencias.py Quién eres (token) y qué rol necesitas
 | Python | 3.12 | Lenguaje |
 | FastAPI | ≥ 0.142 | API REST asíncrona |
 | SQLAlchemy (async) + asyncpg | ≥ 2.1 | ORM y driver de PostgreSQL |
-| Alembic | ≥ 1.20 | Migraciones (`0001` a `0005`) |
+| Alembic | ≥ 1.20 | Migraciones (`0001` a `0006`) |
 | Pydantic + pydantic-settings | ≥ 2.13 | Validación y configuración por entorno |
-| firebase-admin | ≥ 7.7 | Verificar ID tokens y gestionar cuentas |
+| PyJWT | ≥ 2.15 | Emitir y verificar los tokens de acceso (HS256) |
+| argon2-cffi | ≥ 25.1 | Hash de contraseñas (Argon2id) |
 | slowapi | ≥ 0.1.10 | Límite de peticiones |
 | uvicorn | ≥ 0.54 | Servidor ASGI |
 | uv | — | Gestión de dependencias con lockfile |
@@ -176,7 +175,6 @@ dependencias.py Quién eres (token) y qué rol necesitas
 |---|---|---|
 | Angular | 21 | SPA con componentes *standalone*, señales y `OnPush` |
 | Angular CDK | 21 | Overlays de los desplegables |
-| @firebase/app + @firebase/auth | 0.16 / 1.13 | Login. **Solo** Auth: no el paquete `firebase` completo |
 | RxJS | 7.8 | Peticiones HTTP |
 | TypeScript | 5.9 | Lenguaje |
 | Fuentes empaquetadas | — | Cormorant Garamond, Manrope y JetBrains Mono, sin Google Fonts |
@@ -192,8 +190,7 @@ divisorias y glifos animados de fondo.
 | Dokploy + Traefik | Despliegue, dominios `sslip.io` y TLS con Let's Encrypt |
 | PostgreSQL 17 | Base de datos |
 | nginx-unprivileged 1.31 | Servir el front sin root |
-| Firebase Authentication | Proveedor de identidad (proyecto `kaelum-837f9`) |
-| GitHub Actions | Integración continua |
+| GitHub Actions | Integración y despliegue continuos (CI/CD) |
 
 ### Sensores
 
@@ -202,64 +199,99 @@ dependencia de terceros que mantener ni auditar.
 
 ---
 
-## 5. Autenticación con Firebase
+## 5. Autenticación: JWT y refresh tokens propios
 
 ### Flujo de entrada
 
 ```
-navegador                      Firebase                          API de Umbral
-   │ email + contraseña  ───────► │                                   │
-   │ ◄─────────── ID token (JWT firmado por Google, 1 h)              │
-   │ POST /auth/sesion  (Authorization: Bearer <token>) ─────────────►│
-   │                                │   verifica firma, caducidad y   │
-   │                                │   revocación (check_revoked)    │
-   │                                │   busca el uid en SU base       │
-   │                                │   de datos: activo, rol, empresa│
-   │ ◄──────────────────────────────────────── 204 + «login» auditado │
-   │ GET /usuarios/yo  ───────────────────────────────────────────────►│
+navegador                                                         API de Umbral
+   │ POST /api/auth/web/login  {email, contrasena}  ─────────────────►│
+   │                                       comprueba la contraseña    │
+   │                                       (argon2), cuenta activa y  │
+   │                                       empresa de alta            │
+   │ ◄── 200 {token_acceso}  +  Set-Cookie: __Secure-refresco ────────│
+   │ GET /api/usuarios/yo  (Authorization: Bearer <token_acceso>) ───►│
 ```
 
-- **Firebase dice quién eres**: comprueba la contraseña y firma el token.
-- **Nuestra base de datos dice qué puedes hacer**: rol, empresa y si la cuenta está activa se
-  leen en **cada** petición. El token no lleva el rol, así que un cambio de rol es inmediato.
-- **Un `uid` desconocido no entra.** La API key de Firebase es pública: cualquiera podría crearse
-  una cuenta de Firebase por su cuenta. Sin fila en nuestra tabla `usuarios`, recibe un 401.
+| Pieza | Qué es | Dónde vive | Vida |
+|---|---|---|---|
+| **Token de acceso** | JWT HS256 con `sub`, `tipo`, `ver`, `iat`, `exp` y `jti` | Solo en memoria (una señal de Angular) | 15 min |
+| **Token de refresco** | 48 bytes aleatorios; en la BD solo su SHA-256 | Cookie `__Secure-refresco`: `HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/api/auth/web` | 7 días |
+| **Contraseña** | Argon2id | Tabla `usuarios` | — |
 
-### Persistencia solo en memoria
+- **El token dice quién eres; nuestra BD dice qué puedes hacer**: rol, empresa y si la cuenta
+  está activa se leen en **cada** petición. El token no lleva el rol, así que un cambio de rol es
+  inmediato.
+- **Mismo tiempo de respuesta exista o no el email**: si no existe, se verifica contra un hash
+  ficticio. Un login fallido no revela qué cuentas hay.
+- El login está limitado a **5 intentos por minuto e IP**, y cada fallo queda auditado
+  (`login_fallido`).
 
-El SDK se inicia con `inMemoryPersistence`. Por defecto, Firebase guarda la sesión en IndexedDB.
+### Refresco: rotación y detección de reutilización
 
-| Se comprobó en producción | Resultado |
+Cada `POST /auth/web/refrescar` **revoca** el token de refresco usado y emite uno nuevo de la misma
+*familia*. Si llega uno ya revocado, alguien tiene una copia (la víctima o el atacante, no se sabe
+cuál), así que:
+
+1. Se revoca **toda la familia**: ninguno de los dos puede seguir refrescando.
+2. Se sube la **versión de sesión** del usuario: el token de acceso que el atacante obtuvo con su
+   copia deja de valer **al momento**, sin esperar a que caduque.
+3. Queda en la auditoría como `reutilizacion_token`.
+
+Los otros dispositivos del usuario tienen su propia familia: se recuperan con un refresco, sin
+volver a entrar.
+
+En el navegador, el interceptor hace **un único refresco a la vez**. Si varias peticiones reciben
+un 401 a la vez, todas esperan al mismo. Dos refrescos en paralelo enviarían la misma cookie dos
+veces y la API lo tomaría, con razón, por una reutilización.
+
+### Revocación inmediata: la versión de sesión
+
+Un JWT no se puede «despublicar»: vale hasta que caduca. Para que cambiar la contraseña eche de
+verdad a quien tuviera una sesión robada, cada usuario tiene un entero `version_sesion` que viaja
+en el token como claim `ver`. La API ya lee el usuario de la BD en cada petición, así que
+comprobarlo no cuesta ninguna consulta extra: un token con una versión vieja recibe un 401.
+
+| Operación | Revoca refresh tokens | Sube la versión (el access cae ya) |
+|---|---|---|
+| Cambiar la propia contraseña | Sí | Sí |
+| Restablecer contraseña (admin) | Sí | Sí |
+| Desactivar (admin) | Sí | Sí (reactivar no resucita los tokens de antes) |
+| Reutilización de un refresh | La familia | Sí |
+| `crear-admin` sobre una cuenta existente | Sí | Sí |
+| Cambiar el rol | No | No: el rol no va en el token, se lee de la BD en cada petición |
+| Dar de baja un cliente | Los de sus usuarios | No hace falta: la empresa se comprueba en cada petición |
+| Cerrar sesión | La familia de ese dispositivo | No |
+
+### Persistencia
+
+| Se comprueba en los E2E | Resultado |
 |---|---|
 | Local Storage y Session Storage | Vacíos |
-| IndexedDB (`firebaseLocalStorageDb`) | No existe |
-| Cookies | Ninguna de sesión |
-| Recargar la página | Pide entrar otra vez |
+| `document.cookie` | Vacío: la cookie es `HttpOnly` |
+| Cookies del navegador | Solo `__Secure-refresco`, con `HttpOnly`, `Secure`, `SameSite=Strict` y `Path=/api/auth/web` |
+| Recargar la página | La sesión se recupera con un refresco |
+| Cerrar sesión y recargar | Pide entrar otra vez |
 
-Un XSS no encuentra un token guardado que robar. Coste asumido: cada recarga pide login.
-
-El SDK renueva el ID token solo, cada hora, contra `securetoken.googleapis.com`, mientras la
-pestaña siga abierta. Ante un 401, el interceptor pide un token nuevo, repite la petición una vez
-y, si vuelve a fallar, devuelve al login.
-
-### Operaciones de cuenta
-
-| Operación | Qué pasa |
-|---|---|
-| Alta (admin) | La cuenta se crea en Firebase con el Admin SDK y su `uid` se guarda en nuestra BD |
-| Restablecer contraseña (admin) | Contraseña nueva en Firebase y **revocación** de sus sesiones. Si la cuenta es anterior a la migración (sin `uid`), es este paso el que la crea en Firebase |
-| Cambiar la propia contraseña | La API comprueba la actual contra Firebase, cambia la contraseña y revoca todas las sesiones; el front vuelve a entrar con la nueva |
-| Desactivar (admin) | `activo = false` en nuestra BD (efecto inmediato) y cuenta deshabilitada y revocada en Firebase |
-| Primer admin | `python -m app.cli crear-admin <email>`, con la contraseña pedida por consola |
+Un XSS no encuentra un token de acceso guardado que robar, ni puede leer la cookie. Lo que sí
+podría es usar la sesión mientras la página está abierta: por eso la CSP estricta es la primera
+línea, no la cookie.
 
 ### Configuración
 
-| Variable | Secreta | Dónde vive |
+| Variable | Secreta | Notas |
 |---|---|---|
-| `FIREBASE_CREDENCIALES` | **Sí**: base64 del JSON de la cuenta de servicio | Solo en el servicio `api` |
-| `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_PROJECT_ID` | No | La API se las da al front en `GET /config/cliente` |
+| `JWT_SECRETO` | **Sí** | Mínimo 32 caracteres: la API no arranca con menos. Quien la tenga puede fabricar un token de cualquier usuario, admin incluido |
+| `COOKIE_REFRESCO_RUTA` | No | `/api/auth/web` en el compose: el `Path` tal como lo ve el navegador |
+| `ACCESO_MINUTOS`, `REFRESCO_DIAS` | No | 15 y 7 por defecto |
 
-En producción, la API **no arranca** si faltan las credenciales, la API key o el proyecto.
+### Historia: de Firebase a la autenticación propia
+
+Entre el 14 y el 15 de octubre la identidad estuvo en Firebase Authentication (migraciones
+`0005` y `0006`). Se volvió a la autenticación propia para tener el control completo de la
+rotación, la revocación y la auditoría de los intentos fallidos. Las contraseñas que guardaba
+Firebase no se pueden traer: la migración `0006` deja a todas las cuentas sin contraseña válida, y
+el primer admin se recupera con `crear-admin`.
 
 ---
 
@@ -410,7 +442,8 @@ en vivo en los paneles de todos los admins. Los campos que vienen de internet no
 | Dato | De dónde | Retención |
 |---|---|---|
 | Email, rol, empresa y estado de cada cuenta | Alta por un admin | Mientras exista la cuenta |
-| Contraseñas | **No las guarda Umbral**: viven en Firebase | — |
+| Contraseñas | Solo su hash Argon2id, nunca en claro | Mientras exista la cuenta |
+| Tokens de refresco | Solo su SHA-256, con su caducidad y revocación | Indefinida (filas pequeñas; las caducadas no sirven de nada) |
 | Incidencias (texto, severidad, notas) | Usuarios y analistas | Indefinida; el borrado es lógico |
 | Eventos: IP de origen, método, ruta, user-agent, servicio, cliente y fecha | Sensores | **30 días** (`EVENTOS_RETENCION_DIAS`), salvo los enlazados a una incidencia, que son evidencia |
 | Auditoría: quién, qué acción, sobre qué recurso, IP y fecha | La propia API | Indefinida |
@@ -420,7 +453,7 @@ en vivo en los paneles de todos los admins. Los campos que vienen de internet no
   necesidad de cron.
 - La IP de quien sondea el señuelo es un dato personal (RGPD). Se guarda con una finalidad de
   seguridad y con un plazo acotado.
-- Ningún dato se envía a terceros, salvo el login a Firebase, que es el proveedor de identidad.
+- Ningún dato se envía a terceros: ni proveedor de identidad externo, ni analítica, ni fuentes de Google.
 
 ---
 
@@ -430,14 +463,13 @@ Cada acción sensible deja un registro con usuario, acción, recurso, IP y fecha
 
 | Grupo | Acciones |
 |---|---|
-| Sesión | `login`, `logout` |
+| Sesión | `login`, `login_fallido`, `logout`, `reutilizacion_token` |
 | Cuentas | `crear_usuario`, `restablecer_contrasena`, `cambio_contrasena`, `cambio_contrasena_fallido`, `cambio_rol`, `desactivar_usuario`, `reactivar_usuario`, `crear_admin_cli` |
 | Clientes | `crear_empresa`, `editar_empresa` |
 | Incidencias | `crear_incidente`, `editar_incidente`, `cambio_estado`, `asignar_incidente`, `editar_notas`, `borrar_incidente` |
 | Eventos | `triaje_evento` |
 
-Anteriores a la migración a Firebase (siguen en el historial): `login_fallido`,
-`reutilizacion_token`, `registro`.
+De la época del registro público (sigue en el historial): `registro`.
 
 La IP real llega por `X-Forwarded-For` de Traefik. Uvicorn solo se fía de esa cabecera porque la
 API no publica ningún puerto: no hay otro camino que el proxy.
@@ -448,11 +480,13 @@ API no publica ningún puerto: no hay otro camino que el proxy.
 
 ### Identidad y acceso
 
-- Firebase Authentication, con verificación del token y de su revocación en cada petición.
+- JWT propio de 15 minutos, refresh tokens rotados con detección de reutilización y
+  revocación inmediata por versión de sesión.
 - Rol, empresa y estado de la cuenta leídos de la BD, nunca del token.
 - Sin registro público; las altas, solo por un admin.
 - Contraseñas de 12 caracteres como mínimo. El generador del alta usa `crypto.getRandomValues`.
-- Cambiar la propia contraseña exige la actual y está limitado a **5 intentos por minuto**.
+- Contraseñas con Argon2id. Login y cambio de contraseña limitados a **5 intentos por minuto**;
+  cambiar la propia exige la actual.
 
 ### API
 
@@ -470,9 +504,10 @@ API no publica ningún puerto: no hay otro camino que el proxy.
 ### Navegador
 
 - **CSP estricta** sin `'unsafe-inline'`: nonce por respuesta para los estilos de Angular,
-  **Trusted Types**, y `connect-src` abierto solo al propio dominio y a los dos de Firebase.
+  **Trusted Types**, y `connect-src` cerrado al propio dominio.
 - Estilos dinámicos aplicados por el CSSOM, no con atributos `style`.
-- Token solo en memoria. Fuentes servidas desde el propio dominio.
+- Token de acceso solo en memoria; el de refresco, en una cookie `HttpOnly` y `SameSite=Strict`.
+  Fuentes servidas desde el propio dominio.
 
 ### Contenedores y red
 
@@ -484,14 +519,14 @@ API no publica ningún puerto: no hay otro camino que el proxy.
 | `cap_drop: ALL` y `no-new-privileges` | `docker-compose.yml` |
 | PostgreSQL sin puerto publicado | `docker-compose.yml` |
 | Sin cabecera `Server` (`--no-server-header`) | `Dockerfile` |
-| La credencial de Firebase solo llega al servicio `api` | `docker-compose.yml` |
+| `JWT_SECRETO` solo llega al servicio `api` | `docker-compose.yml` |
 
 ### Secretos
 
 - Nunca en el repositorio: se configuran en Dokploy.
 - `.gitignore` cubre `.env` y los JSON de cuentas de servicio (`*-adminsdk-*.json`).
-- La credencial de Firebase viaja en base64 para que los saltos de línea de la clave no rompan
-  la variable.
+- Rotar `JWT_SECRETO` invalida todos los tokens de acceso a la vez: es el botón de emergencia si se
+  filtra.
 
 ---
 
@@ -503,15 +538,15 @@ comprobar la versión vigente en <https://owasp.org/Top10/>.
 | Categoría | Riesgo | Cómo se mitiga en Umbral | Dónde mirar |
 |---|---|---|---|
 | **A01 Broken Access Control** | Ver o tocar lo que no es tuyo (IDOR, escalada) | Permisos centralizados en los servicios; 404 para lo ajeno; aislamiento por empresa **antes** del rol; filtro de empresa forzado para clientes; rol leído de la BD en cada petición; esquemas de entrada sin `rol`, `estado` ni `reportante_id` | `app/servicios/incidentes.py`, `tests/test_empresas.py` |
-| **A02 Security Misconfiguration** | Valores por defecto inseguros, información de más | `/docs` desactivado en producción; errores sin trazas; CSP, HSTS, `nosniff` y `DENY`; CORS con lista blanca; sin cabecera `Server`; contenedores de solo lectura y sin capabilities; la API no arranca sin Firebase | `app/main.py`, `nginx/cabeceras-seguridad.conf`, `docker-compose.yml` |
-| **A03 Software Supply Chain Failures** | Dependencias vulnerables o comprometidas | Lockfiles (`uv.lock`, `package-lock.json`); `pip-audit --strict` y `npm audit` en CI; sensores sin dependencias; solo `@firebase/auth` (el paquete completo traía 4 vulnerabilidades altas por gRPC); imágenes base fijadas | `.github/workflows/ci.yml` |
-| **A04 Cryptographic Failures** | Secretos o datos sensibles mal protegidos | Sin contraseñas propias (las guarda Firebase); TLS en todo; ID tokens firmados por Google; token de ingesta comparado en tiempo constante; secretos fuera del repo | `app/identidad.py`, `app/routers/eventos.py` |
+| **A02 Security Misconfiguration** | Valores por defecto inseguros, información de más | `/docs` desactivado en producción; errores sin trazas; CSP, HSTS, `nosniff` y `DENY`; CORS con lista blanca; sin cabecera `Server`; contenedores de solo lectura y sin capabilities; la API no arranca con un `JWT_SECRETO` corto | `app/main.py`, `nginx/cabeceras-seguridad.conf`, `docker-compose.yml` |
+| **A03 Software Supply Chain Failures** | Dependencias vulnerables o comprometidas | Lockfiles (`uv.lock`, `package-lock.json`); `pip-audit --strict` y `npm audit` en CI; sensores sin dependencias; ningún SDK de terceros para la identidad; imágenes base fijadas | `.github/workflows/ci.yml` |
+| **A04 Cryptographic Failures** | Secretos o datos sensibles mal protegidos | Contraseñas con Argon2id; refresh tokens guardados solo como SHA-256; JWT con algoritmo fijado (no acepta `alg=none`); TLS en todo; token de ingesta comparado en tiempo constante; secretos fuera del repo | `app/seguridad.py`, `app/routers/eventos.py` |
 | **A05 Injection** | SQL, XSS, inyección en logs | ORM con parámetros enlazados; `LIKE` escapado; Angular escapa por defecto y la CSP con Trusted Types bloquea sumideros de DOM; los caracteres de control se quitan de lo que llega de internet | `app/repositorios.py`, `app/esquemas.py` |
 | **A06 Insecure Design** | Fallos de diseño, no de código | Sin registro público; borrado lógico (evidencia); reporte congelado al pasar a análisis; máquina de estados con 409; el señuelo no es explotable por diseño | `app/servicios/`, `senuelo/` |
-| **A07 Authentication Failures** | Credenciales débiles, sesiones robadas | Firebase con protección contra fuerza bruta; mínimo 12 caracteres; `check_revoked`; revocación al cambiar o restablecer la contraseña y al desactivar; token solo en memoria; cambiar la contraseña exige la actual (5/min) | `app/servicios/usuarios.py`, `core/sesion.ts` |
+| **A07 Authentication Failures** | Credenciales débiles, sesiones robadas | Login con 5 intentos/min y tiempo constante; mínimo 12 caracteres; refresh rotado con detección de reutilización; revocación **inmediata** por versión de sesión al cambiar o restablecer la contraseña y al desactivar; access token solo en memoria y refresh en cookie `HttpOnly`; cambiar la contraseña exige la actual (5/min) | `app/servicios/auth.py`, `app/servicios/usuarios.py`, `core/sesion.ts` |
 | **A08 Software or Data Integrity Failures** | Datos o código manipulados | La CI bloquea el merge si falla una comprobación; migraciones versionadas y probadas; los campos de un evento no se editan nunca, solo el triaje | `tests/test_migraciones.py` |
-| **A09 Logging & Alerting Failures** | No enterarse de un ataque | Auditoría de todas las acciones sensibles con IP real; el panel resalta alertas; el señuelo informa cada 5 minutos de entregados y perdidos; los intentos fallidos de login los registra Firebase | `app/servicios/auditoria.py` |
-| **A10 Mishandling of Exceptional Conditions** | Errores que dejan el sistema en un estado inseguro | Manejador global que responde 500 genérico y registra la traza; fallos de verificación del token resueltos como 401 (se deniega, no se concede); los lotes de ingesta inválidos se rechazan enteros; un volcado de backup fallido no deja ficheros a medias | `app/main.py`, `app/identidad.py` |
+| **A09 Logging & Alerting Failures** | No enterarse de un ataque | Auditoría de todas las acciones sensibles con IP real; el panel resalta alertas; el señuelo informa cada 5 minutos de entregados y perdidos; logins fallidos y reutilización de tokens auditados | `app/servicios/auditoria.py` |
+| **A10 Mishandling of Exceptional Conditions** | Errores que dejan el sistema en un estado inseguro | Manejador global que responde 500 genérico y registra la traza; fallos de verificación del token resueltos como 401 (se deniega, no se concede); los lotes de ingesta inválidos se rechazan enteros; un volcado de backup fallido no deja ficheros a medias | `app/main.py`, `app/seguridad.py` |
 
 ---
 
@@ -530,8 +565,7 @@ comprobar la versión vigente en <https://owasp.org/Top10/>.
 | Variable | Notas |
 |---|---|
 | `POSTGRES_PASSWORD` | Obligatoria |
-| `FIREBASE_CREDENCIALES` | Obligatoria y **secreta** |
-| `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_PROJECT_ID` | Obligatorias (públicas) |
+| `JWT_SECRETO` | Obligatoria y **secreta**. Mínimo 32 caracteres |
 | `INGESTA_TOKEN` | Mínimo 32 caracteres. Vacía, la ingesta queda desactivada |
 | `CORS_ORIGENES` | Opcional |
 | `EMPRESA_SENUELO` | Por defecto `hotel-mirador` |
@@ -539,9 +573,8 @@ comprobar la versión vigente en <https://owasp.org/Top10/>.
 
 ### Puesta en marcha desde cero
 
-1. Proyecto de Firebase con Email/Password activado y el dominio web en *Dominios autorizados*.
-2. Variables en Dokploy y despliegue del compose. Las migraciones se aplican al arrancar la API.
-3. En el contenedor `api`:
+1. Variables en Dokploy y despliegue del compose. Las migraciones se aplican al arrancar la API.
+2. En el contenedor `api`:
    ```bash
    python -m app.cli crear-admin tu@email     # primer admin (pide la contraseña)
    python -m app.cli sembrar-demo             # clientes y datos de demostración
@@ -565,10 +598,10 @@ que configurar un *Volume Backup* hacia S3 en Dokploy.
 | Tipo | Herramienta | Qué prueba | Cantidad |
 |---|---|---|---|
 | **Unitarias del backend** | pytest | Clasificador del señuelo | 12 |
-| **Integración de la API** | pytest + httpx + BD real | Cada endpoint por HTTP, con permisos y efectos en la BD | 130 |
-| **Unitarias del front** | Vitest (`ng test`) | Interceptor, guardas, servicio de clientes, errores, utilidades | 52 |
-| **E2E** | Playwright + emulador de Firebase Auth | Flujos completos en un navegador real contra la pila entera | 16 |
-| **Colección de API** | Postman / Newman + emulador | Roles, IDOR, tokens manipulados, revocación, aislamiento, rate limit | 107 peticiones, 159 comprobaciones |
+| **Integración de la API** | pytest + httpx + BD real | Cada endpoint por HTTP, con permisos y efectos en la BD | 144 |
+| **Unitarias del front** | Vitest (`ng test`) | Sesión, interceptor, guardas, servicio de clientes, errores, utilidades | 50 |
+| **E2E** | Playwright | Flujos completos en un navegador real contra la pila entera | 16 |
+| **Colección de API** | Postman / Newman | Roles, IDOR, tokens manipulados, refresh tokens, revocación, aislamiento, rate limit | 110 peticiones, 165 comprobaciones |
 | **Seguridad estática** | ruff (reglas `S`), bandit | Código de la API | — |
 | **Dependencias** | pip-audit, npm audit | Backend y front | — |
 
@@ -588,19 +621,18 @@ cliente (códigos, cuerpos y efectos en la BD), no funciones sueltas.
 
 | Fichero | Qué cubre |
 |---|---|
-| `test_identidad.py` | Sin token, token inventado, `uid` desconocido (registro por libre en Firebase), token revocado, rol desde la BD, auditoría de entrada y salida, config pública sin secretos, producción sin Firebase no arranca |
+| `test_auth.py` | Login, mismo error exista o no el email, rate limit, sin token, firma manipulada, caducado, `alg=none`, token sin versión de sesión, rotación del refresh, reutilización (familia revocada y access del atacante tumbado al momento, otros dispositivos intactos), logout, rol desde la BD |
+| `test_auth_web.py` | Cookie de refresco endurecida y nunca en el cuerpo, rotación de la cookie, reutilización, logout que la borra, `Path` configurable tras un proxy |
 | `test_empresas.py` | CRUD de clientes, reglas de miembros, **aislamiento** (leer, editar, cambiar estado, notas, listar y filtro forzado), defensa en profundidad con un reportante falseado, baja de un cliente, ingesta, resumen, sensores e incidencia desde evento por cliente |
 | `test_incidentes.py` | Permisos por rol, IDOR, transiciones y 409, notas internas ocultas al reportante, borrado lógico, auditoría |
-| `test_usuarios.py` | Filtros (incluido `LIKE` con comodines), altas, emails duplicados (también en Firebase), cambio de contraseña con revocación, límite de 5/min, restablecimiento, migración de cuentas antiguas, activar y desactivar |
+| `test_usuarios.py` | Filtros (incluido `LIKE` con comodines), altas, emails duplicados, cambio de contraseña y restablecimiento con revocación **inmediata** del access token, límite de 5/min, activar y desactivar (reactivar no resucita tokens viejos) |
 | `test_eventos.py` | Token de ingesta (sin token, incorrecto, un JWT de admin no vale), limpieza y truncado, IP inválida, tamaño de lote, filtros, resumen y tramos, triaje, SSE solo para admin, incidencia desde evento |
 | `test_migraciones.py` | Las migraciones coinciden con los modelos; el downgrade deja la BD vacía |
 | `test_plataforma.py` | Salud, cabeceras de seguridad, CORS permitido y rechazado, error 422, prefijo `/api` |
 | `test_demo.py` | Semilla idempotente, reparto por clientes, completado de una BD sembrada antes |
 
-**Sin red.** Firebase se sustituye por un proveedor falso en memoria (`IdentidadFalsa` en
-`tests/conftest.py`). Emite tokens `falso:<uid>:<generación>`: revocar sube la generación e
-invalida los anteriores, igual que `check_revoked`. El helper `cabeceras()` inicia sesión como lo
-hace el front: credenciales contra el falso y `POST /auth/sesion`.
+**Sin red.** Todo es local: el helper `cabeceras()` inicia sesión con `POST /auth/login` contra
+la API real, con usuarios creados directamente en la BD de pruebas.
 
 ### Tests unitarios
 
@@ -613,10 +645,11 @@ es donde importa: un permiso bien escrito pero mal enganchado al router no prote
 
 | Fichero | Qué cubre |
 |---|---|
-| `core/interceptor.spec.ts` | Añade el Bearer; no lo envía a rutas públicas; ante un 401 pide un token nuevo y repite una vez; si vuelve a fallar, cierra la sesión y va al login; en `/api/auth/*` no reintenta |
+| `core/sesion.ts` → `sesion.spec.ts` | Token solo en memoria; **dos refrescos simultáneos hacen una sola petición**; restaurar sin cookie deja la sesión vacía; salir limpia aunque la API no responda |
+| `core/interceptor.spec.ts` | Añade el Bearer; no lo envía a rutas públicas; ante un 401 refresca y repite una vez; varios 401 a la vez comparten el refresco; si el refresco falla, cierra la sesión y va al login; en `/api/auth/*` no refresca |
 | `core/guardas.spec.ts` | Sesión obligatoria, solo invitados, solo admin y landing solo sin sesión |
 | `core/clientes.spec.ts` | Caché de clientes (una sola carga, reintento si falla), nombres, opciones de filtro y de alta (sin clientes de baja) |
-| `core/errores.spec.ts` | Mensajes por código, sin trazas de un 500; traducción de errores de Firebase (una cuenta deshabilitada se ve igual que una contraseña mala) |
+| `core/errores.spec.ts` | Mensajes por código, sin trazas de un 500; campos señalados por un 422 |
 | `paginas/clientes.spec.ts` | El código sugerido de un cliente siempre lo acepta la API |
 
 ### E2E (Playwright)
@@ -625,14 +658,13 @@ es donde importa: un permiso bien escrito pero mal enganchado al router no prote
 (`frontend/web/e2e/entorno.mjs`):
 
 1. Compila el front **para producción**.
-2. Arranca el **emulador oficial de Firebase Auth**, con un proyecto `demo-` que no necesita cuenta
-   de Google.
-3. Crea una base de datos nueva, aplica las migraciones y siembra dos clientes, un admin y un
-   trabajador de cada cliente (`tests/e2e_semilla.py`, que se niega a correr sin emulador).
-4. Arranca la **API real** apuntando al emulador.
-5. Sirve el build con **las mismas cabeceras que nginx**, leídas de
+2. Crea una base de datos nueva, aplica las migraciones y siembra dos clientes, un admin y un
+   trabajador de cada cliente (`tests/e2e_semilla.py`, que se niega a correr en producción).
+3. Arranca la **API real** con su autenticación propia. El rate limit va desactivado solo aquí:
+   todas las pruebas entran desde `127.0.0.1` y lo cubre `test_auth.py`.
+4. Sirve el build con **exactamente las mismas cabeceras que nginx**, leídas de
    `nginx/cabeceras-seguridad.conf` (CSP con nonce y Trusted Types incluidos), y reenvía `/api` a
-   la API como hace Traefik. La única diferencia es que `connect-src` permite el emulador local.
+   la API como hace Traefik.
 
 Cada prueba **falla si el navegador registra una violación de la CSP o de Trusted Types, un error
 de JavaScript o un diálogo inesperado** (fixture `vigilancia` en `e2e/ayudas.ts`). Así, todos los
@@ -640,14 +672,10 @@ flujos verifican de paso que la política de seguridad de producción no rompe l
 
 | Fichero | Escenarios |
 |---|---|
-| `acceso.spec.ts` | La web pública lleva al login; contraseña incorrecta y email inexistente dan el **mismo** mensaje; el admin aterriza en el Panel y **no queda nada** en localStorage, sessionStorage, IndexedDB ni cookies; recargar pide entrar otra vez; cerrar sesión vuelve a la web pública; una cuenta creada por libre en Firebase **no entra** |
+| `acceso.spec.ts` | La web pública lleva al login; contraseña incorrecta y email inexistente dan el **mismo** mensaje; el admin aterriza en el Panel, sin nada en localStorage ni sessionStorage, y la única cookie es la de refresco con `HttpOnly`, `Secure`, `SameSite=Strict` y `Path` acotado (invisible para `document.cookie`); recargar **mantiene** la sesión; cerrar sesión la revoca; una **cookie robada y reutilizada** tumba la sesión |
 | `incidencias.spec.ts` | Un trabajador reporta una incidencia y la ve; no ve el centro de seguridad; otro cliente no la ve en su lista y la **API se la niega (404) aunque conozca el id**, también al editarla; el admin la ve con su cliente |
-| `administracion.spec.ts` | Alta de un cliente (código sugerido) y de un usuario suyo con contraseña generada, que entra; al **dar de baja el cliente**, Firebase le deja iniciar sesión pero Umbral le cierra la puerta; la auditoría registra las entradas |
+| `administracion.spec.ts` | Alta de un cliente (código sugerido) y de un usuario suyo con contraseña generada, que entra; al **dar de baja el cliente**, su contraseña sigue siendo buena pero la API le cierra la puerta; la auditoría registra las entradas |
 | `sensores.spec.ts` | Un evento de un sensor aparece **en vivo** en el Panel con su cliente (SSE a través del proxy); la ingesta rechaza un token incorrecto; una ruta con HTML malicioso se muestra **como texto** (XSS almacenado); la pantalla de Sensores marca el señuelo como «Enviando» |
-
-El modo emulador **está prohibido en producción**: con él, el Admin SDK aceptaría tokens sin firmar.
-La configuración se niega a arrancar si `ENTORNO=produccion` y `FIREBASE_AUTH_EMULATOR_HOST` está
-definida (cubierto por `test_identidad.py`).
 
 Si algo falla, cada servicio deja su salida en `frontend/web/test-results/<servicio>.log` y
 Playwright guarda la traza y una captura de la prueba fallida.
@@ -662,8 +690,12 @@ En cada push y pull request:
 3. **Frontend**: `npm audit` de las dependencias de runtime (nivel alto) → tests unitarios
    (Vitest) → build → imagen sin root.
 4. **Imagen del señuelo**: build y comprobación de que no corre como root.
-5. **E2E**: la suite de Playwright completa contra el emulador. Si falla, sube el informe, las
-   trazas y los logs de cada servicio como artefacto.
+5. **E2E**: la suite de Playwright completa. Si falla, sube el informe, las trazas y los logs de
+   cada servicio como artefacto.
+6. **Deploy** (solo en push a `main`, y solo si los cinco anteriores pasan): llama a la API de
+   Dokploy para desplegar el compose. El auto-deploy de Dokploy está **desactivado**: si no, cada
+   push llegaría a producción aunque la CI fallara, y los controles serían un aviso, no una
+   barrera.
 
 ---
 
@@ -681,8 +713,8 @@ En cada push y pull request:
 Además, **12 incidencias** realistas (phishing a RR. HH., VPN desde un país no habitual, hoja con
 datos de clientes expuesta…), cada una con su historial de estados, notas y auditoría.
 
-- Las cuentas de demo **no existen en Firebase**: nadie puede entrar con ellas. Sirven para que haya
-  reportantes, analistas e historial.
+- Las cuentas de demo tienen contraseñas aleatorias que no se guardan en ningún sitio: nadie puede
+  entrar con ellas. Sirven para que haya reportantes, analistas e historial.
 - El dominio de los emails (`demo-incidentes.es`) es ficticio: nunca se envía nada.
 - Sobre una base de datos sembrada antes de existir los clientes, solo completa lo que falta.
 
@@ -692,13 +724,13 @@ datos de clientes expuesta…), cada una con su historial de estados, notas y au
 
 | Decisión | Se gana | Se pierde o se asume |
 |---|---|---|
-| **Firebase en lugar de autenticación propia** | No guardar contraseñas, recuperación de cuentas, protección contra fuerza bruta de Google | Los intentos fallidos no llegan a nuestra auditoría; dependencia de un proveedor externo; sin control propio de la rotación de tokens |
-| **Persistencia en memoria** | Ningún token persistente al alcance de un XSS | Recargar la página pide login |
-| **Rol y empresa en nuestra BD, no en *custom claims*** | Cambios inmediatos; nunca nos fiamos de datos que no pusimos nosotros | Una consulta a la BD por petición |
+| **Autenticación propia en lugar de Firebase** | Control total de la rotación, la revocación y la auditoría de intentos fallidos; sin dependencia externa | Guardamos los hashes de las contraseñas; sin recuperación de cuenta por email; la custodia de `JWT_SECRETO` es nuestra |
+| **HS256 (clave simétrica)** | Simple: un único servicio firma y verifica | Quien verifica también podría firmar. Con varios servicios verificando tokens habría que pasar a RS256/EdDSA |
+| **Versión de sesión en el token** | Revocación inmediata sin lista negra de tokens ni consultas extra | Una columna más; revoca todos los dispositivos a la vez |
+| **Refresh en cookie `HttpOnly`, access en memoria** | Un XSS no puede robar ninguno de los dos; la sesión sobrevive a una recarga | La cookie exige mismo sitio (`SameSite=Strict`) y un `Path` bien configurado tras el proxy |
+| **Rol y empresa en nuestra BD, no en el token** | Cambios inmediatos sin revocar nada | Una consulta a la BD por petición |
 | **Señuelo de solo registro** | Tráfico real sin riesgo: no hay nada que explotar | Solo ve lo que llega por HTTP a su dominio |
 | **Rechazar lotes con empresa desconocida** | Un sensor mal configurado se nota al momento | Ese lote se pierde |
-| **`@firebase/auth` en lugar del paquete `firebase` completo** | Sin Firestore ni gRPC: 0 vulnerabilidades altas y menos superficie | — |
-| **Config de Firebase servida por la API** | Nada compilado en la imagen; cambiarla no exige reconstruir | Una petición más al arrancar |
 | **Un único worker** | Simplicidad | El límite de peticiones vive en memoria; para escalar habría que pasarlo a Redis |
 | **Precios solo como texto** | La web cuenta la historia completa | No hay facturación |
 
@@ -710,8 +742,9 @@ datos de clientes expuesta…), cada una con su historial de estados, notas y au
 
 | Método | Ruta | Quién |
 |---|---|---|
-| `GET` | `/salud`, `/config/cliente` | Público |
-| `POST` | `/auth/sesion`, `/auth/salida` | Autenticado (solo auditoría) |
+| `GET` | `/salud` | Público |
+| `POST` | `/auth/web/login`, `/auth/web/refrescar`, `/auth/web/logout` | Público (navegador: refresco en cookie). Login 5/min |
+| `POST` | `/auth/login`, `/auth/refrescar`, `/auth/logout` | Público (Postman y scripts: refresco en el cuerpo). Login 5/min |
 | `GET` | `/usuarios/yo` | Autenticado |
 | `PATCH` | `/usuarios/yo/contrasena` | Autenticado, 5/min |
 | `GET`, `POST` | `/usuarios` | Admin |

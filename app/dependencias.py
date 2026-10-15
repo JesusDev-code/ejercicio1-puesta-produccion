@@ -7,9 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import obtener_sesion
 from app.errores import NoAutenticado, Prohibido
-from app.identidad import identidad
 from app.modelos import Rol, Usuario
 from app.repositorios import RepositorioUsuarios
+from app.seguridad import decodificar_token_acceso
 from app.servicios.empresas import cuenta_habilitada
 
 _bearer = HTTPBearer(auto_error=False)
@@ -31,14 +31,16 @@ async def usuario_actual(
 ) -> Usuario:
     if credenciales is None:
         raise NoAutenticado("No autenticado")
-    # Firebase dice QUIÉN es (firma, caducidad, revocación); nuestra BD dice QUÉ puede hacer
-    uid = await identidad().verificar(credenciales.credentials)
-    if uid is None:
+    datos = decodificar_token_acceso(credenciales.credentials)
+    if datos is None:
         raise NoAutenticado("Token inválido o caducado")
-    # El rol se lee de la BD en cada petición, nunca del token: un cambio de rol es inmediato.
-    # Un uid que no está aquí (alguien que se registró solo en Firebase) no entra
-    usuario = await RepositorioUsuarios(sesion).por_uid(uid)
+    usuario_id, version = datos
+    # El rol se lee de la BD en cada petición, nunca del token: un cambio de rol es inmediato
+    usuario = await RepositorioUsuarios(sesion).por_id(usuario_id)
     if not usuario or not await cuenta_habilitada(sesion, usuario):
+        raise NoAutenticado("Token inválido o caducado")
+    # Token emitido antes de un cambio de contraseña, rol o baja: revocado aunque no haya caducado
+    if version != usuario.version_sesion:
         raise NoAutenticado("Token inválido o caducado")
     return usuario
 

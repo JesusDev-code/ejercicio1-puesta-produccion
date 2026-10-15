@@ -1,9 +1,9 @@
 from collections.abc import AsyncIterator
 
-from sqlalchemy import MetaData
+from sqlalchemy import MetaData, make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.pool import NullPool, StaticPool
 
 from app.config import obtener_configuracion
 
@@ -24,12 +24,21 @@ class Base(DeclarativeBase):
 
 def _crear_motor():
     url = obtener_configuracion().database_url
-    if url.startswith("sqlite"):
-        # SQLite en memoria para tests locales: una única conexión compartida
+    if url.startswith("sqlite") and _en_memoria(url):
+        # SQLite en memoria (tests): una única conexión compartida, o cada sesión vería una BD
+        # vacía distinta. SOLO aquí: con peticiones concurrentes, sus transacciones se mezclan
         return create_async_engine(
             url, connect_args={"check_same_thread": False}, poolclass=StaticPool
         )
+    if url.startswith("sqlite"):
+        # SQLite en fichero (E2E): una conexión por sesión, aislada como en PostgreSQL
+        return create_async_engine(url, poolclass=NullPool)
     return create_async_engine(url, pool_pre_ping=True)
+
+
+def _en_memoria(url: str) -> bool:
+    ruta = make_url(url).database
+    return not ruta or ruta == ":memory:"
 
 
 motor = _crear_motor()

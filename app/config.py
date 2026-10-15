@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -11,15 +11,10 @@ class Configuracion(BaseSettings):
     entorno: Literal["desarrollo", "produccion", "test"] = "desarrollo"
     database_url: str = "postgresql+asyncpg://incidentes:incidentes@localhost:5432/incidentes"
 
-    # Firebase Authentication. Las credenciales (JSON de la cuenta de servicio, en base64) son
-    # SECRETAS y solo las recibe la API. Las otras tres son la config web, que es pública.
-    firebase_credenciales: str = ""
-    firebase_api_key: str = ""
-    firebase_auth_domain: str = ""
-    firebase_project_id: str = ""
-    # Emulador de Firebase Auth (host:puerto) para los E2E. El Admin SDK lee esta misma variable
-    # del entorno y, con ella, ACEPTA TOKENS SIN FIRMAR: en producción está prohibida.
-    firebase_auth_emulator_host: str = ""
+    jwt_secreto: str = Field(min_length=32)
+    jwt_algoritmo: str = "HS256"
+    acceso_minutos: int = 15
+    refresco_dias: int = 7
 
     # Lista separada por comas, p. ej. "https://app.example.com,http://localhost:4321"
     cors_origenes: str = ""
@@ -28,6 +23,10 @@ class Configuracion(BaseSettings):
     # depende de que el proxy haga "strip path". Vacío = sin prefijo.
     api_prefijo: str = Field(default="", pattern=r"^(/[A-Za-z0-9_-]+)?$")
 
+    # Path de la cookie de refresco tal como la ve el NAVEGADOR. Si un proxy publica la API
+    # bajo un prefijo (Traefik con strip path en /api), aquí va ese prefijo: /api/auth/web
+    cookie_refresco_ruta: str = Field(default="/auth/web", pattern=r"^/[A-Za-z0-9/_-]*$")
+
     # Token de servicio para POST /eventos (señuelo y generador). Vacío = ingesta desactivada.
     # No es un JWT de usuario: lo comparten servicios de confianza dentro del mismo compose.
     ingesta_token: str = Field(default="", pattern=r"^$|^.{32,}$")
@@ -35,17 +34,6 @@ class Configuracion(BaseSettings):
 
     limite_auth: str = "5/minute"
     limitador_activo: bool = True
-
-    @model_validator(mode="after")
-    def firebase_en_produccion(self) -> "Configuracion":
-        # Sin credenciales nadie podría entrar: mejor no arrancar que arrancar rota
-        if self.entorno == "produccion" and not (
-            self.firebase_credenciales and self.firebase_api_key and self.firebase_project_id
-        ):
-            raise ValueError("En producción faltan FIREBASE_CREDENCIALES, _API_KEY o _PROJECT_ID")
-        if self.entorno == "produccion" and self.firebase_auth_emulator_host:
-            raise ValueError("FIREBASE_AUTH_EMULATOR_HOST no se puede usar en producción")
-        return self
 
     @property
     def es_produccion(self) -> bool:

@@ -41,20 +41,3 @@ export function mensajeGeneral(error: unknown): string {
       return codigo(error) >= 500 ? 'Algo ha fallado en el servidor.' : (detalle(error) ?? 'Petición no válida.');
   }
 }
-
-/** Errores de Firebase traducidos a códigos HTTP: el resto de la app ya sabe pintarlos. */
-const CODIGOS_FIREBASE: Record<string, number> = {
-  'auth/invalid-credential': 401,
-  'auth/invalid-login-credentials': 401,
-  'auth/wrong-password': 401,
-  'auth/user-not-found': 401,
-  'auth/user-disabled': 401, // igual que una contraseña mala: no se revela que la cuenta existe
-  'auth/invalid-email': 401,
-  'auth/too-many-requests': 429,
-  'auth/network-request-failed': 0,
-};
-
-export function deFirebase(error: unknown): HttpErrorResponse {
-  const codigo = (error as { code?: string } | null)?.code ?? '';
-  return new HttpErrorResponse({ status: CODIGOS_FIREBASE[codigo] ?? 400, error: { detail: codigo } });
-}

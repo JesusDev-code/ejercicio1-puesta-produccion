@@ -29,7 +29,7 @@ test.describe('Administración de clientes y usuarios', () => {
     await expect(page.getByRole('status').filter({ hasText: `Cuenta ${email} creada` })).toBeVisible();
     await salir(page);
 
-    // 3. El usuario nuevo entra (su cuenta existe en Firebase) y aterriza en sus incidencias
+    // 3. El usuario nuevo entra con la contraseña generada y aterriza en sus incidencias
     await entrar(page, email, contrasena);
     await expect(page).toHaveURL(/\/incidentes$/);
     await salir(page);
@@ -42,7 +42,7 @@ test.describe('Administración de clientes y usuarios', () => {
     await expect(page.getByRole('status').filter({ hasText: 'dado de baja' })).toBeVisible();
     await salir(page);
 
-    // 5. Firebase le deja iniciar sesión (no sabe de clientes), pero Umbral le cierra la puerta
+    // 5. La contraseña sigue siendo buena, pero con el cliente de baja la API le cierra la puerta
     await intentarEntrar(page, email, contrasena);
     await expect(page.getByRole('alert')).toContainText('Email o contraseña incorrectos');
     await expect(page).toHaveURL(/\/login$/);

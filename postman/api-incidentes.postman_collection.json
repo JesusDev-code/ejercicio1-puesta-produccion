@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "35f3d216-62b6-52b9-989f-0b87b902d59b",
     "name": "API de incidentes",
-    "description": "API de Umbral (Kaelum Security). El login se hace contra Firebase Authentication (accounts:signInWithPassword, o el emulador en local) y el ID token se usa como Bearer. Recorre los tres roles, IDOR, mass assignment, tokens manipulados, revocación de sesiones, aislamiento entre clientes y rate limit. Ejecútala completa y en orden con el Runner.",
+    "description": "API de Umbral (Kaelum Security), con autenticación propia: login con email y contraseña, access token JWT (15 min) y refresh token rotado en cada uso. Recorre los tres roles, IDOR, mass assignment, tokens manipulados, rotación y reutilización de refresh tokens, revocación inmediata de sesiones, aislamiento entre clientes y rate limit.\n\n1. Crea el admin: `python -m app.cli crear-admin <email>`.\n2. Selecciona un entorno y rellena `admin_email` y `admin_contrasena` en **valor actual** (no se exporta).\n3. Ejecuta la colección entera con el Runner, en orden.\n\nEl login admite 5 intentos por minuto: la colección lleva la cuenta y, cuando haría falta un sexto, espera a que se renueve la ventana. Por eso tarda algo más de un minuto.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -55,7 +55,7 @@
       "description": "Registro, login y ataques al token. El admin se crea antes con `python -m app.cli crear-admin`.",
       "item": [
         {
-          "name": "Login admin (Firebase)",
+          "name": "Login admin",
           "request": {
             "method": "POST",
             "header": [
@@ -64,13 +64,27 @@
                 "value": "application/json"
               }
             ],
+            "url": {
+              "raw": "{{url_base}}/auth/login",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
             "auth": {
               "type": "noauth"
             },
-            "url": "{{firebase_login_url}}?key={{firebase_api_key}}",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"password\": \"{{admin_contrasena}}\",\n  \"returnSecureToken\": true\n}"
+              "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"contrasena\": \"{{admin_contrasena}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
           },
           "event": [
@@ -80,12 +94,26 @@
                 "type": "text/javascript",
                 "exec": [
                   "// Cada ejecución usa emails y contraseña nuevos: no hay credenciales en la colección",
-                  "for (const v of [\"admin_email\", \"admin_contrasena\", \"firebase_login_url\", \"firebase_api_key\"]) {",
+                  "for (const v of [\"admin_email\", \"admin_contrasena\"]) {",
                   "  if (!pm.environment.get(v)) throw new Error(`Rellena ${v} en el entorno (valor actual)`);",
                   "}",
                   "pm.collectionVariables.set(\"sufijo\", Date.now().toString());",
                   "const aleatorio = pm.variables.replaceIn(\"{{$randomUUID}}{{$randomUUID}}\").replace(/-/g, \"\");",
-                  "pm.collectionVariables.set(\"contrasena_pruebas\", aleatorio);"
+                  "pm.collectionVariables.set(\"contrasena_pruebas\", aleatorio);",
+                  "// El login admite 5 intentos por minuto e IP. Si esta fuera la sexta petición de la ventana,",
+                  "// se espera a que caduque en vez de llevarse un 429 (el límite se prueba aparte, al final)",
+                  "const ahora = Date.now();",
+                  "let inicio = Number(pm.collectionVariables.get(\"ventana_login_inicio\") || 0);",
+                  "let usados = Number(pm.collectionVariables.get(\"ventana_login_usados\") || 0);",
+                  "if (ahora - inicio > 61000) { inicio = ahora; usados = 0; }",
+                  "if (usados >= 5) {",
+                  "  const espera = inicio + 61000 - ahora;",
+                  "  setTimeout(() => {}, espera);",
+                  "  inicio = ahora + espera;",
+                  "  usados = 0;",
+                  "}",
+                  "pm.collectionVariables.set(\"ventana_login_inicio\", inicio);",
+                  "pm.collectionVariables.set(\"ventana_login_usados\", usados + 1);"
                 ]
               }
             },
@@ -96,37 +124,12 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const t = pm.response.json();",
-                  "pm.test(\"Firebase devuelve un ID token\", () => pm.expect(t.idToken).to.be.a(\"string\"));",
-                  "pm.collectionVariables.set(\"token_acceso_admin\", t.idToken);"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Registrar la entrada (auditoría)",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{token_acceso_admin}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "url": "{{url_base}}/auth/sesion"
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"HTTP 204\", () => pm.response.to.have.status(204));"
+                  "pm.test(\"Devuelve el par de tokens\", () => {",
+                  "  pm.expect(t.token_acceso).to.be.a(\"string\");",
+                  "  pm.expect(t.token_refresco).to.be.a(\"string\");",
+                  "});",
+                  "pm.collectionVariables.set(\"token_acceso_admin\", t.token_acceso);",
+                  "pm.collectionVariables.set(\"token_refresco_admin\", t.token_refresco);"
                 ]
               }
             }
@@ -221,7 +224,7 @@
                   "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
                   "const u = pm.response.json();",
                   "pm.test(\"Se crea como usuario por defecto\", () => pm.expect(u.rol).to.eql(\"usuario\"));",
-                  "pm.test(\"No expone el uid de Firebase\", () => pm.expect(u).to.not.have.property(\"firebase_uid\"));",
+                  "pm.test(\"Nunca expone el hash de la contraseña\", () => pm.expect(u).to.not.have.property(\"hash_contrasena\"));",
                   "pm.collectionVariables.set(\"id_usuario\", u.id);"
                 ]
               }
@@ -529,7 +532,7 @@
           ]
         },
         {
-          "name": "Login usuario (Firebase)",
+          "name": "Login usuario",
           "request": {
             "method": "POST",
             "header": [
@@ -538,16 +541,52 @@
                 "value": "application/json"
               }
             ],
+            "url": {
+              "raw": "{{url_base}}/auth/login",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
             "auth": {
               "type": "noauth"
             },
-            "url": "{{firebase_login_url}}?key={{firebase_api_key}}",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"usuario_{{sufijo}}@example.com\",\n  \"password\": \"{{contrasena_pruebas}}\",\n  \"returnSecureToken\": true\n}"
+              "raw": "{\n  \"email\": \"usuario_{{sufijo}}@example.com\",\n  \"contrasena\": \"{{contrasena_pruebas}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
           },
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// El login admite 5 intentos por minuto e IP. Si esta fuera la sexta petición de la ventana,",
+                  "// se espera a que caduque en vez de llevarse un 429 (el límite se prueba aparte, al final)",
+                  "const ahora = Date.now();",
+                  "let inicio = Number(pm.collectionVariables.get(\"ventana_login_inicio\") || 0);",
+                  "let usados = Number(pm.collectionVariables.get(\"ventana_login_usados\") || 0);",
+                  "if (ahora - inicio > 61000) { inicio = ahora; usados = 0; }",
+                  "if (usados >= 5) {",
+                  "  const espera = inicio + 61000 - ahora;",
+                  "  setTimeout(() => {}, espera);",
+                  "  inicio = ahora + espera;",
+                  "  usados = 0;",
+                  "}",
+                  "pm.collectionVariables.set(\"ventana_login_inicio\", inicio);",
+                  "pm.collectionVariables.set(\"ventana_login_usados\", usados + 1);"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {
@@ -555,15 +594,19 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const t = pm.response.json();",
-                  "pm.test(\"Firebase devuelve un ID token\", () => pm.expect(t.idToken).to.be.a(\"string\"));",
-                  "pm.collectionVariables.set(\"token_acceso_usuario\", t.idToken);"
+                  "pm.test(\"Devuelve el par de tokens\", () => {",
+                  "  pm.expect(t.token_acceso).to.be.a(\"string\");",
+                  "  pm.expect(t.token_refresco).to.be.a(\"string\");",
+                  "});",
+                  "pm.collectionVariables.set(\"token_acceso_usuario\", t.token_acceso);",
+                  "pm.collectionVariables.set(\"token_refresco_usuario\", t.token_refresco);"
                 ]
               }
             }
           ]
         },
         {
-          "name": "Login otro usuario (Firebase)",
+          "name": "Login otro usuario",
           "request": {
             "method": "POST",
             "header": [
@@ -572,16 +615,52 @@
                 "value": "application/json"
               }
             ],
+            "url": {
+              "raw": "{{url_base}}/auth/login",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
             "auth": {
               "type": "noauth"
             },
-            "url": "{{firebase_login_url}}?key={{firebase_api_key}}",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"otro_{{sufijo}}@example.com\",\n  \"password\": \"{{contrasena_pruebas}}\",\n  \"returnSecureToken\": true\n}"
+              "raw": "{\n  \"email\": \"otro_{{sufijo}}@example.com\",\n  \"contrasena\": \"{{contrasena_pruebas}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
           },
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// El login admite 5 intentos por minuto e IP. Si esta fuera la sexta petición de la ventana,",
+                  "// se espera a que caduque en vez de llevarse un 429 (el límite se prueba aparte, al final)",
+                  "const ahora = Date.now();",
+                  "let inicio = Number(pm.collectionVariables.get(\"ventana_login_inicio\") || 0);",
+                  "let usados = Number(pm.collectionVariables.get(\"ventana_login_usados\") || 0);",
+                  "if (ahora - inicio > 61000) { inicio = ahora; usados = 0; }",
+                  "if (usados >= 5) {",
+                  "  const espera = inicio + 61000 - ahora;",
+                  "  setTimeout(() => {}, espera);",
+                  "  inicio = ahora + espera;",
+                  "  usados = 0;",
+                  "}",
+                  "pm.collectionVariables.set(\"ventana_login_inicio\", inicio);",
+                  "pm.collectionVariables.set(\"ventana_login_usados\", usados + 1);"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {
@@ -589,15 +668,19 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const t = pm.response.json();",
-                  "pm.test(\"Firebase devuelve un ID token\", () => pm.expect(t.idToken).to.be.a(\"string\"));",
-                  "pm.collectionVariables.set(\"token_acceso_otro\", t.idToken);"
+                  "pm.test(\"Devuelve el par de tokens\", () => {",
+                  "  pm.expect(t.token_acceso).to.be.a(\"string\");",
+                  "  pm.expect(t.token_refresco).to.be.a(\"string\");",
+                  "});",
+                  "pm.collectionVariables.set(\"token_acceso_otro\", t.token_acceso);",
+                  "pm.collectionVariables.set(\"token_refresco_otro\", t.token_refresco);"
                 ]
               }
             }
           ]
         },
         {
-          "name": "Login analista (Firebase)",
+          "name": "Login analista",
           "request": {
             "method": "POST",
             "header": [
@@ -606,16 +689,52 @@
                 "value": "application/json"
               }
             ],
+            "url": {
+              "raw": "{{url_base}}/auth/login",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
             "auth": {
               "type": "noauth"
             },
-            "url": "{{firebase_login_url}}?key={{firebase_api_key}}",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"analista_{{sufijo}}@example.com\",\n  \"password\": \"{{contrasena_pruebas}}\",\n  \"returnSecureToken\": true\n}"
+              "raw": "{\n  \"email\": \"analista_{{sufijo}}@example.com\",\n  \"contrasena\": \"{{contrasena_pruebas}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
           },
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// El login admite 5 intentos por minuto e IP. Si esta fuera la sexta petición de la ventana,",
+                  "// se espera a que caduque en vez de llevarse un 429 (el límite se prueba aparte, al final)",
+                  "const ahora = Date.now();",
+                  "let inicio = Number(pm.collectionVariables.get(\"ventana_login_inicio\") || 0);",
+                  "let usados = Number(pm.collectionVariables.get(\"ventana_login_usados\") || 0);",
+                  "if (ahora - inicio > 61000) { inicio = ahora; usados = 0; }",
+                  "if (usados >= 5) {",
+                  "  const espera = inicio + 61000 - ahora;",
+                  "  setTimeout(() => {}, espera);",
+                  "  inicio = ahora + espera;",
+                  "  usados = 0;",
+                  "}",
+                  "pm.collectionVariables.set(\"ventana_login_inicio\", inicio);",
+                  "pm.collectionVariables.set(\"ventana_login_usados\", usados + 1);"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {
@@ -623,15 +742,19 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const t = pm.response.json();",
-                  "pm.test(\"Firebase devuelve un ID token\", () => pm.expect(t.idToken).to.be.a(\"string\"));",
-                  "pm.collectionVariables.set(\"token_acceso_analista\", t.idToken);"
+                  "pm.test(\"Devuelve el par de tokens\", () => {",
+                  "  pm.expect(t.token_acceso).to.be.a(\"string\");",
+                  "  pm.expect(t.token_refresco).to.be.a(\"string\");",
+                  "});",
+                  "pm.collectionVariables.set(\"token_acceso_analista\", t.token_acceso);",
+                  "pm.collectionVariables.set(\"token_refresco_analista\", t.token_refresco);"
                 ]
               }
             }
           ]
         },
         {
-          "name": "Login: contraseña incorrecta (Firebase)",
+          "name": "Login: contraseña incorrecta",
           "request": {
             "method": "POST",
             "header": [
@@ -640,23 +763,60 @@
                 "value": "application/json"
               }
             ],
+            "url": {
+              "raw": "{{url_base}}/auth/login",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
             "auth": {
               "type": "noauth"
             },
-            "url": "{{firebase_login_url}}?key={{firebase_api_key}}",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"usuario_{{sufijo}}@example.com\",\n  \"password\": \"no-es-la-contrasena\",\n  \"returnSecureToken\": true\n}"
+              "raw": "{\n  \"email\": \"usuario_{{sufijo}}@example.com\",\n  \"contrasena\": \"no-es-la-contrasena\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
           },
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// El login admite 5 intentos por minuto e IP. Si esta fuera la sexta petición de la ventana,",
+                  "// se espera a que caduque en vez de llevarse un 429 (el límite se prueba aparte, al final)",
+                  "const ahora = Date.now();",
+                  "let inicio = Number(pm.collectionVariables.get(\"ventana_login_inicio\") || 0);",
+                  "let usados = Number(pm.collectionVariables.get(\"ventana_login_usados\") || 0);",
+                  "if (ahora - inicio > 61000) { inicio = ahora; usados = 0; }",
+                  "if (usados >= 5) {",
+                  "  const espera = inicio + 61000 - ahora;",
+                  "  setTimeout(() => {}, espera);",
+                  "  inicio = ahora + espera;",
+                  "  usados = 0;",
+                  "}",
+                  "pm.collectionVariables.set(\"ventana_login_inicio\", inicio);",
+                  "pm.collectionVariables.set(\"ventana_login_usados\", usados + 1);"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
-                  "pm.test(\"Firebase no devuelve token\", () => pm.expect(pm.response.json()).to.not.have.property(\"idToken\"));"
+                  "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));",
+                  "pm.test(\"Mensaje genérico, sin pistas\", () => pm.expect(pm.response.json().detail).to.eql(\"Credenciales inválidas\"));",
+                  "pm.test(\"Sin tokens\", () => pm.expect(pm.response.json()).to.not.have.property(\"token_acceso\"));"
                 ]
               }
             }
@@ -790,14 +950,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "// El emulador de Firebase emite y ACEPTA tokens sin firma (alg=none): por eso la API se niega",
-                  "// a arrancar con FIREBASE_AUTH_EMULATOR_HOST en producción. Contra Firebase real tiene que dar 401",
-                  "const emulador = (pm.environment.get(\"firebase_login_url\") || \"\").includes(\":9099\");",
-                  "if (emulador) {",
-                  "  pm.test.skip(\"HTTP 401 (solo contra Firebase real: el emulador no verifica firmas)\", () => {});",
-                  "} else {",
-                  "  pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));",
-                  "}"
+                  "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));"
                 ]
               }
             }
@@ -2765,80 +2918,152 @@
               }
             }
           ]
+        },
+        {
+          "name": "Auditoría: logins fallidos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{url_base}}/auditoria?accion=login_fallido",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "auditoria"
+              ],
+              "query": [
+                {
+                  "key": "accion",
+                  "value": "login_fallido"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_admin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Quedan registrados\", () => pm.expect(pm.response.json().total).to.be.at.least(1));"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
     {
-      "name": "8 · Sesiones con Firebase",
-      "description": "Rotación, detección de reutilización y logout.",
+      "name": "8 · Tokens de refresco",
+      "description": "Rotación, detección de reutilización (con revocación inmediata) y logout.",
       "item": [
         {
-          "name": "Registrar la entrada del usuario",
+          "name": "Refrescar",
           "request": {
             "method": "POST",
-            "header": [],
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{token_acceso_usuario}}",
-                  "type": "string"
-                }
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{url_base}}/auth/refrescar",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "auth",
+                "refrescar"
               ]
             },
-            "url": "{{url_base}}/auth/sesion"
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"HTTP 204\", () => pm.response.to.have.status(204));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Registrar la salida del usuario",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{token_acceso_usuario}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "url": "{{url_base}}/auth/salida"
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"HTTP 204\", () => pm.response.to.have.status(204));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Entrada sin token",
-          "request": {
-            "method": "POST",
-            "header": [],
             "auth": {
               "type": "noauth"
             },
-            "url": "{{url_base}}/auth/sesion"
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token_refresco\": \"{{token_refresco_usuario}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"token_refresco_viejo\", pm.collectionVariables.get(\"token_refresco_usuario\"));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "const t = pm.response.json();",
+                  "pm.test(\"Devuelve el par de tokens\", () => {",
+                  "  pm.expect(t.token_acceso).to.be.a(\"string\");",
+                  "  pm.expect(t.token_refresco).to.be.a(\"string\");",
+                  "});",
+                  "pm.collectionVariables.set(\"token_acceso_usuario\", t.token_acceso);",
+                  "pm.collectionVariables.set(\"token_refresco_usuario\", t.token_refresco);",
+                  "pm.test(\"El refresco rota\", () => pm.expect(t.token_refresco).to.not.eql(pm.collectionVariables.get(\"token_refresco_viejo\")));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reutilizar el refresco viejo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{url_base}}/auth/refrescar",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "auth",
+                "refrescar"
+              ]
+            },
+            "description": "Reutilizar un refresco revocado es señal de robo: se revoca toda la familia.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token_refresco\": \"{{token_refresco_viejo}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           },
           "event": [
             {
@@ -2853,7 +3078,7 @@
           ]
         },
         {
-          "name": "Login propio retirado",
+          "name": "El refresco nuevo también cae",
           "request": {
             "method": "POST",
             "header": [
@@ -2862,13 +3087,27 @@
                 "value": "application/json"
               }
             ],
+            "url": {
+              "raw": "{{url_base}}/auth/refrescar",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "auth",
+                "refrescar"
+              ]
+            },
             "auth": {
               "type": "noauth"
             },
-            "url": "{{url_base}}/auth/login",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"contrasena\": \"x\"\n}"
+              "raw": "{\n  \"token_refresco\": \"{{token_refresco_usuario}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
           },
           "event": [
@@ -2877,30 +3116,36 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 404\", () => pm.response.to.have.status(404));",
-                  "// Las contraseñas ya no pasan por la API: las comprueba Firebase"
+                  "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));"
                 ]
               }
             }
           ]
         },
         {
-          "name": "Refresco propio retirado",
+          "name": "El access obtenido con la copia también cae",
           "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "auth": {
-              "type": "noauth"
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{url_base}}/usuarios/yo",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "usuarios",
+                "yo"
+              ]
             },
-            "url": "{{url_base}}/auth/refrescar",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"token_refresco\": \"x\"\n}"
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_acceso_usuario}}",
+                  "type": "string"
+                }
+              ]
             }
           },
           "event": [
@@ -2909,7 +3154,144 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 404\", () => pm.response.to.have.status(404));"
+                  "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));",
+                  "// Detectada la reutilización, la API sube la versión de sesión: quien refrescó con la copia",
+                  "// robada pierde también su access token, sin esperar a que caduque"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{url_base}}/auth/logout",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token_refresco\": \"{{token_refresco_otro}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refrescar tras logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{url_base}}/auth/refrescar",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "auth",
+                "refrescar"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token_refresco\": \"{{token_refresco_otro}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresco inventado",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{url_base}}/auth/refrescar",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "auth",
+                "refrescar"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token_refresco\": \"inventado\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));"
                 ]
               }
             }
@@ -2945,28 +3327,75 @@
           ]
         },
         {
-          "name": "Config pública sin secretos",
+          "name": "Login usuario de nuevo",
           "request": {
-            "method": "GET",
-            "header": [],
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{url_base}}/auth/login",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
             "auth": {
               "type": "noauth"
             },
-            "url": "{{url_base}}/config/cliente"
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"usuario_{{sufijo}}@example.com\",\n  \"contrasena\": \"{{contrasena_pruebas}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "La reutilización tumbó su sesión: vuelve a entrar para el resto de la colección."
           },
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// El login admite 5 intentos por minuto e IP. Si esta fuera la sexta petición de la ventana,",
+                  "// se espera a que caduque en vez de llevarse un 429 (el límite se prueba aparte, al final)",
+                  "const ahora = Date.now();",
+                  "let inicio = Number(pm.collectionVariables.get(\"ventana_login_inicio\") || 0);",
+                  "let usados = Number(pm.collectionVariables.get(\"ventana_login_usados\") || 0);",
+                  "if (ahora - inicio > 61000) { inicio = ahora; usados = 0; }",
+                  "if (usados >= 5) {",
+                  "  const espera = inicio + 61000 - ahora;",
+                  "  setTimeout(() => {}, espera);",
+                  "  inicio = ahora + espera;",
+                  "  usados = 0;",
+                  "}",
+                  "pm.collectionVariables.set(\"ventana_login_inicio\", inicio);",
+                  "pm.collectionVariables.set(\"ventana_login_usados\", usados + 1);"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
-                  "const cfg = pm.response.json();",
-                  "pm.test(\"Da la config web de Firebase\", () => pm.expect(cfg.firebase.apiKey).to.be.a(\"string\"));",
-                  "pm.test(\"Nunca la credencial de la cuenta de servicio\", () => {",
-                  "  pm.expect(pm.response.text()).to.not.include(\"private_key\");",
-                  "  pm.expect(pm.response.text()).to.not.include(\"client_email\");",
-                  "});"
+                  "const t = pm.response.json();",
+                  "pm.test(\"Devuelve el par de tokens\", () => {",
+                  "  pm.expect(t.token_acceso).to.be.a(\"string\");",
+                  "  pm.expect(t.token_refresco).to.be.a(\"string\");",
+                  "});",
+                  "pm.collectionVariables.set(\"token_acceso_usuario\", t.token_acceso);",
+                  "pm.collectionVariables.set(\"token_refresco_usuario\", t.token_refresco);"
                 ]
               }
             }
@@ -3160,14 +3589,14 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));",
-                  "// La API revoca las sesiones en Firebase y verifica con check_revoked"
+                  "// No ha caducado: la API subió la versión de sesión (claim \"ver\") y lo rechaza al momento"
                 ]
               }
             }
           ]
         },
         {
-          "name": "Login con la contraseña nueva (Firebase)",
+          "name": "Login con la contraseña nueva",
           "request": {
             "method": "POST",
             "header": [
@@ -3176,16 +3605,52 @@
                 "value": "application/json"
               }
             ],
+            "url": {
+              "raw": "{{url_base}}/auth/login",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
             "auth": {
               "type": "noauth"
             },
-            "url": "{{firebase_login_url}}?key={{firebase_api_key}}",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"usuario_{{sufijo}}@example.com\",\n  \"password\": \"{{contrasena_pruebas}}-2\",\n  \"returnSecureToken\": true\n}"
+              "raw": "{\n  \"email\": \"usuario_{{sufijo}}@example.com\",\n  \"contrasena\": \"{{contrasena_pruebas}}-2\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
           },
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// El login admite 5 intentos por minuto e IP. Si esta fuera la sexta petición de la ventana,",
+                  "// se espera a que caduque en vez de llevarse un 429 (el límite se prueba aparte, al final)",
+                  "const ahora = Date.now();",
+                  "let inicio = Number(pm.collectionVariables.get(\"ventana_login_inicio\") || 0);",
+                  "let usados = Number(pm.collectionVariables.get(\"ventana_login_usados\") || 0);",
+                  "if (ahora - inicio > 61000) { inicio = ahora; usados = 0; }",
+                  "if (usados >= 5) {",
+                  "  const espera = inicio + 61000 - ahora;",
+                  "  setTimeout(() => {}, espera);",
+                  "  inicio = ahora + espera;",
+                  "  usados = 0;",
+                  "}",
+                  "pm.collectionVariables.set(\"ventana_login_inicio\", inicio);",
+                  "pm.collectionVariables.set(\"ventana_login_usados\", usados + 1);"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {
@@ -3193,8 +3658,12 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const t = pm.response.json();",
-                  "pm.test(\"Firebase devuelve un ID token\", () => pm.expect(t.idToken).to.be.a(\"string\"));",
-                  "pm.collectionVariables.set(\"token_acceso_usuario\", t.idToken);"
+                  "pm.test(\"Devuelve el par de tokens\", () => {",
+                  "  pm.expect(t.token_acceso).to.be.a(\"string\");",
+                  "  pm.expect(t.token_refresco).to.be.a(\"string\");",
+                  "});",
+                  "pm.collectionVariables.set(\"token_acceso_usuario\", t.token_acceso);",
+                  "pm.collectionVariables.set(\"token_refresco_usuario\", t.token_refresco);"
                 ]
               }
             }
@@ -3622,7 +4091,7 @@
           ]
         },
         {
-          "name": "Login del otro tras reactivarlo (Firebase)",
+          "name": "Login del otro tras reactivarlo",
           "request": {
             "method": "POST",
             "header": [
@@ -3631,16 +4100,53 @@
                 "value": "application/json"
               }
             ],
+            "url": {
+              "raw": "{{url_base}}/auth/login",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
             "auth": {
               "type": "noauth"
             },
-            "url": "{{firebase_login_url}}?key={{firebase_api_key}}",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"otro_{{sufijo}}@example.com\",\n  \"password\": \"{{contrasena_pruebas}}\",\n  \"returnSecureToken\": true\n}"
-            }
+              "raw": "{\n  \"email\": \"otro_{{sufijo}}@example.com\",\n  \"contrasena\": \"{{contrasena_pruebas}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Al darle de baja se cerraron sus sesiones: los tokens de antes no resucitan al reactivarlo."
           },
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// El login admite 5 intentos por minuto e IP. Si esta fuera la sexta petición de la ventana,",
+                  "// se espera a que caduque en vez de llevarse un 429 (el límite se prueba aparte, al final)",
+                  "const ahora = Date.now();",
+                  "let inicio = Number(pm.collectionVariables.get(\"ventana_login_inicio\") || 0);",
+                  "let usados = Number(pm.collectionVariables.get(\"ventana_login_usados\") || 0);",
+                  "if (ahora - inicio > 61000) { inicio = ahora; usados = 0; }",
+                  "if (usados >= 5) {",
+                  "  const espera = inicio + 61000 - ahora;",
+                  "  setTimeout(() => {}, espera);",
+                  "  inicio = ahora + espera;",
+                  "  usados = 0;",
+                  "}",
+                  "pm.collectionVariables.set(\"ventana_login_inicio\", inicio);",
+                  "pm.collectionVariables.set(\"ventana_login_usados\", usados + 1);"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {
@@ -3648,8 +4154,12 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const t = pm.response.json();",
-                  "pm.test(\"Firebase devuelve un ID token\", () => pm.expect(t.idToken).to.be.a(\"string\"));",
-                  "pm.collectionVariables.set(\"token_acceso_otro\", t.idToken);"
+                  "pm.test(\"Devuelve el par de tokens\", () => {",
+                  "  pm.expect(t.token_acceso).to.be.a(\"string\");",
+                  "  pm.expect(t.token_refresco).to.be.a(\"string\");",
+                  "});",
+                  "pm.collectionVariables.set(\"token_acceso_otro\", t.token_acceso);",
+                  "pm.collectionVariables.set(\"token_refresco_otro\", t.token_refresco);"
                 ]
               }
             }
@@ -3702,17 +4212,6 @@
         {
           "name": "Admin restablece la contraseña del otro usuario",
           "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "// Firebase revoca con precisión de segundos (iat * 1000 < tokens_valid_after): un token emitido en el",
-                  "// mismo segundo que la revocación sobrevive. Se espera un segundo para que el login anterior quede atrás",
-                  "setTimeout(() => {}, 1100);"
-                ]
-              }
-            },
             {
               "listen": "test",
               "script": {
@@ -3781,7 +4280,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));"
+                  "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));",
+                  "// Versión de sesión: el token del otro cae aunque no haya caducado"
                 ]
               }
             }
@@ -4188,7 +4688,7 @@
           ]
         },
         {
-          "name": "Login del trabajador A (Firebase)",
+          "name": "Login del trabajador A",
           "request": {
             "method": "POST",
             "header": [
@@ -4197,16 +4697,52 @@
                 "value": "application/json"
               }
             ],
+            "url": {
+              "raw": "{{url_base}}/auth/login",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
             "auth": {
               "type": "noauth"
             },
-            "url": "{{firebase_login_url}}?key={{firebase_api_key}}",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"trabajador_a_{{sufijo}}@example.com\",\n  \"password\": \"{{contrasena_pruebas}}\",\n  \"returnSecureToken\": true\n}"
+              "raw": "{\n  \"email\": \"trabajador_a_{{sufijo}}@example.com\",\n  \"contrasena\": \"{{contrasena_pruebas}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
           },
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// El login admite 5 intentos por minuto e IP. Si esta fuera la sexta petición de la ventana,",
+                  "// se espera a que caduque en vez de llevarse un 429 (el límite se prueba aparte, al final)",
+                  "const ahora = Date.now();",
+                  "let inicio = Number(pm.collectionVariables.get(\"ventana_login_inicio\") || 0);",
+                  "let usados = Number(pm.collectionVariables.get(\"ventana_login_usados\") || 0);",
+                  "if (ahora - inicio > 61000) { inicio = ahora; usados = 0; }",
+                  "if (usados >= 5) {",
+                  "  const espera = inicio + 61000 - ahora;",
+                  "  setTimeout(() => {}, espera);",
+                  "  inicio = ahora + espera;",
+                  "  usados = 0;",
+                  "}",
+                  "pm.collectionVariables.set(\"ventana_login_inicio\", inicio);",
+                  "pm.collectionVariables.set(\"ventana_login_usados\", usados + 1);"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {
@@ -4214,15 +4750,18 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const t = pm.response.json();",
-                  "pm.test(\"Firebase devuelve un ID token\", () => pm.expect(t.idToken).to.be.a(\"string\"));",
-                  "pm.collectionVariables.set(\"token_cliente_a\", t.idToken);"
+                  "pm.test(\"Devuelve el par de tokens\", () => {",
+                  "  pm.expect(t.token_acceso).to.be.a(\"string\");",
+                  "  pm.expect(t.token_refresco).to.be.a(\"string\");",
+                  "});",
+                  "pm.collectionVariables.set(\"token_cliente_a\", t.token_acceso);"
                 ]
               }
             }
           ]
         },
         {
-          "name": "Login del trabajador B (Firebase)",
+          "name": "Login del trabajador B",
           "request": {
             "method": "POST",
             "header": [
@@ -4231,16 +4770,52 @@
                 "value": "application/json"
               }
             ],
+            "url": {
+              "raw": "{{url_base}}/auth/login",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
             "auth": {
               "type": "noauth"
             },
-            "url": "{{firebase_login_url}}?key={{firebase_api_key}}",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"trabajador_b_{{sufijo}}@example.com\",\n  \"password\": \"{{contrasena_pruebas}}\",\n  \"returnSecureToken\": true\n}"
+              "raw": "{\n  \"email\": \"trabajador_b_{{sufijo}}@example.com\",\n  \"contrasena\": \"{{contrasena_pruebas}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
           },
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// El login admite 5 intentos por minuto e IP. Si esta fuera la sexta petición de la ventana,",
+                  "// se espera a que caduque en vez de llevarse un 429 (el límite se prueba aparte, al final)",
+                  "const ahora = Date.now();",
+                  "let inicio = Number(pm.collectionVariables.get(\"ventana_login_inicio\") || 0);",
+                  "let usados = Number(pm.collectionVariables.get(\"ventana_login_usados\") || 0);",
+                  "if (ahora - inicio > 61000) { inicio = ahora; usados = 0; }",
+                  "if (usados >= 5) {",
+                  "  const espera = inicio + 61000 - ahora;",
+                  "  setTimeout(() => {}, espera);",
+                  "  inicio = ahora + espera;",
+                  "  usados = 0;",
+                  "}",
+                  "pm.collectionVariables.set(\"ventana_login_inicio\", inicio);",
+                  "pm.collectionVariables.set(\"ventana_login_usados\", usados + 1);"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {
@@ -4248,8 +4823,11 @@
                 "exec": [
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const t = pm.response.json();",
-                  "pm.test(\"Firebase devuelve un ID token\", () => pm.expect(t.idToken).to.be.a(\"string\"));",
-                  "pm.collectionVariables.set(\"token_cliente_b\", t.idToken);"
+                  "pm.test(\"Devuelve el par de tokens\", () => {",
+                  "  pm.expect(t.token_acceso).to.be.a(\"string\");",
+                  "  pm.expect(t.token_refresco).to.be.a(\"string\");",
+                  "});",
+                  "pm.collectionVariables.set(\"token_cliente_b\", t.token_acceso);"
                 ]
               }
             }
@@ -4593,7 +5171,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));",
-                  "// Su token de Firebase sigue siendo válido: es la API la que le cierra la puerta"
+                  "// Su token está bien firmado y sin caducar: es la API la que mira en cada petición que su cliente siga de alta"
                 ]
               }
             }
@@ -4605,6 +5183,70 @@
       "name": "11 · Rate limit",
       "description": "Va la última: deja el login bloqueado un minuto para esta IP.",
       "item": [
+        {
+          "name": "Login: sexto intento en un minuto",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{url_base}}/auth/login",
+              "host": [
+                "{{url_base}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"nadie@example.com\",\n  \"contrasena\": \"xxxxxxxxxxxx\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Cinco intentos fallidos seguidos: el sexto (esta petición) tiene que dar 429",
+                  "const intento = {",
+                  "  url: pm.environment.get(\"url_base\") + \"/auth/login\",",
+                  "  method: \"POST\",",
+                  "  header: { \"Content-Type\": \"application/json\" },",
+                  "  body: { mode: \"raw\", raw: JSON.stringify({ email: \"nadie@example.com\", contrasena: \"x\".repeat(12) }) },",
+                  "};",
+                  "for (let i = 0; i < 5; i++) pm.sendRequest(intento, () => {});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 429\", () => pm.response.to.have.status(429));",
+                  "// La ventana queda agotada: si se repite la colección en el Runner, el primer login espera",
+                  "pm.collectionVariables.set(\"ventana_login_inicio\", Date.now());",
+                  "pm.collectionVariables.set(\"ventana_login_usados\", 5);"
+                ]
+              }
+            }
+          ]
+        },
         {
           "name": "Cambiar contraseña: sexto intento en un minuto",
           "request": {
@@ -4749,6 +5391,34 @@
     },
     {
       "key": "id_incidente_a",
+      "value": ""
+    },
+    {
+      "key": "token_refresco_admin",
+      "value": ""
+    },
+    {
+      "key": "token_refresco_usuario",
+      "value": ""
+    },
+    {
+      "key": "token_refresco_otro",
+      "value": ""
+    },
+    {
+      "key": "token_refresco_analista",
+      "value": ""
+    },
+    {
+      "key": "token_refresco_viejo",
+      "value": ""
+    },
+    {
+      "key": "ventana_login_inicio",
+      "value": ""
+    },
+    {
+      "key": "ventana_login_usados",
       "value": ""
     }
   ]

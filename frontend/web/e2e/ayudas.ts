@@ -1,6 +1,6 @@
 import { APIRequestContext, Page, expect, test as base } from '@playwright/test';
 
-import { API_KEY, CONTRASENA, PUERTOS } from './datos.mjs';
+import { CONTRASENA, PUERTOS } from './datos.mjs';
 
 /**
  * Todas las pruebas usan este `test`: falla si el navegador registra una violación de la CSP o
@@ -54,16 +54,15 @@ export async function menu(page: Page, nombre: string): Promise<void> {
 }
 
 /**
- * ID token de una cuenta, pedido al emulador igual que lo hace el SDK en el navegador. Sirve para
- * atacar la API directamente: la seguridad la impone la API, no la interfaz.
+ * Token de acceso de una cuenta, pedido directamente a la API (ruta para clientes que no son
+ * navegador). Sirve para atacar la API sin interfaz: la seguridad la impone la API, no la web.
  */
 export async function tokenDe(request: APIRequestContext, email: string): Promise<string> {
-  const r = await request.post(
-    `http://127.0.0.1:${PUERTOS.auth}/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${API_KEY}`,
-    { data: { email, password: CONTRASENA, returnSecureToken: true } },
-  );
+  const r = await request.post(`http://127.0.0.1:${PUERTOS.web}/api/auth/login`, {
+    data: { email, contrasena: CONTRASENA },
+  });
   expect(r.ok()).toBe(true);
-  return (await r.json()).idToken;
+  return (await r.json()).token_acceso;
 }
 
 /** Texto único por ejecución, para no chocar con datos de otras pruebas. */

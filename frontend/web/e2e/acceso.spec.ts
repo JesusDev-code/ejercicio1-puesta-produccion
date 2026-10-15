@@ -1,5 +1,5 @@
 import { entrar, expect, intentarEntrar, salir, test } from './ayudas';
-import { API_KEY, CONTRASENA, CUENTAS, PUERTOS } from './datos.mjs';
+import { CUENTAS, PUERTOS } from './datos.mjs';
 
 test.describe('Acceso', () => {
   test('la web pública se ve sin sesión y lleva al login', async ({ page }) => {
@@ -20,47 +20,66 @@ test.describe('Acceso', () => {
     await expect(page.getByRole('alert')).toContainText('Email o contraseña incorrectos');
   });
 
-  test('el admin entra al Panel y el token no queda guardado en ningún sitio', async ({ page, context }) => {
+  test('el admin entra al Panel: el token de acceso no se guarda y el refresco es una cookie blindada', async ({
+    page,
+    context,
+  }) => {
     await entrar(page, CUENTAS.admin);
     await expect(page).toHaveURL(/\/monitorizacion$/);
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Panel');
 
-    const almacenado = await page.evaluate(async () => ({
+    const almacenado = await page.evaluate(() => ({
       local: localStorage.length,
       sesion: sessionStorage.length,
-      bases: (await indexedDB.databases()).map((b) => b.name),
+      cookiesVisibles: document.cookie,
     }));
     expect(almacenado.local).toBe(0);
     expect(almacenado.sesion).toBe(0);
-    expect(almacenado.bases).not.toContain('firebaseLocalStorageDb');
-    expect(await context.cookies()).toEqual([]);
+    // HttpOnly: ni el código de la app ni un XSS pueden leer el token de refresco
+    expect(almacenado.cookiesVisibles).toBe('');
+
+    const cookies = await context.cookies();
+    expect(cookies).toHaveLength(1);
+    expect(cookies[0]).toMatchObject({
+      name: '__Secure-refresco',
+      path: '/api/auth/web', // el navegador solo la manda a login, refrescar y logout
+      httpOnly: true,
+      secure: true,
+      sameSite: 'Strict', // una web ajena no puede provocar que se envíe (CSRF)
+    });
   });
 
-  test('recargar la página pide entrar otra vez (sesión solo en memoria)', async ({ page }) => {
+  test('recargar la página mantiene la sesión (refresco con la cookie)', async ({ page }) => {
     await entrar(page, CUENTAS.admin);
     await expect(page).toHaveURL(/\/monitorizacion$/);
     await page.reload();
-    await expect(page).toHaveURL(/\/login$/);
+    await expect(page).toHaveURL(/\/monitorizacion$/);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Panel');
   });
 
-  test('cerrar sesión vuelve a la web pública', async ({ page }) => {
+  test('cerrar sesión revoca el refresco: recargar ya no recupera nada', async ({ page, context }) => {
     await entrar(page, CUENTAS.admin);
     await expect(page).toHaveURL(/\/monitorizacion$/);
     await salir(page);
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Vigilamos tu red');
+    expect(await context.cookies()).toEqual([]);
+
+    await page.goto('/monitorizacion');
+    await expect(page).toHaveURL(/\/login$/);
   });
 
-  test('una cuenta creada por libre en Firebase no entra en Umbral', async ({ page, request }) => {
-    // La API key es pública: cualquiera podría registrarse en Firebase. Sin fila en nuestra BD, no entra
-    const email = `intruso-${Date.now()}@kaelum.example.com`;
-    const alta = await request.post(
-      `http://127.0.0.1:${PUERTOS.auth}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=${API_KEY}`,
-      { data: { email, password: CONTRASENA, returnSecureToken: true } },
-    );
-    expect(alta.ok()).toBe(true);
+  test('una cookie de refresco robada y reutilizada tumba la sesión entera', async ({ page, context, request }) => {
+    await entrar(page, CUENTAS.admin);
+    const [robada] = await context.cookies();
 
-    await intentarEntrar(page, email);
-    await expect(page.getByRole('alert')).toContainText('Email o contraseña incorrectos');
+    // El atacante usa su copia primero: la API rota el token y la copia del navegador queda vieja
+    const uso = await request.post(`http://127.0.0.1:${PUERTOS.web}/api/auth/web/refrescar`, {
+      headers: { Cookie: `${robada.name}=${robada.value}` },
+    });
+    expect(uso.ok()).toBe(true);
+
+    // El navegador legítimo refresca con el token ya rotado: reutilización → familia revocada
+    await page.reload();
     await expect(page).toHaveURL(/\/login$/);
   });
 });

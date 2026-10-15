@@ -48,5 +48,3 @@ Thumbs.db
 /playwright-report/
 /blob-report/
 /playwright/.cache/
-# Emulador de Firebase
-firebase-debug.log

@@ -11,13 +11,11 @@ services:
     environment:
       ENTORNO: desarrollo
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-incidentes}:${POSTGRES_PASSWORD:-desarrollo-local-no-usar-en-produccion}@db:5432/${POSTGRES_DB:-incidentes}
-      FIREBASE_CREDENCIALES: ${FIREBASE_CREDENCIALES:-}
-      FIREBASE_API_KEY: ${FIREBASE_API_KEY:-}
-      FIREBASE_AUTH_DOMAIN: ${FIREBASE_AUTH_DOMAIN:-}
-      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-}
+      JWT_SECRETO: ${JWT_SECRETO:-desarrollo-local-jwt-no-usar-en-produccion-0123456789}
       # Sin proxy delante: no se confía en cabeceras X-Forwarded-*
       FORWARDED_ALLOW_IPS: 127.0.0.1
       # En local el front va con `npm start`, cuyo proxy ya reescribe el Path de la cookie
+      COOKIE_REFRESCO_RUTA: /auth/web
       INGESTA_TOKEN: ${INGESTA_TOKEN:-ingesta-de-desarrollo-local-no-usar-en-produccion}
     ports:
       - "127.0.0.1:${API_PUERTO:-8000}:8000"

@@ -160,8 +160,8 @@ export class Cuenta implements OnInit {
       this.enviando.set(false);
       return;
     }
-    // La API revoca TODAS las sesiones en Firebase, también la de esta pestaña. Se vuelve a
-    // entrar con la contraseña nueva para que la sesión actual siga viva sin pedirla otra vez.
+    // La API revoca TODOS los refrescos, también el de esta pestaña. Se vuelve a entrar con
+    // la contraseña nueva para que la sesión actual siga viva sin pedirla otra vez.
     try {
       await this.sesion.entrar(this.sesion.usuario()!.email, nueva);
     } catch {

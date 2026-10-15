@@ -4,9 +4,9 @@ import { PUERTOS } from './e2e/datos.mjs';
 
 /**
  * E2E de punta a punta: navegador real → front compilado (con la CSP de nginx) → API real →
- * emulador de Firebase Auth. Todo lo levanta e2e/entorno.mjs; nada toca producción.
+ * BD desechable. Todo lo levanta e2e/entorno.mjs; nada toca producción.
  *
- * Un solo worker: las pruebas comparten la BD sembrada y el emulador.
+ * Un solo worker: las pruebas comparten la BD sembrada.
  */
 export default defineConfig({
   testDir: './e2e',

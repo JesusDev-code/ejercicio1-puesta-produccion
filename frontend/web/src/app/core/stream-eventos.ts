@@ -1,4 +1,5 @@
 import { Injectable, inject } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 
 import { EventoSeguridad } from './modelos';
 
@@ -33,7 +34,7 @@ export class StreamEventos {
     const conectar = async (): Promise<void> => {
       while (!control.signal.aborted) {
         try {
-          const token = await this.sesion.token();
+          const token = this.sesion.tokenAcceso();
           const respuesta = await fetch('/api/eventos/stream', {
             headers: { Authorization: `Bearer ${token}`, Accept: 'text/event-stream' },
             signal: control.signal,
@@ -115,8 +116,8 @@ export class StreamEventos {
 
   private async refrescar(): Promise<void> {
     try {
-      // Pide a Firebase un ID token nuevo (el SDK lo deja en memoria para las siguientes)
-      await this.sesion.token(true);
+      // Reusa el refresco de la sesión (single-flight): deja el token nuevo en memoria
+      await firstValueFrom(this.sesion.refrescar());
     } catch {
       // Si el refresco falla, el próximo ciclo volverá a dar 401 y acabará parando
     }

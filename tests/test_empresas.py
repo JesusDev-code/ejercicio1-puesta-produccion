@@ -35,10 +35,6 @@ def ingesta(monkeypatch):
     return {"X-Ingesta-Token": TOKEN}
 
 
-async def _token(falsa, email) -> dict:
-    return {"Authorization": f"Bearer {falsa.iniciar_sesion(email, CONTRASENA)}"}
-
-
 class Clientes:
     def __init__(self, ids: dict, cab: dict):
         self.ids = ids
@@ -221,16 +217,15 @@ async def test_no_se_asigna_un_usuario_de_cliente_como_analista(cliente, actores
 # --- Baja de un cliente ---
 
 
-async def test_desactivar_empresa_deja_fuera_a_sus_usuarios(cliente, actores, clientes, falsa):
+async def test_desactivar_empresa_deja_fuera_a_sus_usuarios(cliente, actores, clientes):
     r = await cliente.patch(
         f"/empresas/{clientes.ids['ibarra']}", json={"activa": False}, headers=actores.cab["admin"]
     )
     assert r.status_code == 200
     # El token que ya tenía deja de valer al momento, y no puede volver a entrar
     assert (await cliente.get("/usuarios/yo", headers=clientes.cab["ibarra"])).status_code == 401
-    # Firebase sí la deja entrar (no sabe de empresas), pero la API la rechaza igual
-    otra = await cliente.post("/auth/sesion", headers=await _token(falsa, "ana@ibarra.es"))
-    assert otra.status_code == 401
+    r = await cliente.post("/auth/login", json={"email": "ana@ibarra.es", "contrasena": CONTRASENA})
+    assert r.status_code == 401
     # Los demás clientes siguen igual
     assert (await cliente.get("/usuarios/yo", headers=clientes.cab["solana"])).status_code == 200
 

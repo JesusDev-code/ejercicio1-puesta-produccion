@@ -1,4 +1,4 @@
-from tests.conftest import CONTRASENA, cabeceras, crear_incidente
+from tests.conftest import CONTRASENA, crear_incidente, login
 
 NUEVA = "otra-contrasena-segura-456"
 
@@ -70,7 +70,8 @@ async def test_auditoria_incluye_email_del_usuario(cliente, actores):
 # --- Cambio de contraseña ---
 
 
-async def test_cambiar_contrasena_revoca_sesiones_y_cambia_credenciales(cliente, actores, falsa):
+async def test_cambiar_contrasena_revoca_sesiones_y_cambia_credenciales(cliente, actores):
+    tokens = await login(cliente, "usuario@test.com")
     r = await cliente.patch(
         "/usuarios/yo/contrasena",
         json={"contrasena_actual": CONTRASENA, "contrasena_nueva": NUEVA},
@@ -78,11 +79,24 @@ async def test_cambiar_contrasena_revoca_sesiones_y_cambia_credenciales(cliente,
     )
     assert r.status_code == 204
 
-    # El token con el que se hizo el cambio queda revocado, como todos los anteriores
-    assert (await cliente.get("/usuarios/yo", headers=actores.cab["usuario"])).status_code == 401
-    assert falsa.iniciar_sesion("usuario@test.com", CONTRASENA) is None
-    nueva = await cabeceras(cliente, "usuario@test.com", NUEVA)
-    assert (await cliente.get("/usuarios/yo", headers=nueva)).status_code == 200
+    # Los refresh previos quedan revocados
+    r = await cliente.post("/auth/refrescar", json={"token_refresco": tokens["token_refresco"]})
+    assert r.status_code == 401
+    # Y el access token anterior también, sin esperar a que caduque: es lo que echa a un
+    # atacante que tuviera la sesión robada
+    r = await cliente.get(
+        "/usuarios/yo", headers={"Authorization": f"Bearer {tokens['token_acceso']}"}
+    )
+    assert r.status_code == 401
+
+    viejo = await cliente.post(
+        "/auth/login", json={"email": "usuario@test.com", "contrasena": CONTRASENA}
+    )
+    assert viejo.status_code == 401
+    nuevo = await cliente.post(
+        "/auth/login", json={"email": "usuario@test.com", "contrasena": NUEVA}
+    )
+    assert nuevo.status_code == 200
 
 
 async def test_cambiar_contrasena_con_actual_incorrecta_422_y_se_audita(cliente, actores):
@@ -148,27 +162,35 @@ async def activo(cliente, actores, clave, valor, como="admin"):
     )
 
 
-async def test_desactivar_usuario_corta_el_acceso_al_momento(cliente, actores, falsa):
+async def test_desactivar_usuario_corta_el_acceso_al_momento(cliente, actores):
     r = await activo(cliente, actores, "otro", False)
     assert r.status_code == 200
     assert r.json()["activo"] is False
 
-    # El token emitido antes deja de valer en la siguiente petición, y Firebase no da otro
+    # El access token emitido antes deja de valer en la siguiente petición
     r = await cliente.get("/usuarios/yo", headers=actores.cab["otro"])
     assert r.status_code == 401
-    assert falsa.iniciar_sesion("otro@test.com", CONTRASENA) is None
+    r = await cliente.post("/auth/login", json={"email": "otro@test.com", "contrasena": CONTRASENA})
+    assert r.status_code == 401
 
 
 async def test_reactivar_usuario_le_devuelve_el_acceso(cliente, actores):
     await activo(cliente, actores, "otro", False)
     r = await activo(cliente, actores, "otro", True)
     assert r.json()["activo"] is True
-    await cabeceras(cliente, "otro@test.com")
+    await login(cliente, "otro@test.com")
 
     r = await cliente.get(
         "/auditoria", params={"accion": "reactivar_usuario"}, headers=actores.cab["admin"]
     )
     assert r.json()["total"] == 1
+
+
+async def test_reactivar_no_resucita_los_tokens_de_antes_de_la_baja(cliente, actores):
+    await activo(cliente, actores, "otro", False)
+    await activo(cliente, actores, "otro", True)
+    r = await cliente.get("/usuarios/yo", headers=actores.cab["otro"])
+    assert r.status_code == 401
 
 
 async def test_admin_no_puede_desactivarse_a_si_mismo_409(cliente, actores):
@@ -199,9 +221,9 @@ async def test_admin_crea_usuario_con_rol(cliente, actores):
     )
     assert r.status_code == 201
     assert r.json()["rol"] == "analista"
-    assert "firebase_uid" not in r.json()
-    # La cuenta existe en Firebase con la contraseña inicial y ya puede entrar
-    await cabeceras(cliente, ALTA["email"], ALTA["contrasena"])
+    assert "hash_contrasena" not in r.json()
+    r = await cliente.post("/auth/login", json=ALTA)
+    assert r.status_code == 200
 
 
 async def test_alta_por_defecto_es_usuario(cliente, actores):
@@ -234,48 +256,27 @@ async def test_alta_queda_auditada(cliente, actores):
     assert r.json()["total"] == 1
 
 
-async def test_admin_restablece_contrasena_y_revoca_sesiones(cliente, actores, falsa):
+async def test_admin_restablece_contrasena_y_revoca_sesiones(cliente, actores):
+    login = (
+        await cliente.post("/auth/login", json={"email": "otro@test.com", "contrasena": CONTRASENA})
+    ).json()
     r = await cliente.patch(
         f"/usuarios/{actores.ids['otro']}/contrasena",
         json={"contrasena_nueva": "restablecida-por-admin-1"},
         headers=actores.cab["admin"],
     )
     assert r.status_code == 204
-    # La sesión anterior ya no vale y la contraseña vieja tampoco
-    assert (await cliente.get("/usuarios/yo", headers=actores.cab["otro"])).status_code == 401
-    assert falsa.iniciar_sesion("otro@test.com", CONTRASENA) is None
-    await cabeceras(cliente, "otro@test.com", "restablecida-por-admin-1")
-
-
-async def test_restablecer_migra_una_cuenta_anterior_a_firebase(cliente, actores, falsa):
-    """Una cuenta sin uid (de antes de la migración) no puede entrar; restablecerle la
-    contraseña es lo que la crea en Firebase."""
-    from app.db import FabricaSesion
-    from app.repositorios import RepositorioUsuarios
-
-    async with FabricaSesion() as sesion:
-        antigua = await RepositorioUsuarios(sesion).crear("antigua@test.com", None)
-        await sesion.commit()
-    assert falsa.iniciar_sesion("antigua@test.com", "migrada-por-admin-1") is None
-
-    r = await cliente.patch(
-        f"/usuarios/{antigua.id}/contrasena",
-        json={"contrasena_nueva": "migrada-por-admin-1"},
-        headers=actores.cab["admin"],
+    # El refresco anterior ya no vale y la contraseña vieja tampoco
+    r = await cliente.post("/auth/refrescar", json={"token_refresco": login["token_refresco"]})
+    assert r.status_code == 401
+    r = await cliente.get(
+        "/usuarios/yo", headers={"Authorization": f"Bearer {login['token_acceso']}"}
     )
-    assert r.status_code == 204
-    await cabeceras(cliente, "antigua@test.com", "migrada-por-admin-1")
-
-
-async def test_alta_con_email_ya_en_firebase_409(cliente, actores, falsa):
-    """Una cuenta creada a mano en la consola de Firebase no se adopta en silencio."""
-    await falsa.crear("suelta@test.com", "de-la-consola-123")
+    assert r.status_code == 401
     r = await cliente.post(
-        "/usuarios",
-        json={"email": "suelta@test.com", "contrasena": "contrasena-inicial-123"},
-        headers=actores.cab["admin"],
+        "/auth/login", json={"email": "otro@test.com", "contrasena": "restablecida-por-admin-1"}
     )
-    assert r.status_code == 409
+    assert r.status_code == 200
 
 
 async def test_restablecer_la_propia_409(cliente, actores):

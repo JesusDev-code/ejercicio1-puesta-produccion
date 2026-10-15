@@ -17,21 +17,32 @@ class Salida(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-# --- Configuración pública para el front ---
+# --- Autenticación ---
 
 
-class ConfigFirebase(BaseModel):
-    """Config web de Firebase: no es secreta, la ve cualquier navegador que cargue la app."""
-
-    apiKey: str  # noqa: N815 - nombres que espera el SDK de Firebase
-    authDomain: str  # noqa: N815
-    projectId: str  # noqa: N815
-    # Solo en local/E2E: el front se conecta al emulador en vez de a Google
-    emulador: str | None = None
+class LoginEntrada(Entrada):
+    email: EmailStr
+    contrasena: str = Field(min_length=1, max_length=128)
 
 
-class ConfigCliente(BaseModel):
-    firebase: ConfigFirebase
+class RefrescoEntrada(Entrada):
+    token_refresco: str = Field(min_length=1, max_length=256)
+
+
+class ParTokens(BaseModel):
+    token_acceso: str
+    token_refresco: str
+    tipo_token: str = "bearer"  # noqa: S105
+    expira_en_segundos: int
+
+
+class TokenAcceso(BaseModel):
+    """Respuesta de las rutas /auth/web: el refresco viaja en una cookie HttpOnly, nunca en el
+    cuerpo, para que el JavaScript del navegador (y un XSS) no pueda leerlo."""
+
+    token_acceso: str
+    tipo_token: str = "bearer"  # noqa: S105
+    expira_en_segundos: int
 
 
 # --- Empresas (clientes del MSSP) ---

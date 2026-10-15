@@ -4,8 +4,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errores import Conflicto, Invalido, NoEncontrado
 from app.esquemas import EmpresaCrear, EmpresaEditar
-from app.modelos import Empresa, Usuario
-from app.repositorios import RepositorioEmpresas
+from app.modelos import Empresa, Usuario, ahora
+from app.repositorios import RepositorioEmpresas, RepositorioTokens
 from app.servicios.auditoria import auditar
 
 
@@ -67,9 +67,12 @@ async def editar(
     ):
         raise Conflicto("Ya hay una empresa con ese nombre")
 
-    # Dar de baja corta el acceso al momento: `cuenta_habilitada` mira la empresa en cada petición
+    desactivada = empresa.activa and cambios.get("activa") is False
     for campo, valor in cambios.items():
         setattr(empresa, campo, valor)
+    if desactivada:
+        # Igual que al desactivar un usuario: nadie de ese cliente puede renovar la sesión
+        await RepositorioTokens(sesion).revocar_de_empresa(empresa.id, ahora())
     await auditar(
         sesion,
         accion="editar_empresa",

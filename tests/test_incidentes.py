@@ -287,3 +287,11 @@ async def test_auditoria_registra_acciones_y_es_solo_admin(cliente, actores):
     r = await cliente.get("/auditoria", headers=actores.cab["admin"])
     acciones = {e["accion"] for e in r.json()["elementos"]}
     assert {"login", "crear_incidente", "asignar_incidente"} <= acciones
+
+
+async def test_login_fallido_queda_auditado(cliente, actores):
+    await cliente.post(
+        "/auth/login", json={"email": "usuario@test.com", "contrasena": "incorrecta-123"}
+    )
+    r = await cliente.get("/auditoria?accion=login_fallido", headers=actores.cab["admin"])
+    assert r.json()["total"] == 1

@@ -1,10 +1,9 @@
 // Entorno E2E completo, sin Docker y sin tocar nada real:
 //
 //   1. Compila el front para producción.
-//   2. Arranca el EMULADOR de Firebase Auth (proyecto «demo-», sin cuenta de Google).
-//   3. Crea una BD SQLite nueva, aplica las migraciones y siembra clientes y cuentas.
-//   4. Arranca la API real apuntando al emulador.
-//   5. Sirve el build con las MISMAS cabeceras que nginx (leídas de nginx/cabeceras-seguridad.conf,
+//   2. Crea una BD SQLite nueva, aplica las migraciones y siembra clientes y cuentas.
+//   3. Arranca la API real con su autenticación propia (JWT + cookie de refresco).
+//   4. Sirve el build con las MISMAS cabeceras que nginx (leídas de nginx/cabeceras-seguridad.conf,
 //      CSP y Trusted Types incluidas) y reenvía /api a la API, como hace Traefik.
 //
 // Lo lanza Playwright (webServer). Al terminar, mata todos los procesos hijos.
@@ -17,22 +16,24 @@ import { tmpdir } from 'node:os';
 import { dirname, extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { API_KEY, INGESTA_TOKEN, PROYECTO_FIREBASE, PUERTOS } from './datos.mjs';
+import { INGESTA_TOKEN, JWT_SECRETO, PUERTOS } from './datos.mjs';
 
 const WEB = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const RAIZ = resolve(WEB, '..', '..');
 const DIST = join(WEB, 'dist', 'web', 'browser');
 const DIR_BD = join(tmpdir(), 'umbral-e2e');
 const WINDOWS = process.platform === 'win32';
-const EMULADOR = `127.0.0.1:${PUERTOS.auth}`;
 
 const entornoApi = {
   ...process.env,
   ENTORNO: 'desarrollo',
   DATABASE_URL: `sqlite+aiosqlite:///${join(DIR_BD, 'e2e.db').replaceAll('\\', '/')}`,
-  FIREBASE_AUTH_EMULATOR_HOST: EMULADOR,
-  FIREBASE_PROJECT_ID: PROYECTO_FIREBASE,
-  FIREBASE_API_KEY: API_KEY,
+  JWT_SECRETO,
+  // El navegador ve la API bajo /api, igual que en producción detrás de Traefik
+  COOKIE_REFRESCO_RUTA: '/api/auth/web',
+  // Todas las pruebas entran desde 127.0.0.1: con 5 logins/min darían 429 al azar. El límite
+  // lo prueba tests/test_auth.py::test_rate_limit_en_login, que es su sitio
+  LIMITADOR_ACTIVO: 'false',
   INGESTA_TOKEN,
   API_PREFIJO: '/api',
   PYTHONUTF8: '1',
@@ -99,16 +100,8 @@ if (!CABECERAS.some(([k]) => k === 'Content-Security-Policy')) {
 }
 
 function cabeceras(nonce) {
-  return Object.fromEntries(
-    CABECERAS.map(([clave, valor]) => {
-      if (clave !== 'Content-Security-Policy') return [clave, valor];
-      // Única diferencia con producción: el SDK habla con el emulador local en vez de con Google
-      return [
-        clave,
-        valor.replaceAll('$nonce', nonce).replace("connect-src 'self'", `connect-src 'self' http://${EMULADOR}`),
-      ];
-    }),
-  );
+  // Exactamente la CSP de producción: el front solo habla con su propio origen
+  return Object.fromEntries(CABECERAS.map(([clave, valor]) => [clave, valor.replaceAll('$nonce', nonce)]));
 }
 
 const TIPOS = {
@@ -176,14 +169,6 @@ mkdirSync(DIR_BD, { recursive: true });
 if (!process.env.E2E_SIN_BUILD) {
   execSync('npx ng build', { cwd: WEB, stdio: 'inherit' });
 }
-
-lanzar(
-  'emulador',
-  'npx',
-  ['firebase', 'emulators:start', '--only', 'auth', '--project', PROYECTO_FIREBASE, '--config', 'e2e/firebase.json'],
-  { cwd: WEB },
-);
-await esperar(`http://${EMULADOR}/`, 'El emulador de Auth');
 
 execSync('uv run alembic upgrade head', { cwd: RAIZ, env: entornoApi, stdio: 'inherit' });
 execSync('uv run python -m tests.e2e_semilla', { cwd: RAIZ, env: entornoApi, stdio: 'inherit' });

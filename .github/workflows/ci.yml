@@ -128,8 +128,8 @@ jobs:
       - name: La imagen no corre como root
         run: test "$(docker run --rm --entrypoint id senuelo-incidentes:ci -u)" != "0"
 
-  # Punta a punta: navegador real -> front de producción con la CSP de nginx -> API real ->
-  # emulador de Firebase Auth. No toca ningún servicio externo ni el proyecto real de Firebase.
+  # Punta a punta: navegador real -> front de producción con la CSP de nginx -> API real con su
+  # auth propia (JWT + cookie de refresco) -> BD SQLite desechable. No toca ningún servicio externo.
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 20

@@ -1,47 +1,41 @@
 import { HttpErrorResponse, HttpInterceptorFn, HttpRequest } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { Router } from '@angular/router';
-import { catchError, from, switchMap, throwError } from 'rxjs';
+import { catchError, switchMap, throwError } from 'rxjs';
 
 import { Sesion } from './sesion';
 
-/** Rutas públicas: ni llevan token ni un 401 en ellas significa «sesión caducada». */
-const PUBLICAS = ['/api/salud', '/api/config/cliente'];
-
 /**
- * Añade el ID token de Firebase a las llamadas a la API y gestiona el 401: se pide a Firebase
- * un token nuevo y se repite la petición una vez; si vuelve a fallar, se cierra la sesión y se
- * vuelve al login.
+ * Añade el Bearer a las llamadas a la API y gestiona el 401:
+ * primero un refresco silencioso y se repite la petición una vez; si el refresco falla,
+ * se borra la sesión y se vuelve al login.
  *
- * En /api/auth/* el 401 es la respuesta final (p. ej. una cuenta dada de baja al entrar): se
- * devuelve tal cual, sin redirigir.
+ * Las rutas /api/auth/* no llevan Bearer ni se reintentan: un 401 ahí es la respuesta final.
  */
 export const interceptorApi: HttpInterceptorFn = (req, next) => {
-  if (!req.url.startsWith('/api/') || PUBLICAS.includes(req.url)) {
+  if (!req.url.startsWith('/api/') || req.url.startsWith('/api/auth/')) {
     return next(req);
   }
 
   const sesion = inject(Sesion);
   const router = inject(Router);
-  const enviar = (r: HttpRequest<unknown>, forzar: boolean) =>
-    from(sesion.token(forzar)).pipe(
-      switchMap((token) => next(token ? r.clone({ setHeaders: { Authorization: `Bearer ${token}` } }) : r)),
-    );
-  const es401 = (e: unknown) => e instanceof HttpErrorResponse && e.status === 401;
+  const conToken = (r: HttpRequest<unknown>) => {
+    const token = sesion.tokenAcceso();
+    return token ? r.clone({ setHeaders: { Authorization: `Bearer ${token}` } }) : r;
+  };
 
-  return enviar(req, false).pipe(
+  return next(conToken(req)).pipe(
     catchError((error: unknown) => {
-      if (!es401(error) || req.url.startsWith('/api/auth/')) {
+      if (!(error instanceof HttpErrorResponse) || error.status !== 401) {
         return throwError(() => error);
       }
-      return enviar(req, true).pipe(
-        catchError((otro: unknown) => {
-          if (es401(otro)) {
-            sesion.limpiar();
-            void router.navigate(['/login'], { queryParams: { caducada: 1 } });
-          }
-          return throwError(() => otro);
+      return sesion.refrescar().pipe(
+        catchError(() => {
+          sesion.limpiar();
+          void router.navigate(['/login'], { queryParams: { caducada: 1 } });
+          return throwError(() => error);
         }),
+        switchMap(() => next(conToken(req))),
       );
     }),
   );
