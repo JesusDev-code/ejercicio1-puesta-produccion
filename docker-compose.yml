@@ -36,7 +36,7 @@ services:
       API_PREFIJO: ${API_PREFIJO:-/api}
       # Cifra los secretos TOTP. Vacía o corta, la API no arranca. Distinta de JWT_SECRETO
       MFA_CLAVE: ${MFA_CLAVE:-}
-      MFA_OBLIGATORIO_PERSONAL: ${MFA_OBLIGATORIO_PERSONAL:-true}
+      MFA_OBLIGATORIO_PERSONAL: ${MFA_OBLIGATORIO_PERSONAL:-false}
       # Login con Google y GitHub: cada proveedor se activa solo si tiene id y secreto
       URL_PUBLICA: ${URL_PUBLICA:-}
       COOKIE_OAUTH_RUTA: ${COOKIE_OAUTH_RUTA:-/api/auth/oauth}

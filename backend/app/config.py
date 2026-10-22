@@ -38,8 +38,9 @@ class Configuracion(BaseSettings):
     # Cifra los secretos TOTP en la BD (AES-GCM). Distinta de JWT_SECRETO: rotar una no rompe la
     # otra. Si se pierde, ningún MFA vuelve a validar: habría que restablecerlos todos
     mfa_clave: str = Field(min_length=32)
-    # El personal del MSSP (admin, analista) cruza clientes: sin MFA solo puede activarlo
-    mfa_obligatorio_personal: bool = True
+    # MFA opcional para todos por defecto. Con true, el personal del MSSP (admin, analista), que
+    # cruza clientes, no ve nada hasta activarlo y no puede desactivarlo
+    mfa_obligatorio_personal: bool = False
 
     # URL pública de la web (https://umbral.example.com), sin barra final. La necesita OAuth para
     # construir el redirect_uri y volver al front. Vacía = login con Google y GitHub desactivado

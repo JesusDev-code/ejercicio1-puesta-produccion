@@ -298,7 +298,7 @@ línea, no la cookie.
 | `COOKIE_REFRESCO_RUTA` | No | `/api/auth/web` en el compose: el `Path` tal como lo ve el navegador |
 | `ACCESO_MINUTOS`, `REFRESCO_DIAS` | No | 15 y 7 por defecto |
 | `MFA_CLAVE` | **Sí** | Mínimo 32 caracteres. Cifra los secretos TOTP en la BD. Distinta de `JWT_SECRETO`. Si se pierde, ningún MFA vuelve a validar |
-| `MFA_OBLIGATORIO_PERSONAL` | No | `true`: admin y analista no ven nada hasta activar el MFA |
+| `MFA_OBLIGATORIO_PERSONAL` | No | `false` (MFA opcional). Con `true`, admin y analista no ven nada hasta activarlo |
 | `URL_PUBLICA` | No | `https://dominio-de-la-web`, sin barra final. Vacía = sin Google ni GitHub |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | El secreto, **sí** | Activan «Continuar con Google» |
 | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | El secreto, **sí** | Activan «Continuar con GitHub» |
@@ -326,7 +326,7 @@ Bearer, y deja de valer si entre medias cambia la contraseña o se cierran las s
 | Un token robado no cambia cómo se entra | Activar el MFA, vincular o desvincular un proveedor pide una prueba fresca: la contraseña; sin contraseña, un código MFA o un login de hace menos de 5 min (claim `aut` del token, que se hereda al refrescar). Falla en cerrado: 403 «vuelve a iniciar sesión». Desactivar o regenerar pide además un código |
 | Ningún método de entrada se lo salta | Google y GitHub también acaban en el desafío si la cuenta tiene MFA |
 
-El **personal** (admin y analista) está obligado: hasta activarlo, cualquier ruta que no sea su
+El MFA es **opcional** para todos. Con `MFA_OBLIGATORIO_PERSONAL=true`, el **personal** (admin y analista) queda obligado: hasta activarlo, cualquier ruta que no sea su
 cuenta responde 403 y la web le lleva a `/activar-mfa`. No puede desactivarlo. Si alguien pierde
 el móvil y los códigos, un admin le quita el MFA desde Usuarios (cierra sus sesiones); comprobar
 que es quien dice ser queda fuera de la app.
@@ -671,7 +671,7 @@ comprobar la versión vigente en <https://owasp.org/Top10/>.
 | `JWT_SECRETO` | Obligatoria y **secreta**. Mínimo 32 caracteres |
 | `MFA_CLAVE` | Obligatoria y **secreta**. Mínimo 32 caracteres, distinta de `JWT_SECRETO` |
 | `URL_PUBLICA`, `GOOGLE_*`, `GITHUB_*` | Opcionales: login con Google y GitHub (sección 5) |
-| `MFA_OBLIGATORIO_PERSONAL` | Por defecto `true` |
+| `MFA_OBLIGATORIO_PERSONAL` | Por defecto `false` (MFA opcional) |
 | `INGESTA_TOKEN` | Mínimo 32 caracteres. Vacía, la ingesta queda desactivada |
 | `CORS_ORIGENES` | Opcional |
 | `EMPRESA_SENUELO` | Por defecto `hotel-mirador` |

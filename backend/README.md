@@ -126,7 +126,7 @@ uv run alembic revision --autogenerate -m "descripcion del cambio"
 | `INGESTA_TOKEN` | Para el panel | vacío (ingesta desactivada) | Token de servicio compartido con los sensores. Mínimo 32 caracteres. **No** es un JWT de usuario |
 | `COOKIE_REFRESCO_RUTA` | No | `/auth/web` (`/api/auth/web` en el compose) | `Path` de la cookie de refresco tal como la ve el navegador |
 | `MFA_CLAVE` | Siempre | De desarrollo, solo en local | **Secreta.** Cifra los secretos TOTP (AES-GCM). Mínimo 32 caracteres, distinta de `JWT_SECRETO`. Si se pierde, ningún MFA vuelve a validar |
-| `MFA_OBLIGATORIO_PERSONAL` | No | `true` | Admin y analista no ven nada hasta activar el MFA |
+| `MFA_OBLIGATORIO_PERSONAL` | No | `false` | MFA opcional. Con `true`, admin y analista no ven nada hasta activarlo |
 | `URL_PUBLICA` | Para OAuth | vacío (sin Google ni GitHub) | URL de la web, sin barra final. Con ella se construye el `redirect_uri` |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | No | vacío | Activan el login con Google. El secreto es **secreto** |
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | No | vacío | Activan el login con GitHub. El secreto es **secreto** |
