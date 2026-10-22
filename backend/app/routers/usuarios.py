@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Query, Request, status
+from fastapi import APIRouter, Query, Request, Response, status
 
 from app.config import obtener_configuracion
 from app.dependencias import Admin, IpCliente, Sesion, UsuarioActual
@@ -8,16 +8,25 @@ from app.esquemas import (
     CambioActivoEntrada,
     CambioContrasenaEntrada,
     CambioRolEntrada,
+    CodigoEntrada,
+    CodigosRecuperacion,
+    MfaAlta,
+    MfaDesactivarEntrada,
     Pagina,
+    ReautenticacionEntrada,
     RestablecerContrasenaEntrada,
     UnirseEmpresaEntrada,
+    UrlOAuth,
     UsuarioCrear,
     UsuarioSalida,
     UsuarioYo,
 )
 from app.limitador import limitador
 from app.modelos import Rol, Usuario
-from app.repositorios import RepositorioUsuarios
+from app.repositorios import RepositorioIdentidades, RepositorioUsuarios
+from app.routers.auth import iniciar_oauth
+from app.servicios import mfa as servicio_mfa
+from app.servicios import oauth as servicio_oauth
 from app.servicios import usuarios as servicio
 
 router = APIRouter(prefix="/usuarios", tags=["usuarios"])
@@ -26,7 +35,15 @@ _limite = obtener_configuracion().limite_auth
 
 async def _perfil(sesion, usuario: Usuario) -> UsuarioYo:
     nombre = await servicio.nombre_empresa(sesion, usuario)
-    return UsuarioYo.model_validate(usuario).model_copy(update={"empresa_nombre": nombre})
+    proveedores = await RepositorioIdentidades(sesion).proveedores_de(usuario.id)
+    return UsuarioYo.model_validate(usuario).model_copy(
+        update={
+            "empresa_nombre": nombre,
+            "mfa_obligatorio": servicio_mfa.mfa_exigido(usuario),
+            "mfa_por_activar": servicio_mfa.mfa_por_activar(usuario),
+            "proveedores": proveedores,
+        }
+    )
 
 
 @router.get("/yo", response_model=UsuarioYo)
@@ -62,6 +79,80 @@ async def unirse_a_empresa(
 ):
     unido = await servicio.unirse_a_empresa(sesion, usuario, datos.codigo, ip)
     return await _perfil(sesion, unido)
+
+
+# --- Verificación en dos pasos. Con UsuarioActual: el personal que aún no la tiene tiene que
+# poder activarla. Todo limitado como el login: verifican una contraseña o un código ---
+
+
+@router.post("/yo/mfa/iniciar", response_model=MfaAlta)
+@limitador.limit(_limite)
+async def iniciar_mfa(
+    request: Request,
+    datos: ReautenticacionEntrada,
+    usuario: UsuarioActual,
+    sesion: Sesion,
+    ip: IpCliente,
+):
+    return await servicio_mfa.iniciar(sesion, usuario, datos.contrasena, ip)
+
+
+@router.post("/yo/mfa/activar", response_model=CodigosRecuperacion)
+@limitador.limit(_limite)
+async def activar_mfa(
+    request: Request, datos: CodigoEntrada, usuario: UsuarioActual, sesion: Sesion, ip: IpCliente
+):
+    codigos = await servicio_mfa.activar(sesion, usuario, datos.codigo, ip)
+    return CodigosRecuperacion(codigos=codigos)
+
+
+@router.post("/yo/mfa/codigos", response_model=CodigosRecuperacion)
+@limitador.limit(_limite)
+async def regenerar_codigos_mfa(
+    request: Request, datos: CodigoEntrada, usuario: UsuarioActual, sesion: Sesion, ip: IpCliente
+):
+    codigos = await servicio_mfa.regenerar_codigos(sesion, usuario, datos.codigo, ip)
+    return CodigosRecuperacion(codigos=codigos)
+
+
+@router.post("/yo/mfa/desactivar", status_code=status.HTTP_204_NO_CONTENT)
+@limitador.limit(_limite)
+async def desactivar_mfa(
+    request: Request,
+    datos: MfaDesactivarEntrada,
+    usuario: UsuarioActual,
+    sesion: Sesion,
+    ip: IpCliente,
+) -> None:
+    await servicio_mfa.desactivar(sesion, usuario, datos.contrasena, datos.codigo, ip)
+
+
+# --- Cuentas de Google y GitHub vinculadas ---
+
+
+@router.post("/yo/identidades/{proveedor}", response_model=UrlOAuth)
+@limitador.limit(_limite)
+async def vincular_identidad(
+    request: Request,
+    response: Response,
+    proveedor: str,
+    datos: ReautenticacionEntrada,
+    usuario: UsuarioActual,
+    sesion: Sesion,
+    ip: IpCliente,
+):
+    """Devuelve la URL del proveedor y deja la cookie del flujo ligada a ESTA cuenta (y a su
+    versión de sesión: si cambia la contraseña entre medias, la vinculación no vale)."""
+    await servicio_mfa.reautenticar(sesion, usuario, datos.contrasena, ip)
+    url = iniciar_oauth(response, proveedor, vincular_a=(usuario.id, usuario.version_sesion))
+    return UrlOAuth(url=url)
+
+
+@router.delete("/yo/identidades/{proveedor}", status_code=status.HTTP_204_NO_CONTENT)
+async def desvincular_identidad(
+    proveedor: str, usuario: UsuarioActual, sesion: Sesion, ip: IpCliente
+) -> None:
+    await servicio_oauth.desvincular(sesion, usuario, proveedor, ip)
 
 
 @router.get("", response_model=Pagina[UsuarioSalida])
@@ -110,3 +201,8 @@ async def cambiar_activo(
     usuario_id: int, datos: CambioActivoEntrada, admin: Admin, sesion: Sesion, ip: IpCliente
 ):
     return await servicio.cambiar_activo(sesion, admin, usuario_id, datos.activo, ip)
+
+
+@router.delete("/{usuario_id}/mfa", response_model=UsuarioSalida)
+async def restablecer_mfa(usuario_id: int, admin: Admin, sesion: Sesion, ip: IpCliente):
+    return await servicio.restablecer_mfa(sesion, admin, usuario_id, ip)

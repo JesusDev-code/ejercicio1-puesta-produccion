@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, finalize, firstValueFrom, map, shareReplay } from 'rxjs';
 
-import { TokenAcceso, Usuario } from './modelos';
+import { DesafioMfa, TokenAcceso, Usuario } from './modelos';
 
 /**
  * Estado de la sesión.
@@ -24,14 +24,30 @@ export class Sesion {
   readonly esGestor = computed(() => this.usuario()?.rol === 'gestor');
   /** Recién registrada y sin empresa: la consola entera le está cerrada. */
   readonly pendiente = computed(() => this.usuario()?.pendiente === true);
+  /** Personal sin MFA: hasta activarlo, la consola le está cerrada. */
+  readonly mfaPorActivar = computed(() => this.usuario()?.mfa_por_activar === true);
 
   tokenAcceso(): string | null {
     return this.token();
   }
 
-  async entrar(email: string, contrasena: string): Promise<void> {
+  /**
+   * Primer paso. Sin MFA, la sesión queda abierta y devuelve null. Con MFA devuelve el desafío,
+   * que se completa con `completarMfa`: hasta entonces no hay ni token ni cookie.
+   */
+  async entrar(email: string, contrasena: string): Promise<string | null> {
     const r = await firstValueFrom(
-      this.http.post<TokenAcceso>('/api/auth/web/login', { email, contrasena }),
+      this.http.post<TokenAcceso | DesafioMfa>('/api/auth/web/login', { email, contrasena }),
+    );
+    if ('mfa_requerido' in r) return r.desafio;
+    this.token.set(r.token_acceso);
+    await this.cargarUsuario();
+    return null;
+  }
+
+  async completarMfa(desafio: string, codigo: string): Promise<void> {
+    const r = await firstValueFrom(
+      this.http.post<TokenAcceso>('/api/auth/web/mfa', { desafio, codigo }),
     );
     this.token.set(r.token_acceso);
     await this.cargarUsuario();

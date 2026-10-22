@@ -2,13 +2,15 @@
 
 from datetime import datetime
 
-from sqlalchemy import Select, func, or_, select, update
+from sqlalchemy import Select, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modelos import (
     Categoria,
+    CodigoRecuperacion,
     Empresa,
     Estado,
+    IdentidadExterna,
     Incidente,
     RegistroAuditoria,
     Rol,
@@ -106,6 +108,48 @@ class RepositorioUsuarios:
         total = await self.sesion.scalar(select(func.count()).select_from(consulta.subquery()))
         pagina = consulta.order_by(Usuario.id).limit(limite).offset(desplazamiento)
         return total or 0, list(await self.sesion.scalars(pagina))
+
+    async def marcar_paso_mfa(self, usuario_id: int, paso: int) -> bool:
+        """Apunta el paso TOTP como usado si es posterior al último. Atómico, como
+        RepositorioTokens.consumir: dos peticiones con el mismo código no pasan las dos."""
+        resultado = await self.sesion.execute(
+            update(Usuario)
+            .where(
+                Usuario.id == usuario_id,
+                or_(Usuario.mfa_ultimo_paso.is_(None), Usuario.mfa_ultimo_paso < paso),
+            )
+            .values(mfa_ultimo_paso=paso)
+            .execution_options(synchronize_session=False)
+        )
+        return resultado.rowcount == 1
+
+    async def registrar_fallo_mfa(self, usuario_id: int, maximo: int, hasta: datetime) -> bool:
+        """Suma un fallo en la propia BD (no lee-suma-escribe: con peticiones en paralelo se
+        perderían fallos) y, al llegar a `maximo`, bloquea hasta `hasta`. True = bloqueada."""
+        fallos = await self.sesion.scalar(
+            update(Usuario)
+            .where(Usuario.id == usuario_id)
+            .values(mfa_fallos=Usuario.mfa_fallos + 1)
+            .returning(Usuario.mfa_fallos)
+            .execution_options(synchronize_session=False)
+        )
+        if fallos is None or fallos < maximo:
+            return False
+        await self.sesion.execute(
+            update(Usuario)
+            .where(Usuario.id == usuario_id)
+            .values(mfa_fallos=0, mfa_bloqueado_hasta=hasta)
+            .execution_options(synchronize_session=False)
+        )
+        return True
+
+    async def reiniciar_fallos_mfa(self, usuario_id: int) -> None:
+        await self.sesion.execute(
+            update(Usuario)
+            .where(Usuario.id == usuario_id)
+            .values(mfa_fallos=0, mfa_bloqueado_hasta=None)
+            .execution_options(synchronize_session=False)
+        )
 
     async def emails_por_id(self, ids: set[int]) -> dict[int, str]:
         """Una sola consulta para resolver todos los emails de una respuesta (sin N+1)."""
@@ -212,6 +256,75 @@ class RepositorioTokens:
             .where(TokenRefresco.usuario_id == usuario_id, TokenRefresco.revocado_en.is_(None))
             .values(revocado_en=momento)
         )
+
+
+class RepositorioCodigosRecuperacion:
+    def __init__(self, sesion: AsyncSession):
+        self.sesion = sesion
+
+    async def reemplazar(self, usuario_id: int, hashes: list[str]) -> None:
+        await self.borrar_de_usuario(usuario_id)
+        self.sesion.add_all(
+            CodigoRecuperacion(usuario_id=usuario_id, hash_codigo=h) for h in hashes
+        )
+        await self.sesion.flush()
+
+    async def borrar_de_usuario(self, usuario_id: int) -> None:
+        await self.sesion.execute(
+            delete(CodigoRecuperacion).where(CodigoRecuperacion.usuario_id == usuario_id)
+        )
+
+    async def consumir(self, usuario_id: int, hash_codigo: str, momento: datetime) -> bool:
+        """Gasta el código si existe y nadie lo ha usado. Atómico: un solo uso aunque lleguen
+        dos peticiones a la vez."""
+        resultado = await self.sesion.execute(
+            update(CodigoRecuperacion)
+            .where(
+                CodigoRecuperacion.usuario_id == usuario_id,
+                CodigoRecuperacion.hash_codigo == hash_codigo,
+                CodigoRecuperacion.usado_en.is_(None),
+            )
+            .values(usado_en=momento)
+            .execution_options(synchronize_session=False)
+        )
+        return resultado.rowcount == 1
+
+    async def disponibles(self, usuario_id: int) -> int:
+        consulta = select(func.count()).where(
+            CodigoRecuperacion.usuario_id == usuario_id, CodigoRecuperacion.usado_en.is_(None)
+        )
+        return await self.sesion.scalar(consulta) or 0
+
+
+class RepositorioIdentidades:
+    def __init__(self, sesion: AsyncSession):
+        self.sesion = sesion
+
+    async def por_sujeto(self, proveedor: str, sujeto: str) -> IdentidadExterna | None:
+        return await self.sesion.scalar(
+            select(IdentidadExterna).where(
+                IdentidadExterna.proveedor == proveedor, IdentidadExterna.sujeto == sujeto
+            )
+        )
+
+    async def crear(self, identidad: IdentidadExterna) -> None:
+        self.sesion.add(identidad)
+        await self.sesion.flush()
+
+    async def borrar(self, usuario_id: int, proveedor: str) -> None:
+        await self.sesion.execute(
+            delete(IdentidadExterna).where(
+                IdentidadExterna.usuario_id == usuario_id, IdentidadExterna.proveedor == proveedor
+            )
+        )
+
+    async def proveedores_de(self, usuario_id: int) -> list[str]:
+        consulta = (
+            select(IdentidadExterna.proveedor)
+            .where(IdentidadExterna.usuario_id == usuario_id)
+            .order_by(IdentidadExterna.proveedor)
+        )
+        return list(await self.sesion.scalars(consulta))
 
 
 class RepositorioAuditoria:

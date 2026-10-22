@@ -25,6 +25,14 @@ export const soloGestor: CanActivateFn = () =>
 export const conEmpresa: CanActivateFn = () =>
   !inject(Sesion).pendiente() || inject(Router).createUrlTree(['/unirse']);
 
+/** La consola: el personal que aún no tiene MFA va primero a activarlo. */
+export const conMfa: CanActivateFn = () =>
+  !inject(Sesion).mfaPorActivar() || inject(Router).createUrlTree(['/activar-mfa']);
+
+/** «Activar MFA»: solo para quien lo tiene pendiente; los demás, a su consola. */
+export const soloMfaPorActivar: CanActivateFn = () =>
+  inject(Sesion).mfaPorActivar() || inject(Router).createUrlTree(['/']);
+
 /** «Unirme a mi empresa»: solo para cuentas pendientes; las demás, a su consola. */
 export const soloPendientes: CanActivateFn = () =>
   inject(Sesion).pendiente() || inject(Router).createUrlTree(['/']);

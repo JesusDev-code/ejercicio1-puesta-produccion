@@ -35,6 +35,23 @@ class Configuracion(BaseSettings):
     limite_auth: str = "5/minute"
     limitador_activo: bool = True
 
+    # Cifra los secretos TOTP en la BD (AES-GCM). Distinta de JWT_SECRETO: rotar una no rompe la
+    # otra. Si se pierde, ningún MFA vuelve a validar: habría que restablecerlos todos
+    mfa_clave: str = Field(min_length=32)
+    # El personal del MSSP (admin, analista) cruza clientes: sin MFA solo puede activarlo
+    mfa_obligatorio_personal: bool = True
+
+    # URL pública de la web (https://umbral.example.com), sin barra final. La necesita OAuth para
+    # construir el redirect_uri y volver al front. Vacía = login con Google y GitHub desactivado
+    url_publica: str = Field(default="", pattern=r"^$|^https?://[A-Za-z0-9.-]+(:\d+)?$")
+    # Path de la cookie del flujo OAuth (state + PKCE), como la ve el navegador
+    cookie_oauth_ruta: str = Field(default="/auth/oauth", pattern=r"^/[A-Za-z0-9/_-]*$")
+    # Cada proveedor se activa solo si tiene id y secreto
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    github_client_id: str = ""
+    github_client_secret: str = ""
+
     @property
     def es_produccion(self) -> bool:
         return self.entorno == "produccion"

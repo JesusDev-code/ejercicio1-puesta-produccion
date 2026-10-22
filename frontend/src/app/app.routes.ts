@@ -3,11 +3,13 @@ import { Routes } from '@angular/router';
 
 import {
   conEmpresa,
+  conMfa,
   requiereSesion,
   sinSesion,
   soloAdmin,
   soloGestor,
   soloInvitados,
+  soloMfaPorActivar,
   soloPendientes,
 } from './core/guardas';
 import { Sesion } from './core/sesion';
@@ -42,9 +44,16 @@ export const routes: Routes = [
     loadComponent: () => import('./paginas/unirse').then((m) => m.Unirse),
   },
   {
+    // Igual que «Unirme»: fuera de la consola, el personal sin MFA no tiene menú que ver
+    path: 'activar-mfa',
+    title: 'Verificación en dos pasos · Kaelum Security',
+    canActivate: [requiereSesion, soloMfaPorActivar],
+    loadComponent: () => import('./paginas/activar-mfa').then((m) => m.ActivarMfa),
+  },
+  {
     path: '',
     component: Shell,
-    canActivate: [requiereSesion, conEmpresa],
+    canActivate: [requiereSesion, conEmpresa, conMfa],
     children: [
       // El admin aterriza en el Panel; el resto, en sus incidencias
       {

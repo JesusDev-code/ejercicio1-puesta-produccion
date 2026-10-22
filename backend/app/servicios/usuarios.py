@@ -16,6 +16,7 @@ from app.seguridad import hashear_contrasena, verificar_contrasena
 from app.servicios.auditoria import auditar
 from app.servicios.auth import cerrar_sesiones
 from app.servicios.empresas import empresa_asignable
+from app.servicios.mfa import quitar as quitar_mfa
 
 _NO_ENCONTRADO = "Usuario no encontrado"
 _CODIGO_INVALIDO = "Código de invitación no válido"
@@ -268,3 +269,28 @@ async def cambiar_contrasena(
         ip=ip,
     )
     await sesion.commit()
+
+
+async def restablecer_mfa(
+    sesion: AsyncSession, admin: Usuario, usuario_id: int, ip: str | None
+) -> Usuario:
+    """Para quien ha perdido el móvil y los códigos de recuperación. Comprobar que es quien dice
+    ser queda fuera de la app (en persona, por teléfono): por eso solo lo hace un admin."""
+    usuario = await _gestionable(sesion, admin, usuario_id)
+    if usuario.id == admin.id:
+        raise Conflicto("Tu verificación en dos pasos se gestiona desde Mi cuenta")
+    if not usuario.mfa_activo:
+        raise Conflicto("Esa cuenta no tiene la verificación en dos pasos activa")
+    await quitar_mfa(sesion, usuario)
+    # Quien tuviera abierta una sesión con el MFA anterior la pierde
+    await cerrar_sesiones(sesion, usuario)
+    await auditar(
+        sesion,
+        accion="restablecer_mfa",
+        recurso="usuario",
+        usuario_id=admin.id,
+        recurso_id=usuario.id,
+        ip=ip,
+    )
+    await sesion.commit()
+    return usuario

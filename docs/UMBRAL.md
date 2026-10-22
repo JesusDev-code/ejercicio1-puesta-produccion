@@ -297,6 +297,69 @@ línea, no la cookie.
 | `JWT_SECRETO` | **Sí** | Mínimo 32 caracteres: la API no arranca con menos. Quien la tenga puede fabricar un token de cualquier usuario, admin incluido |
 | `COOKIE_REFRESCO_RUTA` | No | `/api/auth/web` en el compose: el `Path` tal como lo ve el navegador |
 | `ACCESO_MINUTOS`, `REFRESCO_DIAS` | No | 15 y 7 por defecto |
+| `MFA_CLAVE` | **Sí** | Mínimo 32 caracteres. Cifra los secretos TOTP en la BD. Distinta de `JWT_SECRETO`. Si se pierde, ningún MFA vuelve a validar |
+| `MFA_OBLIGATORIO_PERSONAL` | No | `true`: admin y analista no ven nada hasta activar el MFA |
+| `URL_PUBLICA` | No | `https://dominio-de-la-web`, sin barra final. Vacía = sin Google ni GitHub |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | El secreto, **sí** | Activan «Continuar con Google» |
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | El secreto, **sí** | Activan «Continuar con GitHub» |
+| `COOKIE_OAUTH_RUTA` | No | `/api/auth/oauth` en el compose |
+
+### Verificación en dos pasos (TOTP)
+
+TOTP (RFC 6238) con cualquier app de autenticación. El login pasa a tener dos pasos:
+
+```
+POST /auth/web/login  {email, contraseña}  →  {mfa_requerido, desafio}   (sin token ni cookie)
+POST /auth/web/mfa    {desafio, codigo}    →  {token_acceso} + cookie de refresco
+```
+
+El **desafío** es un JWT de 5 minutos con `tipo: "mfa"` y la versión de sesión: no sirve como
+Bearer, y deja de valer si entre medias cambia la contraseña o se cierran las sesiones.
+
+| Garantía | Cómo |
+|---|---|
+| Una copia de la BD no basta para generar códigos | El secreto se guarda cifrado con AES-GCM (clave derivada de `MFA_CLAVE` con HKDF) y con el id del usuario como dato asociado: copiado a otra fila, no se descifra |
+| Un código visto no se reutiliza | Se guarda el último paso de 30 s aceptado; el `UPDATE` es condicional y atómico, así que dos peticiones con el mismo código no pasan las dos |
+| No se prueba el millón de códigos | 5/min por IP y, además, 5 fallos seguidos bloquean la cuenta 15 minutos, cambie o no la IP. El contador se suma en la propia BD |
+| Desfase de reloj | Se aceptan el paso anterior, el actual y el siguiente (±30 s) |
+| Sin el móvil | 10 códigos de recuperación de un solo uso (solo su hash en la BD). Se pueden regenerar |
+| Un token robado no cambia el segundo factor | Activar, desactivar o regenerar pide la contraseña y/o un código |
+| Ningún método de entrada se lo salta | Google y GitHub también acaban en el desafío si la cuenta tiene MFA |
+
+El **personal** (admin y analista) está obligado: hasta activarlo, cualquier ruta que no sea su
+cuenta responde 403 y la web le lleva a `/activar-mfa`. No puede desactivarlo. Si alguien pierde
+el móvil y los códigos, un admin le quita el MFA desde Usuarios (cierra sus sesiones); comprobar
+que es quien dice ser queda fuera de la app.
+
+### Google y GitHub (OAuth 2.0 + PKCE)
+
+El flujo lo resuelve la API: el navegador nunca ve un token del proveedor, y la sesión que se
+abre es la misma de siempre (cookie de refresco propia).
+
+```
+/auth/oauth/{p}/inicio    → cookie __Secure-oauth (state + verificador PKCE, firmada, 10 min)
+                          → 302 al proveedor con code_challenge (S256) y state
+/auth/oauth/{p}/callback  → compara el state con el de la cookie, canjea el código, lee la
+                            identidad, abre sesión (o desafío MFA) y vuelve al front
+```
+
+| Riesgo | Defensa |
+|---|---|
+| Login CSRF (colar el código del atacante) | `state` aleatorio ligado a la cookie de ese navegador, comparado en tiempo constante. Un fallo queda auditado (`oauth_estado_invalido`) |
+| Robo del código en la redirección | PKCE S256 y `client_secret`: el código solo no sirve |
+| Identidad por email | Se busca SIEMPRE por (proveedor, `sub`). El email del proveedor puede cambiar o reasignarse |
+| Email ajeno sin verificar | Una cuenta solo nace de un email verificado (`email_verified` en Google; principal y verificado en `/user/emails` en GitHub) |
+| **Pre-account hijacking** | El registro público no verifica emails: alguien podría registrar antes el de la víctima con su propia contraseña. Por eso un email que ya existe **no se vincula solo** (`?error=oauth_email`). Se vincula desde Mi cuenta, con sesión abierta y la contraseña |
+| Cookie del flujo | `HttpOnly`, `Secure`, `Path=/api/auth/oauth`, 10 min, un solo uso. `SameSite=Lax` y no `Strict`: la vuelta desde el proveedor es una navegación de otro sitio |
+| Desafío MFA tras OAuth | Va en el fragmento (`/login#mfa=…`): no llega al servidor ni a los logs, y el front lo borra de la URL |
+
+Una cuenta nacida de Google o GitHub entra como en el registro público: rol `usuario`, sin
+empresa y sin contraseña (`hash_contrasena = "!"`, que nunca valida). No puede quedarse sin
+ninguna forma de entrar: desvincular el último proveedor de una cuenta sin contraseña da 409.
+
+**Alta en los proveedores.** Callback exacto: `{URL_PUBLICA}/api/auth/oauth/google/callback` y
+`…/github/callback`. Google: cliente OAuth «Aplicación web», alcances `openid email`. GitHub:
+OAuth App con permiso de lectura de emails.
 
 ### Historia: de Firebase a la autenticación propia
 
@@ -600,6 +663,9 @@ comprobar la versión vigente en <https://owasp.org/Top10/>.
 |---|---|
 | `POSTGRES_PASSWORD` | Obligatoria |
 | `JWT_SECRETO` | Obligatoria y **secreta**. Mínimo 32 caracteres |
+| `MFA_CLAVE` | Obligatoria y **secreta**. Mínimo 32 caracteres, distinta de `JWT_SECRETO` |
+| `URL_PUBLICA`, `GOOGLE_*`, `GITHUB_*` | Opcionales: login con Google y GitHub (sección 5) |
+| `MFA_OBLIGATORIO_PERSONAL` | Por defecto `true` |
 | `INGESTA_TOKEN` | Mínimo 32 caracteres. Vacía, la ingesta queda desactivada |
 | `CORS_ORIGENES` | Opcional |
 | `EMPRESA_SENUELO` | Por defecto `hotel-mirador` |
@@ -787,8 +853,14 @@ datos de clientes expuesta…), cada una con su historial de estados, notas y au
 | `GET` | `/salud` | Público |
 | `POST` | `/auth/web/login`, `/auth/web/refrescar`, `/auth/web/logout` | Público (navegador: refresco en cookie). Login 5/min |
 | `POST` | `/auth/login`, `/auth/refrescar`, `/auth/logout` | Público (Postman y scripts: refresco en el cuerpo). Login 5/min |
+| `POST` | `/auth/web/mfa`, `/auth/mfa` | Público (desafío + código). 5/min |
+| `GET` | `/auth/oauth/proveedores` | Público |
+| `GET` | `/auth/oauth/{proveedor}/inicio`, `/callback` | Público (navegación del navegador) |
 | `GET` | `/usuarios/yo` | Autenticado |
 | `PATCH` | `/usuarios/yo/contrasena` | Autenticado, 5/min |
+| `POST` | `/usuarios/yo/mfa/iniciar`, `/activar`, `/codigos`, `/desactivar` | Autenticado, 5/min |
+| `POST`, `DELETE` | `/usuarios/yo/identidades/{proveedor}` | Autenticado (vincular pide la contraseña) |
+| `DELETE` | `/usuarios/{id}/mfa` | Admin |
 | `GET`, `POST` | `/usuarios` | Admin |
 | `PATCH` | `/usuarios/{id}/rol`, `/activo`, `/contrasena` | Admin |
 | `GET`, `POST` | `/empresas` | Admin |

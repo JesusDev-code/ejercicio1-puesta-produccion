@@ -200,6 +200,14 @@ export class Usuarios implements OnInit {
     );
   }
 
+  async restablecerMfa(u: Usuario): Promise<void> {
+    await this.ejecutar(
+      u,
+      () => this.api.restablecerMfa(u.id),
+      `${u.email} ya no tiene MFA y sus sesiones se han cerrado. Si su rol lo exige, lo activará al entrar.`,
+    );
+  }
+
   private async ejecutar(u: Usuario, fn: () => Promise<Usuario>, exito: string): Promise<void> {
     this.ocupado.set(u.id);
     this.aviso.set(null);

@@ -1,3 +1,5 @@
+import { createHmac } from 'node:crypto';
+
 import { APIRequestContext, Page, expect, test as base } from '@playwright/test';
 
 import { CONTRASENA, PUERTOS } from './datos.mjs';
@@ -68,4 +70,20 @@ export async function tokenDe(request: APIRequestContext, email: string): Promis
 /** Texto único por ejecución, para no chocar con datos de otras pruebas. */
 export function unico(prefijo: string): string {
   return `${prefijo} ${Date.now().toString(36)}`;
+}
+
+/**
+ * Código TOTP (RFC 6238: HMAC-SHA1, pasos de 30 s, 6 dígitos) como el de una app de
+ * autenticación. `desfase` en segundos: +30 da el código del paso siguiente.
+ */
+export function totp(secreto: string, desfase = 0): string {
+  const alfabeto = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  let bits = '';
+  for (const c of secreto.replace(/\s/g, '').toUpperCase()) bits += alfabeto.indexOf(c).toString(2).padStart(5, '0');
+  const clave = Buffer.from((bits.match(/.{8}/g) ?? []).map((b) => parseInt(b, 2)));
+  const paso = Buffer.alloc(8);
+  paso.writeBigUInt64BE(BigInt(Math.floor((Date.now() / 1000 + desfase) / 30)));
+  const hmac = createHmac('sha1', clave).update(paso).digest();
+  const desplazamiento = hmac[hmac.length - 1] & 0xf;
+  return ((hmac.readUInt32BE(desplazamiento) & 0x7fffffff) % 1_000_000).toString().padStart(6, '0');
 }

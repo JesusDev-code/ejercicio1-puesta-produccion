@@ -4,16 +4,18 @@ import { Router, UrlTree, provideRouter } from '@angular/router';
 
 import {
   conEmpresa,
+  conMfa,
   requiereSesion,
   sinSesion,
   soloAdmin,
   soloGestor,
   soloInvitados,
+  soloMfaPorActivar,
   soloPendientes,
 } from './guardas';
 import { Sesion } from './sesion';
 
-function con(autenticado: boolean, esAdmin = false, extra: { esGestor?: boolean; pendiente?: boolean } = {}) {
+function con(autenticado: boolean, esAdmin = false, extra: { esGestor?: boolean; pendiente?: boolean; mfaPorActivar?: boolean } = {}) {
   TestBed.configureTestingModule({
     providers: [
       provideRouter([]),
@@ -24,6 +26,7 @@ function con(autenticado: boolean, esAdmin = false, extra: { esGestor?: boolean;
           esAdmin: signal(esAdmin),
           esGestor: signal(extra.esGestor ?? false),
           pendiente: signal(extra.pendiente ?? false),
+          mfaPorActivar: signal(extra.mfaPorActivar ?? false),
         },
       },
     ],
@@ -92,5 +95,21 @@ describe('guardas', () => {
     TestBed.resetTestingModule();
     con(true, true);
     expect(destino(ejecutar(soloPendientes))).toBe('/');
+  });
+
+  it('conMfa saca de la consola al personal que aún no tiene MFA', () => {
+    con(true, true, { mfaPorActivar: true });
+    expect(destino(ejecutar(conMfa))).toBe('/activar-mfa');
+    TestBed.resetTestingModule();
+    con(true, true);
+    expect(ejecutar(conMfa)).toBe(true);
+  });
+
+  it('soloMfaPorActivar: la activación obligatoria no es para quien ya lo tiene', () => {
+    con(true, true, { mfaPorActivar: true });
+    expect(ejecutar(soloMfaPorActivar)).toBe(true);
+    TestBed.resetTestingModule();
+    con(true, true);
+    expect(destino(ejecutar(soloMfaPorActivar))).toBe('/');
   });
 });

@@ -3,6 +3,9 @@ import os
 # La configuración se lee al importar la app: el entorno se fija antes de cualquier import
 os.environ["ENTORNO"] = "test"
 os.environ["JWT_SECRETO"] = "secreto-de-test-con-mas-de-32-caracteres"
+os.environ["MFA_CLAVE"] = "clave-mfa-de-test-con-mas-de-32-caracteres"
+# La obligación de MFA del personal se prueba en test_mfa.py; el resto de tests no la necesita
+os.environ["MFA_OBLIGATORIO_PERSONAL"] = "false"
 os.environ["DATABASE_URL"] = os.environ.get("TEST_DATABASE_URL", "sqlite+aiosqlite://")
 os.environ["CORS_ORIGENES"] = "https://app.ejemplo.com"
 

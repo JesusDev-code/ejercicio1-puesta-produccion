@@ -12,7 +12,9 @@ import {
   Incidente,
   IncidenteEdicion,
   IncidenteNuevo,
+  MfaAlta,
   Pagina,
+  ProveedorOAuth,
   RegistroAuditoria,
   ResumenEventos,
   Rol,
@@ -72,6 +74,55 @@ export class Api {
     return firstValueFrom(
       this.http.patch('/api/usuarios/yo/contrasena', { contrasena_actual, contrasena_nueva }),
     );
+  }
+
+  // --- Verificación en dos pasos (la propia cuenta) ---
+
+  /** `contrasena` es null si la cuenta solo entra con Google o GitHub. */
+  iniciarMfa(contrasena: string | null): Promise<MfaAlta> {
+    return firstValueFrom(this.http.post<MfaAlta>('/api/usuarios/yo/mfa/iniciar', { contrasena }));
+  }
+
+  activarMfa(codigo: string): Promise<{ codigos: string[] }> {
+    return firstValueFrom(
+      this.http.post<{ codigos: string[] }>('/api/usuarios/yo/mfa/activar', { codigo }),
+    );
+  }
+
+  regenerarCodigosMfa(codigo: string): Promise<{ codigos: string[] }> {
+    return firstValueFrom(
+      this.http.post<{ codigos: string[] }>('/api/usuarios/yo/mfa/codigos', { codigo }),
+    );
+  }
+
+  desactivarMfa(contrasena: string | null, codigo: string): Promise<unknown> {
+    return firstValueFrom(
+      this.http.post('/api/usuarios/yo/mfa/desactivar', { contrasena, codigo }),
+    );
+  }
+
+  /** Admin: para quien ha perdido el móvil y los códigos. Cierra sus sesiones. */
+  restablecerMfa(id: number): Promise<Usuario> {
+    return firstValueFrom(this.http.delete<Usuario>(`/api/usuarios/${id}/mfa`));
+  }
+
+  // --- Google y GitHub ---
+
+  proveedoresOAuth(): Promise<ProveedorOAuth[]> {
+    return firstValueFrom(
+      this.http.get<{ proveedores: ProveedorOAuth[] }>('/api/auth/oauth/proveedores'),
+    ).then((r) => r.proveedores);
+  }
+
+  /** Devuelve la URL del proveedor; la API deja la cookie del flujo ligada a esta cuenta. */
+  vincularProveedor(proveedor: ProveedorOAuth, contrasena: string | null): Promise<string> {
+    return firstValueFrom(
+      this.http.post<{ url: string }>(`/api/usuarios/yo/identidades/${proveedor}`, { contrasena }),
+    ).then((r) => r.url);
+  }
+
+  desvincularProveedor(proveedor: ProveedorOAuth): Promise<unknown> {
+    return firstValueFrom(this.http.delete(`/api/usuarios/yo/identidades/${proveedor}`));
   }
 
   // --- Incidentes ---

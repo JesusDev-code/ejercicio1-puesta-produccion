@@ -35,6 +35,28 @@ describe('Sesion', () => {
     expect(sessionStorage.length).toBe(0);
   });
 
+  it('con MFA, el primer paso no deja token: devuelve el desafío', async () => {
+    const entrada = sesion.entrar('admin@kaelum.example.com', 'x');
+    backend
+      .expectOne('/api/auth/web/login')
+      .flush({ mfa_requerido: true, desafio: 'desafio-1', expira_en_segundos: 300 });
+    expect(await entrada).toBe('desafio-1');
+    expect(sesion.tokenAcceso()).toBeNull();
+    expect(sesion.autenticado()).toBe(false);
+  });
+
+  it('completar el MFA abre la sesión', async () => {
+    const paso = sesion.completarMfa('desafio-1', '123456');
+    const mfa = backend.expectOne('/api/auth/web/mfa');
+    expect(mfa.request.body).toEqual({ desafio: 'desafio-1', codigo: '123456' });
+    mfa.flush(TOKEN);
+    await Promise.resolve();
+    backend.expectOne('/api/usuarios/yo').flush(USUARIO);
+    await paso;
+    expect(sesion.tokenAcceso()).toBe('acceso-1');
+    expect(sesion.autenticado()).toBe(true);
+  });
+
   it('dos refrescos simultáneos hacen UNA sola petición', async () => {
     // Dos POST con la misma cookie serían una reutilización: la API revocaría la familia entera
     const a = firstValueFrom(sesion.refrescar());

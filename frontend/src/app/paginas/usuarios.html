@@ -143,6 +143,10 @@
                 <td class="acciones">
                   @if (!esYo(u)) {
                     <button type="button" class="btn compacto btn-suave" [disabled]="ocupado() === u.id" (click)="abrirReset(u)">Contraseña</button>
+                    @if (u.mfa_activo) {
+                      <button type="button" class="btn compacto btn-suave" [disabled]="ocupado() === u.id" (click)="restablecerMfa(u)"
+                        title="Para quien ha perdido el móvil y los códigos. Cierra sus sesiones.">Quitar MFA</button>
+                    }
                     <button type="button" class="btn compacto" [class.btn-peligro]="u.activo" [class.btn-menta]="!u.activo"
                       [disabled]="ocupado() === u.id" (click)="cambiarActivo(u)">{{ u.activo ? 'Desactivar' : 'Reactivar' }}</button>
                   } @else {

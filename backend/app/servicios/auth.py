@@ -6,21 +6,26 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import obtener_configuracion
 from app.errores import NoAutenticado
-from app.esquemas import ParTokens
+from app.esquemas import DesafioMfa, ParTokens
 from app.modelos import TokenRefresco, Usuario, a_utc, ahora
 from app.repositorios import RepositorioTokens, RepositorioUsuarios
 from app.seguridad import (
+    DESAFIO_MFA_MINUTOS,
+    crear_desafio_mfa,
     crear_token_acceso,
+    decodificar_desafio_mfa,
     generar_token_refresco,
     hashear_token,
     verificar_contrasena,
 )
 from app.servicios.auditoria import auditar
 from app.servicios.empresas import cuenta_habilitada
+from app.servicios.mfa import verificar_segundo_factor
 
 _CREDENCIALES_INVALIDAS = "Credenciales inválidas"
 # Mensaje de error, no un secreto: bandit lo confunde por la palabra "token"
 _TOKEN_INVALIDO = "Token de refresco inválido"  # noqa: S105  # nosec B105
+_DESAFIO_INVALIDO = "La verificación ha caducado. Vuelve a iniciar sesión"
 
 
 async def _emitir_tokens(sesion: AsyncSession, usuario: Usuario, familia_id: str) -> ParTokens:
@@ -50,7 +55,63 @@ async def cerrar_sesiones(sesion: AsyncSession, usuario: Usuario) -> None:
     usuario.version_sesion += 1
 
 
-async def login(sesion: AsyncSession, email: str, contrasena: str, ip: str | None) -> ParTokens:
+async def iniciar_sesion(
+    sesion: AsyncSession, usuario: Usuario, ip: str | None, metodo: str | None = None
+) -> ParTokens | DesafioMfa:
+    """Primer factor superado (contraseña, Google o GitHub). Con MFA no hay sesión todavía:
+    solo un desafío. Así ningún método de entrada se salta el segundo factor."""
+    if usuario.mfa_activo:
+        await auditar(
+            sesion,
+            accion="login_mfa_pendiente",
+            recurso="usuario",
+            usuario_id=usuario.id,
+            ip=ip,
+            detalle=metodo,
+        )
+        await sesion.commit()
+        return DesafioMfa(
+            desafio=crear_desafio_mfa(usuario.id, usuario.version_sesion),
+            expira_en_segundos=DESAFIO_MFA_MINUTOS * 60,
+        )
+
+    tokens = await _emitir_tokens(sesion, usuario, familia_id=secrets.token_hex(16))
+    await auditar(
+        sesion, accion="login", recurso="usuario", usuario_id=usuario.id, ip=ip, detalle=metodo
+    )
+    await sesion.commit()
+    return tokens
+
+
+async def completar_mfa(
+    sesion: AsyncSession, desafio: str, codigo: str, ip: str | None
+) -> ParTokens:
+    datos = decodificar_desafio_mfa(desafio)
+    if datos is None:
+        raise NoAutenticado(_DESAFIO_INVALIDO)
+    usuario_id, version = datos
+    usuario = await RepositorioUsuarios(sesion).por_id(usuario_id)
+    # Versión distinta: desde el primer paso cambió la contraseña o se cerraron las sesiones
+    if (
+        not usuario
+        or version != usuario.version_sesion
+        or not usuario.mfa_activo
+        or not await cuenta_habilitada(sesion, usuario)
+    ):
+        raise NoAutenticado(_DESAFIO_INVALIDO)
+
+    await verificar_segundo_factor(sesion, usuario, codigo, ip)
+    tokens = await _emitir_tokens(sesion, usuario, familia_id=secrets.token_hex(16))
+    await auditar(
+        sesion, accion="login", recurso="usuario", usuario_id=usuario.id, ip=ip, detalle="mfa"
+    )
+    await sesion.commit()
+    return tokens
+
+
+async def login(
+    sesion: AsyncSession, email: str, contrasena: str, ip: str | None
+) -> ParTokens | DesafioMfa:
     usuario = await RepositorioUsuarios(sesion).por_email(email)
     hash_guardado = usuario.hash_contrasena if usuario else None
 
@@ -68,10 +129,7 @@ async def login(sesion: AsyncSession, email: str, contrasena: str, ip: str | Non
         await sesion.commit()
         raise NoAutenticado(_CREDENCIALES_INVALIDAS)
 
-    tokens = await _emitir_tokens(sesion, usuario, familia_id=secrets.token_hex(16))
-    await auditar(sesion, accion="login", recurso="usuario", usuario_id=usuario.id, ip=ip)
-    await sesion.commit()
-    return tokens
+    return await iniciar_sesion(sesion, usuario, ip)
 
 
 async def _reutilizacion(

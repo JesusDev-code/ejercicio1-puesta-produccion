@@ -125,6 +125,12 @@ uv run alembic revision --autogenerate -m "descripcion del cambio"
 | `API_PREFIJO` | No | vacío (`/api` en el compose) | Prefijo con el que el proxy publica la API. La API lo quita ella misma |
 | `INGESTA_TOKEN` | Para el panel | vacío (ingesta desactivada) | Token de servicio compartido con los sensores. Mínimo 32 caracteres. **No** es un JWT de usuario |
 | `COOKIE_REFRESCO_RUTA` | No | `/auth/web` (`/api/auth/web` en el compose) | `Path` de la cookie de refresco tal como la ve el navegador |
+| `MFA_CLAVE` | Siempre | De desarrollo, solo en local | **Secreta.** Cifra los secretos TOTP (AES-GCM). Mínimo 32 caracteres, distinta de `JWT_SECRETO`. Si se pierde, ningún MFA vuelve a validar |
+| `MFA_OBLIGATORIO_PERSONAL` | No | `true` | Admin y analista no ven nada hasta activar el MFA |
+| `URL_PUBLICA` | Para OAuth | vacío (sin Google ni GitHub) | URL de la web, sin barra final. Con ella se construye el `redirect_uri` |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | No | vacío | Activan el login con Google. El secreto es **secreto** |
+| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | No | vacío | Activan el login con GitHub. El secreto es **secreto** |
+| `COOKIE_OAUTH_RUTA` | No | `/auth/oauth` (`/api/auth/oauth` en el compose) | `Path` de la cookie del flujo OAuth |
 | `ACCESO_MINUTOS` | No | `15` | Vida del token de acceso |
 | `REFRESCO_DIAS` | No | `7` | Vida del token de refresco |
 | `FORWARDED_ALLOW_IPS` | No | `*` en el compose | IPs de las que uvicorn acepta `X-Forwarded-For` |

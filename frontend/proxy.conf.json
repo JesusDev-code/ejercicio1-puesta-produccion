@@ -4,6 +4,6 @@
     "secure": false,
     "changeOrigin": true,
     "pathRewrite": { "^/api": "" },
-    "cookiePathRewrite": { "/auth/web": "/api/auth/web" }
+    "cookiePathRewrite": { "/auth/web": "/api/auth/web", "/auth/oauth": "/api/auth/oauth" }
   }
 }

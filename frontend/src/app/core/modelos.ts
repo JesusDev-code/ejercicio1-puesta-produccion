@@ -17,6 +17,27 @@ export interface TokenAcceso {
   expira_en_segundos: number;
 }
 
+/** Respuesta del login con MFA activo: aún no hay sesión, solo un desafío para /auth/web/mfa. */
+export interface DesafioMfa {
+  mfa_requerido: true;
+  desafio: string;
+  expira_en_segundos: number;
+}
+
+/** Alta de MFA sin confirmar. `qr`: filas de la matriz, "1" = módulo oscuro. */
+export interface MfaAlta {
+  secreto: string;
+  uri: string;
+  qr: string[];
+}
+
+export type ProveedorOAuth = 'google' | 'github';
+
+export const PROVEEDORES: Record<ProveedorOAuth, string> = {
+  google: 'Google',
+  github: 'GitHub',
+};
+
 export interface Empresa {
   id: number;
   codigo: string;
@@ -45,9 +66,18 @@ export interface Usuario {
   activo: boolean;
   /** Recién registrada y aún sin empresa: solo puede unirse a una con su código. */
   pendiente: boolean;
+  mfa_activo: boolean;
   creado_en: string;
   /** Solo en la propia cuenta (/usuarios/yo): el nombre de su empresa, o null si no tiene. */
   empresa_nombre?: string | null;
+  /** Solo en la propia cuenta. False si únicamente entra con Google o GitHub. */
+  tiene_contrasena?: boolean;
+  /** Solo en la propia cuenta. Su rol exige MFA: no puede desactivarlo. */
+  mfa_obligatorio?: boolean;
+  /** Solo en la propia cuenta. Su rol exige MFA y aún no lo ha activado: solo ve su cuenta. */
+  mfa_por_activar?: boolean;
+  /** Solo en la propia cuenta: proveedores vinculados. */
+  proveedores?: ProveedorOAuth[];
 }
 
 export interface Incidente {

@@ -11,6 +11,7 @@ from app.modelos import Rol, Usuario
 from app.repositorios import RepositorioUsuarios
 from app.seguridad import decodificar_token_acceso
 from app.servicios.empresas import cuenta_habilitada
+from app.servicios.mfa import mfa_por_activar
 
 _bearer = HTTPBearer(auto_error=False)
 
@@ -49,10 +50,14 @@ UsuarioActual = Annotated[Usuario, Depends(usuario_actual)]
 
 
 async def usuario_operativo(usuario: UsuarioActual) -> Usuario:
-    """Cualquier cuenta salvo una pendiente: recién registrada y sin empresa todavía, solo
-    puede ver su cuenta y unirse a una empresa (eso va con `UsuarioActual`)."""
+    """Cualquier cuenta salvo una pendiente (recién registrada y sin empresa todavía) o una de
+    personal que aún no ha activado el MFA. Esas solo pueden ver su cuenta y completar lo que
+    les falta (eso va con `UsuarioActual`)."""
     if usuario.pendiente:
         raise Prohibido("Únete primero a tu empresa con su código de invitación")
+    # Personal del MSSP sin MFA: con su contraseña sola no ve datos de ningún cliente
+    if mfa_por_activar(usuario):
+        raise Prohibido("Activa la verificación en dos pasos para continuar")
     return usuario
 
 

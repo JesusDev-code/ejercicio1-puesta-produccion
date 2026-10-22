@@ -2,7 +2,7 @@ import enum
 import secrets
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -30,6 +30,10 @@ class Rol(enum.StrEnum):
 ROLES_PERSONAL = frozenset({Rol.admin, Rol.analista})
 # Trabajan para una empresa cliente: sin ella, la cuenta está pendiente de unirse a una
 ROLES_CLIENTE = frozenset({Rol.usuario, Rol.gestor})
+
+# Hash de una cuenta sin contraseña (solo entra con Google o GitHub). No es un hash argon2
+# válido: verificar_contrasena siempre falla contra él
+SIN_CONTRASENA = "!"
 
 # Sin 0/O ni 1/I/L: el código se dicta o se copia a mano. 31 símbolos ^ 12 ≈ 59 bits
 _ALFABETO_CODIGO = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
@@ -135,9 +139,28 @@ class Usuario(Base):
     version_sesion: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
 
+    # MFA (TOTP). Los secretos van cifrados con MFA_CLAVE: una copia de la BD sola no basta para
+    # generar códigos. `mfa_pendiente` es el que se está dando de alta, aún sin confirmar
+    mfa_secreto: Mapped[str | None] = mapped_column(String(255))
+    mfa_pendiente: Mapped[str | None] = mapped_column(String(255))
+    # Último paso de 30 s aceptado: un código ya usado no vale una segunda vez (anti-replay)
+    mfa_ultimo_paso: Mapped[int | None] = mapped_column(Integer)
+    # Fallos seguidos del segundo factor. Al quinto, bloqueo temporal: quien tiene la contraseña
+    # no puede probar el millón de códigos posibles cambiando de IP
+    mfa_fallos: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    mfa_bloqueado_hasta: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
     @property
     def es_personal(self) -> bool:
         return self.rol in ROLES_PERSONAL
+
+    @property
+    def mfa_activo(self) -> bool:
+        return self.mfa_secreto is not None
+
+    @property
+    def tiene_contrasena(self) -> bool:
+        return self.hash_contrasena != SIN_CONTRASENA
 
     @property
     def pendiente(self) -> bool:
@@ -175,6 +198,33 @@ class TokenRefresco(Base):
     familia_id: Mapped[str] = mapped_column(String(64), index=True)
     expira_en: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     revocado_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class CodigoRecuperacion(Base):
+    """Códigos de un solo uso para entrar sin el móvil. Solo el hash: se enseñan una vez."""
+
+    __tablename__ = "codigos_recuperacion"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)
+    hash_codigo: Mapped[str] = mapped_column(String(64), index=True)
+    usado_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class IdentidadExterna(Base):
+    """Cuenta de Google o GitHub vinculada a un usuario. Se busca SIEMPRE por (proveedor,
+    sujeto): el email de un proveedor puede cambiar o reasignarse, el identificador no."""
+
+    __tablename__ = "identidades_externas"
+    __table_args__ = (UniqueConstraint("proveedor", "sujeto"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)
+    proveedor: Mapped[str] = mapped_column(String(20))
+    sujeto: Mapped[str] = mapped_column(String(255))
+    # El email con el que se vinculó, solo informativo
+    email: Mapped[str] = mapped_column(String(254))
+    creada_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ahora)
 
 
 class RegistroAuditoria(Base):

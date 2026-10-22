@@ -3,6 +3,7 @@ campos como `rol`, `estado` o `reportante_id`, y `extra="forbid"` rechaza los de
 
 from datetime import datetime
 from ipaddress import ip_address
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
@@ -58,6 +59,64 @@ class TokenAcceso(BaseModel):
     expira_en_segundos: int
 
 
+class DesafioMfa(BaseModel):
+    """Respuesta del login cuando la cuenta tiene MFA: todavía no hay sesión, solo un desafío
+    que se canjea en /auth/mfa junto con un código."""
+
+    mfa_requerido: Literal[True] = True
+    desafio: str
+    expira_en_segundos: int
+
+
+# Seis dígitos del autenticador o un código de recuperación (XXXX-XXXX-XXXX, con o sin guiones)
+CodigoMfa = Field(min_length=6, max_length=30)
+
+
+class MfaEntrada(Entrada):
+    desafio: str = Field(min_length=1, max_length=1024)
+    codigo: str = CodigoMfa
+
+
+class ReautenticacionEntrada(Entrada):
+    # Obligatoria si la cuenta tiene contraseña: un access token robado no basta para cambiar
+    # cómo se entra en ella. Una cuenta que solo entra con Google o GitHub no tiene ninguna
+    contrasena: str | None = Field(default=None, min_length=1, max_length=128)
+
+
+class MfaAlta(BaseModel):
+    """Secreto nuevo, aún sin activar. `qr` son las filas de la matriz ("1" = módulo oscuro):
+    el front la dibuja como SVG sin imágenes ni HTML inyectado (CSP y Trusted Types)."""
+
+    secreto: str
+    uri: str
+    qr: list[str]
+
+
+class CodigoEntrada(Entrada):
+    codigo: str = CodigoMfa
+
+
+class MfaDesactivarEntrada(Entrada):
+    contrasena: str | None = Field(default=None, min_length=1, max_length=128)
+    codigo: str = CodigoMfa
+
+
+class CodigosRecuperacion(BaseModel):
+    """Se enseñan UNA vez: en la BD solo queda su hash."""
+
+    codigos: list[str]
+
+
+class ProveedoresOAuth(BaseModel):
+    proveedores: list[str]
+
+
+class UrlOAuth(BaseModel):
+    """A dónde mandar al navegador para vincular el proveedor."""
+
+    url: str
+
+
 # --- Empresas (clientes del MSSP) ---
 
 CODIGO_EMPRESA = r"^[a-z0-9]+(-[a-z0-9]+)*$"
@@ -105,6 +164,7 @@ class UsuarioSalida(Salida):
     activo: bool
     # Cuenta de cliente aún sin empresa: el front la manda a «Unirme a mi empresa»
     pendiente: bool
+    mfa_activo: bool
     creado_en: datetime
 
 
@@ -115,6 +175,13 @@ class UsuarioYo(UsuarioSalida):
     """
 
     empresa_nombre: str | None = None
+    # False si solo entra con Google o GitHub: no hay contraseña que cambiar ni que pedir
+    tiene_contrasena: bool
+    # Su rol exige MFA (no puede desactivarlo) y, si aún no lo tiene, hasta activarlo solo ve
+    # su cuenta
+    mfa_obligatorio: bool = False
+    mfa_por_activar: bool = False
+    proveedores: list[str] = []
 
 
 class UsuarioCrear(Entrada):

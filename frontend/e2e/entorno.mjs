@@ -16,7 +16,7 @@ import { tmpdir } from 'node:os';
 import { dirname, extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { INGESTA_TOKEN, JWT_SECRETO, PUERTOS } from './datos.mjs';
+import { INGESTA_TOKEN, JWT_SECRETO, MFA_CLAVE, PUERTOS } from './datos.mjs';
 
 const WEB = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BACKEND = resolve(WEB, '..', 'backend');
@@ -29,6 +29,9 @@ const entornoApi = {
   ENTORNO: 'desarrollo',
   DATABASE_URL: `sqlite+aiosqlite:///${join(DIR_BD, 'e2e.db').replaceAll('\\', '/')}`,
   JWT_SECRETO,
+  MFA_CLAVE,
+  // Las cuentas de personal sembradas no tienen MFA; el flujo con MFA lo prueba mfa.spec.ts
+  MFA_OBLIGATORIO_PERSONAL: 'false',
   // El navegador ve la API bajo /api, igual que en producción detrás de Traefik
   COOKIE_REFRESCO_RUTA: '/api/auth/web',
   // Todas las pruebas entran desde 127.0.0.1: con 5 logins/min darían 429 al azar. El límite
