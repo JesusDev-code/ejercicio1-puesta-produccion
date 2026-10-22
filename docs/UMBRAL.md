@@ -534,7 +534,9 @@ en vivo en los paneles de todos los admins. Los campos que vienen de internet no
 | Dato | De dónde | Retención |
 |---|---|---|
 | Email, rol, empresa y estado de cada cuenta | Alta por un admin | Mientras exista la cuenta |
-| Contraseñas | Solo su hash Argon2id, nunca en claro | Mientras exista la cuenta |
+| Contraseñas | Solo su hash Argon2id, nunca en claro. Las cuentas de Google/GitHub no tienen | Mientras exista la cuenta |
+| Identidad externa: proveedor, `sub` y email verificado | Google o GitHub, solo si se entra con ellos | Mientras esté vinculada |
+| Secreto TOTP (cifrado) y hash de los códigos de recuperación | Alta del MFA | Mientras el MFA esté activo |
 | Tokens de refresco | Solo su SHA-256, con su caducidad y revocación | Indefinida (filas pequeñas; las caducadas no sirven de nada) |
 | Incidencias (texto, severidad, notas) | Usuarios y analistas | Indefinida; el borrado es lógico |
 | Eventos: IP de origen, método, ruta, user-agent, servicio, cliente y fecha | Sensores | **30 días** (`EVENTOS_RETENCION_DIAS`), salvo los enlazados a una incidencia, que son evidencia |
@@ -545,7 +547,11 @@ en vivo en los paneles de todos los admins. Los campos que vienen de internet no
   necesidad de cron.
 - La IP de quien sondea el señuelo es un dato personal (RGPD). Se guarda con una finalidad de
   seguridad y con un plazo acotado.
-- Ningún dato se envía a terceros: ni proveedor de identidad externo, ni analítica, ni fuentes de Google.
+- Ningún dato se envía a terceros: ni analítica, ni fuentes de Google. Google y GitHub solo
+  intervienen si el usuario elige entrar con ellos, con alcances mínimos (`openid email` y
+  `read:user user:email`).
+- La política pública está en `/privacidad` (la exige Google para publicar el login con Google).
+  Si cambia lo que se guarda, se cambian las dos.
 
 ---
 

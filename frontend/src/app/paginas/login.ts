@@ -73,7 +73,10 @@ import { Marca } from '../ui/marca';
             @case ('oauth_email') {
               <div role="alert" class="aviso aviso-oro">
                 <span class="codigo">409</span>
-                <span>Ya hay una cuenta con ese email. Entra con tu contraseña y vincula la cuenta desde Mi cuenta.</span>
+                <span>
+                  Ya hay una cuenta con ese email. Entra como lo hiciste la primera vez (con tu contraseña, o con Google o GitHub) y
+                  vincula este proveedor desde Mi cuenta.
+                </span>
               </div>
             }
             @case ('oauth') {
@@ -125,7 +128,7 @@ import { Marca } from '../ui/marca';
         </form>
         }
         <p class="pie">Cada intento queda registrado en la auditoría</p>
-        <p class="pie"><a routerLink="/">← Volver a Kaelum Security</a></p>
+        <p class="pie"><a routerLink="/">← Volver a Kaelum Security</a> · <a routerLink="/privacidad">Privacidad</a></p>
       </main>
     </div>
   `,

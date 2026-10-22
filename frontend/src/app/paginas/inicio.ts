@@ -216,7 +216,7 @@ const CLIENTES = ['Transportes Ibarra', 'Clínica Solana', 'Hotel Mirador'];
       </main>
 
       <footer class="pie-web">
-        <span>© 2026 Kaelum Security</span>
+        <span>© 2026 Kaelum Security · <a routerLink="/privacidad">Privacidad</a></span>
         <span class="aviso-ficticio">
           Empresa ficticia: proyecto académico de Puesta en producción segura. No se presta ningún servicio real.
         </span>

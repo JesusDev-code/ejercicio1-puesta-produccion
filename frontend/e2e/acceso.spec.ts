@@ -9,6 +9,13 @@ test.describe('Acceso', () => {
     await expect(page).toHaveURL(/\/login$/);
   });
 
+  test('la política de privacidad es pública y está enlazada desde la web', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('link', { name: 'Privacidad' }).click();
+    await expect(page).toHaveURL(/\/privacidad$/);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Política de privacidad');
+  });
+
   test('una contraseña incorrecta da un mensaje genérico', async ({ page }) => {
     await intentarEntrar(page, CUENTAS.admin, 'no-es-la-contrasena');
     await expect(page.getByRole('alert')).toContainText('Email o contraseña incorrectos');

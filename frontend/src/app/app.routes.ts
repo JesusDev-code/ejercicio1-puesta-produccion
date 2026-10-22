@@ -25,6 +25,12 @@ export const routes: Routes = [
     loadComponent: () => import('./paginas/inicio').then((m) => m.Inicio),
   },
   {
+    // Pública siempre, con o sin sesión: la enlaza la pantalla de consentimiento de Google
+    path: 'privacidad',
+    title: 'Política de privacidad · Kaelum Security',
+    loadComponent: () => import('./paginas/privacidad').then((m) => m.Privacidad),
+  },
+  {
     path: 'login',
     title: 'Iniciar sesión · Kaelum Security',
     canActivate: [soloInvitados],
