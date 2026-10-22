@@ -1,4 +1,6 @@
 from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Annotated
 
 from fastapi import Depends, Request
@@ -26,24 +28,38 @@ def ip_cliente(request: Request) -> str | None:
 IpCliente = Annotated[str | None, Depends(ip_cliente)]
 
 
-async def usuario_actual(
+@dataclass(frozen=True)
+class Identificacion:
+    usuario: Usuario
+    # Hora del login original de esta sesión: la usa la reautenticación de las cuentas sin
+    # contraseña (cambiar cómo se entra exige haber entrado hace poco)
+    autenticado_en: datetime | None
+
+
+async def identificacion(
     sesion: Sesion,
     credenciales: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
-) -> Usuario:
+) -> Identificacion:
     if credenciales is None:
         raise NoAutenticado("No autenticado")
     datos = decodificar_token_acceso(credenciales.credentials)
     if datos is None:
         raise NoAutenticado("Token inválido o caducado")
-    usuario_id, version = datos
     # El rol se lee de la BD en cada petición, nunca del token: un cambio de rol es inmediato
-    usuario = await RepositorioUsuarios(sesion).por_id(usuario_id)
+    usuario = await RepositorioUsuarios(sesion).por_id(datos.usuario_id)
     if not usuario or not await cuenta_habilitada(sesion, usuario):
         raise NoAutenticado("Token inválido o caducado")
     # Token emitido antes de un cambio de contraseña, rol o baja: revocado aunque no haya caducado
-    if version != usuario.version_sesion:
+    if datos.version_sesion != usuario.version_sesion:
         raise NoAutenticado("Token inválido o caducado")
-    return usuario
+    return Identificacion(usuario, datos.autenticado_en)
+
+
+Identificado = Annotated[Identificacion, Depends(identificacion)]
+
+
+async def usuario_actual(ident: Identificado) -> Usuario:
+    return ident.usuario
 
 
 UsuarioActual = Annotated[Usuario, Depends(usuario_actual)]

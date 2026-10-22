@@ -275,6 +275,8 @@ async def test_el_personal_sin_mfa_solo_ve_su_cuenta(cliente, reloj, monkeypatch
     cab = await cabeceras(cliente, "jefa@test.com")
 
     assert (await cliente.get("/usuarios", headers=cab)).status_code == 403
+    # Tampoco el stream, que no usa la dependencia `Admin` sino la suya propia
+    assert (await cliente.get("/eventos/stream", headers=cab)).status_code == 403
     yo = (await cliente.get("/usuarios/yo", headers=cab)).json()
     assert yo["mfa_por_activar"] is True and yo["mfa_obligatorio"] is True
 

@@ -34,6 +34,11 @@ def upgrade() -> None:
             sa.Column("mfa_bloqueado_hasta", sa.DateTime(timezone=True), nullable=True)
         )
 
+    # Hora del login de cada familia de refresh. Las familias ya abiertas quedan a NULL: cuentan
+    # como login antiguo, así que piden reautenticarse para cambiar cómo se entra
+    with op.batch_alter_table("tokens_refresco", schema=None) as batch_op:
+        batch_op.add_column(sa.Column("autenticado_en", sa.DateTime(timezone=True), nullable=True))
+
     op.create_table(
         "codigos_recuperacion",
         sa.Column("id", sa.Integer(), nullable=False),
@@ -88,6 +93,9 @@ def downgrade() -> None:
         batch_op.drop_index(batch_op.f("ix_codigos_recuperacion_hash_codigo"))
         batch_op.drop_index(batch_op.f("ix_codigos_recuperacion_usuario_id"))
     op.drop_table("codigos_recuperacion")
+
+    with op.batch_alter_table("tokens_refresco", schema=None) as batch_op:
+        batch_op.drop_column("autenticado_en")
 
     with op.batch_alter_table("usuarios", schema=None) as batch_op:
         batch_op.drop_column("mfa_bloqueado_hasta")

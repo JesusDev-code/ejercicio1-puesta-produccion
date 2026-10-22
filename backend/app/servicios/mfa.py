@@ -9,14 +9,14 @@ Garantías:
 
 import hmac
 import time
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import pyotp
 import segno
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import obtener_configuracion
-from app.errores import Conflicto, Invalido, NoAutenticado
+from app.errores import Conflicto, Invalido, NoAutenticado, Prohibido
 from app.esquemas import MfaAlta
 from app.modelos import (
     Usuario,
@@ -35,6 +35,9 @@ _MAX_FALLOS = 5
 _BLOQUEO = timedelta(minutes=15)
 _NUM_CODIGOS = 10
 _CODIGO_INCORRECTO = "Código incorrecto"
+# Cuánto vale un login como prueba fresca para una cuenta sin contraseña
+_REAUTENTICACION = timedelta(minutes=5)
+REAUTENTICACION_CADUCADA = "Vuelve a iniciar sesión con tu proveedor para confirmar que eres tú"
 
 
 def _instante() -> float:
@@ -65,22 +68,43 @@ def _paso_valido(secreto: str, codigo: str) -> int | None:
 
 
 async def reautenticar(
-    sesion: AsyncSession, usuario: Usuario, contrasena: str | None, ip: str | None
+    sesion: AsyncSession,
+    usuario: Usuario,
+    contrasena: str | None,
+    ip: str | None,
+    *,
+    autenticado_en: datetime | None,
+    codigo: str | None = None,
 ) -> None:
-    # Una cuenta que solo entra con Google o GitHub no tiene contraseña que pedir
-    if not usuario.tiene_contrasena:
-        return
-    if contrasena is None or not verificar_contrasena(usuario.hash_contrasena, contrasena):
-        await auditar(
-            sesion,
-            accion="mfa_reautenticacion_fallida",
-            recurso="usuario",
-            usuario_id=usuario.id,
-            recurso_id=usuario.id,
-            ip=ip,
-        )
-        await sesion.commit()
-        raise Invalido("La contraseña no es correcta")
+    """Exige una prueba fresca de identidad. Falla en cerrado: sin prueba, no pasa.
+
+    - Con contraseña: la contraseña.
+    - Sin contraseña (solo Google o GitHub): un código MFA, si lo tiene activo, o un login de
+      hace menos de 5 minutos. Si no, un access token robado bastaría para vincular otra cuenta
+      o activar un MFA del atacante y dejar fuera al dueño.
+    """
+    if usuario.tiene_contrasena:
+        if contrasena is not None and verificar_contrasena(usuario.hash_contrasena, contrasena):
+            return
+        error: Invalido | Prohibido = Invalido("La contraseña no es correcta")
+    else:
+        if usuario.mfa_activo and codigo:
+            await verificar_segundo_factor(sesion, usuario, codigo, ip)
+            return
+        if autenticado_en is not None and ahora() - a_utc(autenticado_en) <= _REAUTENTICACION:
+            return
+        error = Prohibido(REAUTENTICACION_CADUCADA)
+
+    await auditar(
+        sesion,
+        accion="mfa_reautenticacion_fallida",
+        recurso="usuario",
+        usuario_id=usuario.id,
+        recurso_id=usuario.id,
+        ip=ip,
+    )
+    await sesion.commit()
+    raise error
 
 
 async def _nuevos_codigos(sesion: AsyncSession, usuario: Usuario) -> list[str]:
@@ -94,11 +118,15 @@ async def _nuevos_codigos(sesion: AsyncSession, usuario: Usuario) -> list[str]:
 
 
 async def iniciar(
-    sesion: AsyncSession, usuario: Usuario, contrasena: str | None, ip: str | None
+    sesion: AsyncSession,
+    usuario: Usuario,
+    contrasena: str | None,
+    ip: str | None,
+    autenticado_en: datetime | None,
 ) -> MfaAlta:
     if usuario.mfa_activo:
         raise Conflicto("La verificación en dos pasos ya está activa")
-    await reautenticar(sesion, usuario, contrasena, ip)
+    await reautenticar(sesion, usuario, contrasena, ip, autenticado_en=autenticado_en)
 
     secreto = pyotp.random_base32()  # 160 bits, lo que recomienda la RFC 4226
     # Queda pendiente: el MFA no cuenta hasta que el usuario demuestra que su app genera códigos
@@ -211,7 +239,9 @@ async def desactivar(
         raise Conflicto("La verificación en dos pasos no está activa")
     if mfa_exigido(usuario):
         raise Conflicto("Tu rol exige la verificación en dos pasos")
-    await reautenticar(sesion, usuario, contrasena, ip)
+    # Contraseña (si la hay) Y código. Sin contraseña, el código es la prueba fresca
+    if usuario.tiene_contrasena:
+        await reautenticar(sesion, usuario, contrasena, ip, autenticado_en=None)
     await verificar_segundo_factor(sesion, usuario, codigo, ip)
     await quitar(sesion, usuario)
     await auditar(

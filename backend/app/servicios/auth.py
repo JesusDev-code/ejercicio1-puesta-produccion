@@ -28,7 +28,9 @@ _TOKEN_INVALIDO = "Token de refresco inválido"  # noqa: S105  # nosec B105
 _DESAFIO_INVALIDO = "La verificación ha caducado. Vuelve a iniciar sesión"
 
 
-async def _emitir_tokens(sesion: AsyncSession, usuario: Usuario, familia_id: str) -> ParTokens:
+async def _emitir_tokens(
+    sesion: AsyncSession, usuario: Usuario, familia_id: str, autenticado_en: datetime | None
+) -> ParTokens:
     config = obtener_configuracion()
     token_refresco = generar_token_refresco()
     await RepositorioTokens(sesion).crear(
@@ -36,11 +38,12 @@ async def _emitir_tokens(sesion: AsyncSession, usuario: Usuario, familia_id: str
             usuario_id=usuario.id,
             hash_token=hashear_token(token_refresco),
             familia_id=familia_id,
+            autenticado_en=autenticado_en,
             expira_en=ahora() + timedelta(days=config.refresco_dias),
         )
     )
     return ParTokens(
-        token_acceso=crear_token_acceso(usuario.id, usuario.version_sesion),
+        token_acceso=crear_token_acceso(usuario.id, usuario.version_sesion, autenticado_en),
         token_refresco=token_refresco,
         expira_en_segundos=config.acceso_minutos * 60,
     )
@@ -75,7 +78,9 @@ async def iniciar_sesion(
             expira_en_segundos=DESAFIO_MFA_MINUTOS * 60,
         )
 
-    tokens = await _emitir_tokens(sesion, usuario, familia_id=secrets.token_hex(16))
+    tokens = await _emitir_tokens(
+        sesion, usuario, familia_id=secrets.token_hex(16), autenticado_en=ahora()
+    )
     await auditar(
         sesion, accion="login", recurso="usuario", usuario_id=usuario.id, ip=ip, detalle=metodo
     )
@@ -101,7 +106,9 @@ async def completar_mfa(
         raise NoAutenticado(_DESAFIO_INVALIDO)
 
     await verificar_segundo_factor(sesion, usuario, codigo, ip)
-    tokens = await _emitir_tokens(sesion, usuario, familia_id=secrets.token_hex(16))
+    tokens = await _emitir_tokens(
+        sesion, usuario, familia_id=secrets.token_hex(16), autenticado_en=ahora()
+    )
     await auditar(
         sesion, accion="login", recurso="usuario", usuario_id=usuario.id, ip=ip, detalle="mfa"
     )
@@ -177,7 +184,9 @@ async def refrescar(sesion: AsyncSession, token: str, ip: str | None) -> ParToke
     # las dos. El UPDATE condicional es la comprobación de verdad y solo lo gana una
     if not await repo.consumir(guardado.id, momento):
         await _reutilizacion(sesion, guardado, momento, ip)
-    tokens = await _emitir_tokens(sesion, usuario, familia_id=guardado.familia_id)
+    tokens = await _emitir_tokens(
+        sesion, usuario, familia_id=guardado.familia_id, autenticado_en=guardado.autenticado_en
+    )
     await sesion.commit()
     return tokens
 

@@ -1,14 +1,21 @@
 """Login con Google y GitHub. La red del proveedor se sustituye por `obtener_perfil` falso: lo que
 se prueba es la parte de Umbral (state, PKCE, cookies, vinculación y sesión)."""
 
+from datetime import timedelta
 from urllib.parse import parse_qs, urlparse
 
 import pyotp
 import pytest
 
 from app.config import obtener_configuracion
+from app.modelos import ahora
 from app.routers.auth import COOKIE_OAUTH, COOKIE_REFRESCO
-from app.seguridad import crear_estado_oauth, reto_pkce
+from app.seguridad import (
+    crear_estado_oauth,
+    crear_token_acceso,
+    decodificar_token_acceso,
+    reto_pkce,
+)
 from app.servicios import mfa
 from app.servicios import oauth as servicio_oauth
 from app.servicios.oauth import PerfilExterno, perfil_github, perfil_google
@@ -287,7 +294,8 @@ async def test_no_se_desvincula_la_unica_forma_de_entrar(cliente, proveedores, p
         "/auth/web/refrescar", headers={"Cookie": f"{COOKIE_REFRESCO}={refresco}"}
     )
     cab = {"Authorization": f"Bearer {r.json()['token_acceso']}"}
-    assert (await cliente.delete("/usuarios/yo/identidades/google", headers=cab)).status_code == 409
+    r = await cliente.post("/usuarios/yo/identidades/google/desvincular", json={}, headers=cab)
+    assert r.status_code == 409
 
 
 async def test_oauth_no_se_salta_el_mfa(cliente, proveedores, perfil, monkeypatch):
@@ -319,3 +327,120 @@ async def test_oauth_no_se_salta_el_mfa(cliente, proveedores, perfil, monkeypatc
     )
     assert r.status_code == 200
     assert COOKIE_REFRESCO in _cookies(r)
+
+
+# --- Reautenticación de las cuentas sin contraseña: falla en cerrado ---
+
+
+async def _cab_oauth(cliente) -> dict:
+    """Sesión recién abierta con Google por una cuenta sin contraseña."""
+    cookie, state = await _ida(cliente)
+    refresco = _cookies(await _vuelta(cliente, cookie, state))[COOKIE_REFRESCO]
+    r = await cliente.post(
+        "/auth/web/refrescar", headers={"Cookie": f"{COOKIE_REFRESCO}={refresco}"}
+    )
+    return {"Authorization": f"Bearer {r.json()['token_acceso']}"}
+
+
+def _mas_tarde(monkeypatch, minutos: int) -> None:
+    """La sesión sigue viva, pero el login fue hace `minutos`."""
+    momento = ahora() + timedelta(minutes=minutos)
+    monkeypatch.setattr(mfa, "ahora", lambda: momento)
+
+
+async def test_el_refresco_conserva_la_hora_del_login(cliente, proveedores, perfil):
+    cab = await _cab_oauth(cliente)
+    datos = decodificar_token_acceso(cab["Authorization"].split()[1])
+    assert datos.autenticado_en is not None
+    assert abs((ahora() - datos.autenticado_en).total_seconds()) < 60
+
+
+async def test_sin_contrasena_y_login_reciente_puede_cambiar_como_entra(
+    cliente, proveedores, perfil
+):
+    cab = await _cab_oauth(cliente)
+    r = await cliente.post("/usuarios/yo/mfa/iniciar", json={}, headers=cab)
+    assert r.status_code == 200
+    r = await cliente.post("/usuarios/yo/identidades/github", json={}, headers=cab)
+    assert r.status_code == 200
+
+
+async def test_sin_contrasena_un_token_robado_no_cambia_como_se_entra(
+    cliente, proveedores, perfil, monkeypatch, actores
+):
+    """Antes del arreglo, sin contraseña no se pedía NADA: con un access token robado se podía
+    vincular el GitHub del atacante o activarle un MFA suyo y dejar fuera al dueño."""
+    cab = await _cab_oauth(cliente)
+    _mas_tarde(monkeypatch, 10)
+    for ruta in (
+        "/usuarios/yo/mfa/iniciar",
+        "/usuarios/yo/identidades/github",
+        "/usuarios/yo/identidades/google/desvincular",
+    ):
+        r = await cliente.post(ruta, json={}, headers=cab)
+        assert r.status_code == 403, ruta
+        assert "Vuelve a iniciar sesión" in r.json()["detail"]
+    assert COOKIE_OAUTH not in _cookies(r)
+
+    r = await cliente.get(
+        "/auditoria?accion=mfa_reautenticacion_fallida", headers=actores.cab["admin"]
+    )
+    assert r.json()["total"] == 3
+
+
+async def test_un_token_sin_hora_de_login_cuenta_como_antiguo(cliente, proveedores, perfil):
+    cab = await _cab_oauth(cliente)
+    yo = (await cliente.get("/usuarios/yo", headers=cab)).json()
+    viejo = {"Authorization": f"Bearer {crear_token_acceso(yo['id'], 0)}"}
+    r = await cliente.post("/usuarios/yo/mfa/iniciar", json={}, headers=viejo)
+    assert r.status_code == 403
+
+
+async def test_sin_contrasena_con_mfa_el_codigo_es_la_prueba(
+    cliente, proveedores, perfil, monkeypatch
+):
+    monkeypatch.setattr(mfa, "_instante", lambda: 1_800_000_000.0)
+    cab = await _cab_oauth(cliente)
+    secreto = (await cliente.post("/usuarios/yo/mfa/iniciar", json={}, headers=cab)).json()[
+        "secreto"
+    ]
+    r = await cliente.post(
+        "/usuarios/yo/mfa/activar",
+        json={"codigo": pyotp.TOTP(secreto).at(1_800_000_000)},
+        headers=cab,
+    )
+    assert r.status_code == 200
+
+    _mas_tarde(monkeypatch, 10)
+    r = await cliente.post("/usuarios/yo/identidades/github", json={}, headers=cab)
+    assert r.status_code == 403
+    r = await cliente.post(
+        "/usuarios/yo/identidades/github",
+        json={"codigo": pyotp.TOTP(secreto).at(1_800_000_030)},
+        headers=cab,
+    )
+    assert r.status_code == 200
+
+
+async def test_desvincular_con_contrasena_la_exige(cliente, proveedores, perfil):
+    await crear_usuario("yo@empresa.com")
+    cab = await cabeceras(cliente, "yo@empresa.com")
+    r = await cliente.post(
+        "/usuarios/yo/identidades/github", json={"contrasena": CONTRASENA}, headers=cab
+    )
+    state = parse_qs(urlparse(r.json()["url"]).query)["state"][0]
+    await _vuelta(cliente, _cookies(r)[COOKIE_OAUTH], state, "github")
+
+    r = await cliente.post(
+        "/usuarios/yo/identidades/github/desvincular",
+        json={"contrasena": "incorrecta-123"},
+        headers=cab,
+    )
+    assert r.status_code == 422
+    r = await cliente.post(
+        "/usuarios/yo/identidades/github/desvincular",
+        json={"contrasena": CONTRASENA},
+        headers=cab,
+    )
+    assert r.status_code == 204
+    assert (await cliente.get("/usuarios/yo", headers=cab)).json()["proveedores"] == []

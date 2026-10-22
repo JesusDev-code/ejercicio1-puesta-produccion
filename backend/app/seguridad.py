@@ -1,7 +1,8 @@
 import base64
 import hashlib
 import secrets
-from datetime import timedelta
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 
 import jwt
@@ -13,7 +14,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 from app.config import obtener_configuracion
-from app.modelos import ahora
+from app.modelos import a_utc, ahora
 
 _hasher = PasswordHasher()
 
@@ -33,7 +34,17 @@ def verificar_contrasena(hash_guardado: str | None, contrasena: str) -> bool:
         return False
 
 
-def crear_token_acceso(usuario_id: int, version_sesion: int) -> str:
+@dataclass(frozen=True)
+class DatosAcceso:
+    usuario_id: int
+    version_sesion: int
+    # Hora del login original (no del último refresco). None en tokens de antes de existir
+    autenticado_en: datetime | None
+
+
+def crear_token_acceso(
+    usuario_id: int, version_sesion: int, autenticado_en: datetime | None = None
+) -> str:
     config = obtener_configuracion()
     momento = ahora()
     datos = {
@@ -44,12 +55,15 @@ def crear_token_acceso(usuario_id: int, version_sesion: int) -> str:
         "exp": momento + timedelta(minutes=config.acceso_minutos),
         "jti": secrets.token_hex(8),
     }
+    if autenticado_en is not None:
+        # a_utc: SQLite la devuelve sin zona, y .timestamp() la tomaría como hora local
+        datos["aut"] = int(a_utc(autenticado_en).timestamp())
     return jwt.encode(datos, config.jwt_secreto, algorithm=config.jwt_algoritmo)
 
 
-def decodificar_token_acceso(token: str) -> tuple[int, int] | None:
-    """Devuelve (id de usuario, versión de sesión), o None si el token es inválido, ha caducado
-    o no es de acceso. Si la versión sigue vigente lo decide quien tiene el usuario (la BD)."""
+def decodificar_token_acceso(token: str) -> DatosAcceso | None:
+    """None si el token es inválido, ha caducado o no es de acceso. Si la versión sigue vigente
+    lo decide quien tiene el usuario (la BD)."""
     config = obtener_configuracion()
     try:
         datos = jwt.decode(
@@ -63,8 +77,13 @@ def decodificar_token_acceso(token: str) -> tuple[int, int] | None:
     if datos.get("tipo") != "acceso":
         return None
     try:
-        return int(datos["sub"]), int(datos["ver"])
-    except (TypeError, ValueError):
+        aut = datos.get("aut")
+        return DatosAcceso(
+            int(datos["sub"]),
+            int(datos["ver"]),
+            datetime.fromtimestamp(int(aut), UTC) if aut is not None else None,
+        )
+    except (TypeError, ValueError, OverflowError, OSError):
         return None
 
 

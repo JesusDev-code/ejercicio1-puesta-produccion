@@ -121,8 +121,10 @@ export class Api {
     ).then((r) => r.url);
   }
 
-  desvincularProveedor(proveedor: ProveedorOAuth): Promise<unknown> {
-    return firstValueFrom(this.http.delete(`/api/usuarios/yo/identidades/${proveedor}`));
+  desvincularProveedor(proveedor: ProveedorOAuth, contrasena: string | null): Promise<unknown> {
+    return firstValueFrom(
+      this.http.post(`/api/usuarios/yo/identidades/${proveedor}/desvincular`, { contrasena }),
+    );
   }
 
   // --- Incidentes ---

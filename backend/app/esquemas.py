@@ -78,9 +78,13 @@ class MfaEntrada(Entrada):
 
 
 class ReautenticacionEntrada(Entrada):
-    # Obligatoria si la cuenta tiene contraseña: un access token robado no basta para cambiar
-    # cómo se entra en ella. Una cuenta que solo entra con Google o GitHub no tiene ninguna
+    """Prueba fresca de identidad: un access token robado no basta para cambiar cómo se entra.
+
+    Con contraseña, la contraseña. Sin ella (solo Google o GitHub): un código MFA si lo tiene
+    activo, o haber iniciado sesión hace menos de 5 minutos."""
+
     contrasena: str | None = Field(default=None, min_length=1, max_length=128)
+    codigo: str | None = Field(default=None, min_length=6, max_length=30)
 
 
 class MfaAlta(BaseModel):

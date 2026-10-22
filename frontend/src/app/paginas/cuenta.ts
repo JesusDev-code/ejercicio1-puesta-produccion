@@ -4,7 +4,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 
 import { Api } from '../core/api';
-import { codigo, mensajeGeneral } from '../core/errores';
+import { codigo, detalle, mensajeGeneral } from '../core/errores';
 import { PROVEEDORES, ProveedorOAuth, ROLES } from '../core/modelos';
 import { Sesion } from '../core/sesion';
 import { MINIMO_CONTRASENA, coinciden } from '../core/validadores';
@@ -108,7 +108,7 @@ import { PanelMfa } from '../ui/panel-mfa';
           } @else {
             @if (sesion.usuario()?.tiene_contrasena !== false) {
               <div class="campo">
-                <label for="c-vinculo-pass">Contraseña (para vincular)</label>
+                <label for="c-vinculo-pass">Contraseña (para vincular o desvincular)</label>
                 <input id="c-vinculo-pass" type="password" class="entrada" autocomplete="current-password" [formControl]="contrasenaVinculo" />
               </div>
             }
@@ -117,7 +117,8 @@ import { PanelMfa } from '../ui/panel-mfa';
                 <li>
                   <span>{{ nombres[p] }}</span>
                   @if (vinculado(p)) {
-                    <button type="button" class="btn compacto btn-suave" [disabled]="ocupado()" (click)="desvincular(p)">Desvincular</button>
+                    <button type="button" class="btn compacto btn-suave" [disabled]="ocupado() || (sesion.usuario()?.tiene_contrasena !== false && contrasenaVinculo.invalid)"
+                      (click)="desvincular(p)">Desvincular</button>
                   } @else {
                     <button type="button" class="btn compacto btn-oro" [disabled]="ocupado() || (sesion.usuario()?.tiene_contrasena !== false && contrasenaVinculo.invalid)"
                       (click)="vincular(p)">Vincular</button>
@@ -245,21 +246,30 @@ export class Cuenta implements OnInit {
       // Navegación completa: el proveedor no es una ruta de la SPA
       window.location.assign(url);
     } catch (e) {
-      const c = codigo(e);
-      this.avisoVinculo.set({ ok: false, texto: c === 422 ? 'La contraseña no es correcta.' : mensajeGeneral(e) });
+      this.avisoVinculo.set({ ok: false, texto: this.textoReautenticacion(e) });
       this.ocupado.set(false);
     }
+  }
+
+  /** 422: contraseña mal. 403: cuenta sin contraseña con un login de hace más de 5 minutos. */
+  private textoReautenticacion(e: unknown): string {
+    const c = codigo(e);
+    if (c === 422) return 'La contraseña no es correcta.';
+    if (c === 403) return `${detalle(e) ?? 'Vuelve a iniciar sesión para confirmar.'} Cierra sesión y entra de nuevo.`;
+    return mensajeGeneral(e);
   }
 
   async desvincular(p: ProveedorOAuth): Promise<void> {
     this.ocupado.set(true);
     this.avisoVinculo.set(null);
     try {
-      await this.api.desvincularProveedor(p);
+      const conContrasena = this.sesion.usuario()?.tiene_contrasena !== false;
+      await this.api.desvincularProveedor(p, conContrasena ? this.contrasenaVinculo.value : null);
+      this.contrasenaVinculo.reset();
       await this.sesion.cargarUsuario();
       this.avisoVinculo.set({ ok: true, texto: `${PROVEEDORES[p]} desvinculado.` });
     } catch (e) {
-      this.avisoVinculo.set({ ok: false, texto: mensajeGeneral(e) });
+      this.avisoVinculo.set({ ok: false, texto: this.textoReautenticacion(e) });
     } finally {
       this.ocupado.set(false);
     }

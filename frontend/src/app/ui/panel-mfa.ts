@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, output, signal } 
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 
 import { Api } from '../core/api';
-import { codigo as codigoHttp, mensajeGeneral } from '../core/errores';
+import { codigo as codigoHttp, detalle, mensajeGeneral } from '../core/errores';
 import { MfaAlta } from '../core/modelos';
 import { Sesion } from '../core/sesion';
 
@@ -190,7 +190,8 @@ export class PanelMfa {
         this.alta.set(await this.api.iniciarMfa(this.contrasena(this.formContrasena.getRawValue().contrasena)));
         this.formContrasena.reset();
       },
-      { 422: 'La contraseña no es correcta.' },
+      // 403: cuenta sin contraseña cuyo login tiene más de 5 minutos
+      { 422: 'La contraseña no es correcta.', 403: 'Vuelve a iniciar sesión para confirmar que eres tú: cierra sesión y entra de nuevo.' },
     );
   }
 

@@ -9,7 +9,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 
 from app.config import obtener_configuracion
 from app.db import FabricaSesion
-from app.dependencias import Admin, IpCliente, Sesion, _bearer, usuario_actual
+from app.dependencias import Admin, IpCliente, Sesion, _bearer, identificacion, usuario_operativo
 from app.errores import NoAutenticado, NoEncontrado, Prohibido
 from app.esquemas import (
     EventoSalida,
@@ -105,7 +105,9 @@ async def _admin_breve(
     """Como `Admin`, pero con una sesión de BD que se cierra al momento: el stream dura
     minutos y no debe retener una conexión del pool mientras tanto."""
     async with FabricaSesion() as sesion:
-        usuario = await usuario_actual(sesion, credenciales)
+        usuario = (await identificacion(sesion, credenciales)).usuario
+    # Las mismas barreras que `Admin`: un admin sin MFA activado tampoco ve el stream
+    await usuario_operativo(usuario)
     if usuario.rol != Rol.admin:
         raise Prohibido("Permisos insuficientes")
 

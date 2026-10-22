@@ -323,7 +323,7 @@ Bearer, y deja de valer si entre medias cambia la contraseña o se cierran las s
 | No se prueba el millón de códigos | 5/min por IP y, además, 5 fallos seguidos bloquean la cuenta 15 minutos, cambie o no la IP. El contador se suma en la propia BD |
 | Desfase de reloj | Se aceptan el paso anterior, el actual y el siguiente (±30 s) |
 | Sin el móvil | 10 códigos de recuperación de un solo uso (solo su hash en la BD). Se pueden regenerar |
-| Un token robado no cambia el segundo factor | Activar, desactivar o regenerar pide la contraseña y/o un código |
+| Un token robado no cambia cómo se entra | Activar el MFA, vincular o desvincular un proveedor pide una prueba fresca: la contraseña; sin contraseña, un código MFA o un login de hace menos de 5 min (claim `aut` del token, que se hereda al refrescar). Falla en cerrado: 403 «vuelve a iniciar sesión». Desactivar o regenerar pide además un código |
 | Ningún método de entrada se lo salta | Google y GitHub también acaban en el desafío si la cuenta tiene MFA |
 
 El **personal** (admin y analista) está obligado: hasta activarlo, cualquier ruta que no sea su
@@ -859,7 +859,7 @@ datos de clientes expuesta…), cada una con su historial de estados, notas y au
 | `GET` | `/usuarios/yo` | Autenticado |
 | `PATCH` | `/usuarios/yo/contrasena` | Autenticado, 5/min |
 | `POST` | `/usuarios/yo/mfa/iniciar`, `/activar`, `/codigos`, `/desactivar` | Autenticado, 5/min |
-| `POST`, `DELETE` | `/usuarios/yo/identidades/{proveedor}` | Autenticado (vincular pide la contraseña) |
+| `POST` | `/usuarios/yo/identidades/{proveedor}`, `/{proveedor}/desvincular` | Autenticado, 5/min (prueba fresca: contraseña, código MFA o login reciente) |
 | `DELETE` | `/usuarios/{id}/mfa` | Admin |
 | `GET`, `POST` | `/usuarios` | Admin |
 | `PATCH` | `/usuarios/{id}/rol`, `/activo`, `/contrasena` | Admin |

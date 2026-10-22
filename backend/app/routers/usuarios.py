@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Query, Request, Response, status
 
 from app.config import obtener_configuracion
-from app.dependencias import Admin, IpCliente, Sesion, UsuarioActual
+from app.dependencias import Admin, Identificado, IpCliente, Sesion, UsuarioActual
 from app.esquemas import (
     CambioActivoEntrada,
     CambioContrasenaEntrada,
@@ -90,11 +90,13 @@ async def unirse_a_empresa(
 async def iniciar_mfa(
     request: Request,
     datos: ReautenticacionEntrada,
-    usuario: UsuarioActual,
+    ident: Identificado,
     sesion: Sesion,
     ip: IpCliente,
 ):
-    return await servicio_mfa.iniciar(sesion, usuario, datos.contrasena, ip)
+    return await servicio_mfa.iniciar(
+        sesion, ident.usuario, datos.contrasena, ip, ident.autenticado_en
+    )
 
 
 @router.post("/yo/mfa/activar", response_model=CodigosRecuperacion)
@@ -137,22 +139,45 @@ async def vincular_identidad(
     response: Response,
     proveedor: str,
     datos: ReautenticacionEntrada,
-    usuario: UsuarioActual,
+    ident: Identificado,
     sesion: Sesion,
     ip: IpCliente,
 ):
     """Devuelve la URL del proveedor y deja la cookie del flujo ligada a ESTA cuenta (y a su
     versión de sesión: si cambia la contraseña entre medias, la vinculación no vale)."""
-    await servicio_mfa.reautenticar(sesion, usuario, datos.contrasena, ip)
+    usuario = ident.usuario
+    await servicio_mfa.reautenticar(
+        sesion,
+        usuario,
+        datos.contrasena,
+        ip,
+        autenticado_en=ident.autenticado_en,
+        codigo=datos.codigo,
+    )
     url = iniciar_oauth(response, proveedor, vincular_a=(usuario.id, usuario.version_sesion))
     return UrlOAuth(url=url)
 
 
-@router.delete("/yo/identidades/{proveedor}", status_code=status.HTTP_204_NO_CONTENT)
+# POST y no DELETE: lleva cuerpo (la reautenticación)
+@router.post("/yo/identidades/{proveedor}/desvincular", status_code=status.HTTP_204_NO_CONTENT)
+@limitador.limit(_limite)
 async def desvincular_identidad(
-    proveedor: str, usuario: UsuarioActual, sesion: Sesion, ip: IpCliente
+    request: Request,
+    proveedor: str,
+    datos: ReautenticacionEntrada,
+    ident: Identificado,
+    sesion: Sesion,
+    ip: IpCliente,
 ) -> None:
-    await servicio_oauth.desvincular(sesion, usuario, proveedor, ip)
+    await servicio_mfa.reautenticar(
+        sesion,
+        ident.usuario,
+        datos.contrasena,
+        ip,
+        autenticado_en=ident.autenticado_en,
+        codigo=datos.codigo,
+    )
+    await servicio_oauth.desvincular(sesion, ident.usuario, proveedor, ip)
 
 
 @router.get("", response_model=Pagina[UsuarioSalida])

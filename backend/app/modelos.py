@@ -196,6 +196,9 @@ class TokenRefresco(Base):
     usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)
     hash_token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     familia_id: Mapped[str] = mapped_column(String(64), index=True)
+    # Cuándo se hizo el login que abrió la familia. Pasa de token en token al refrescar: es lo
+    # que distingue «acaba de entrar» de «lleva una semana con la sesión abierta»
+    autenticado_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     expira_en: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     revocado_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
