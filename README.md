@@ -64,7 +64,7 @@ separado, y tiene su propio README.
 ├── scripts/                 Utilidades de operación (cuentas de evaluación)
 ├── docs/
 │   ├── UMBRAL.md            Documentación funcional y de seguridad completa
-│   ├── presupuesto-cloud.md Presupuesto de producción por proveedor y nivel de usuarios
+│   ├── presupuesto.md       Presupuesto de producción por proveedor y nivel de usuarios
 │   └── img/presupuesto/     Gráficos del presupuesto
 ├── .github/workflows/ci.yml Integración y despliegue continuos
 ├── docker-compose.yml       Producción (Dokploy)
@@ -251,7 +251,7 @@ Dominios, variables, puesta en marcha desde cero y restauración de copias:
 | Documento | Contenido |
 |---|---|
 | [`docs/UMBRAL.md`](docs/UMBRAL.md) | Documentación completa: funcionalidad, roles, multiempresa, autenticación, seguridad capa a capa, OWASP, pruebas y decisiones de diseño |
-| [`docs/presupuesto-cloud.md`](docs/presupuesto-cloud.md) | Coste de poner en producción y mantener Umbral en AWS, Render, Azure, Google Cloud y OVHcloud, para niveles de usuarios bajo, medio y alto |
+| [`docs/presupuesto.md`](docs/presupuesto.md) | Coste de poner en producción y mantener Umbral en AWS, Render, Azure, Google Cloud y OVHcloud, para niveles de usuarios bajo, medio y alto |
 | [`backend/README.md`](backend/README.md) | API: arranque, variables de entorno, endpoints, migraciones, CLI, backups |
 | [`frontend/README.md`](frontend/README.md) | SPA: arranque, estructura, decisiones de seguridad, tests unitarios y E2E |
 | [`senuelo/README.md`](senuelo/README.md) | Señuelo y generador de eventos |
